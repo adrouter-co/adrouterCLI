@@ -67,17 +67,25 @@ jobs:
       - run: npm run check
       - run: npm run check:beta-readiness
       - run: node scripts/test.mjs
-      - run: node scripts/publish.mjs --dry-run
       - name: Protected staging canary
         run: node scripts/staging-canary.mjs
       - name: Build release metadata from tagged source
         run: |
           mkdir -p release-assets
+          node scripts/publish.mjs --dry-run --out release-assets --manifest release-assets/npm-artifacts.json
           npx --no-install cyclonedx-npm --output-file release-assets/adrouterCLI.cdx.json --spec-version 1.6
           cp THIRD_PARTY_NOTICES.md release-assets/
           cp docs/bundled-sources.json release-assets/BUNDLED_SOURCES.json
           node scripts/release-notes.mjs extract --version "${GITHUB_REF_NAME#v}" --tag "${GITHUB_REF_NAME}" --out release-assets/RELEASE_NOTES.md
-          (cd release-assets && sha256sum adrouterCLI.cdx.json BUNDLED_SOURCES.json THIRD_PARTY_NOTICES.md > SHA256SUMS)
+          (cd release-assets && sha256sum adrouter-cli-*.tgz npm-artifacts.json adrouterCLI.cdx.json BUNDLED_SOURCES.json THIRD_PARTY_NOTICES.md > SHA256SUMS)
+      - name: Attest bundled npm tarball
+        uses: actions/attest@f7c74d28b9d84cb8768d0b8ca14a4bac6ef463e6 # v4
+        with:
+          subject-path: release-assets/adrouter-cli-*.tgz
+      - name: Attest npm artifact manifest
+        uses: actions/attest@f7c74d28b9d84cb8768d0b8ca14a4bac6ef463e6 # v4
+        with:
+          subject-path: release-assets/npm-artifacts.json
       - name: Attest SBOM
         uses: actions/attest@f7c74d28b9d84cb8768d0b8ca14a4bac6ef463e6 # v4
         with:
@@ -99,7 +107,9 @@ jobs:
           gh release create "${GITHUB_REF_NAME}" --verify-tag --draft --prerelease \
             --title "${GITHUB_REF_NAME}" --notes-file release-assets/RELEASE_NOTES.md \
             release-assets/adrouterCLI.cdx.json \
+            release-assets/adrouter-cli-*.tgz \
             release-assets/BUNDLED_SOURCES.json \
+            release-assets/npm-artifacts.json \
             release-assets/THIRD_PARTY_NOTICES.md \
             release-assets/SHA256SUMS
       - name: Verify staged draft inventory, checksums, and attestations

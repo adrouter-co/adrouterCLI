@@ -3,7 +3,7 @@
 # AdRouterCLI
 
 AdRouterCLI is a terminal coding agent that routes model requests through
-AdRouter. Version `0.81.0-beta.1` is an MIT-licensed public-source and npm
+AdRouter. Version `0.81.0-beta.2` is an MIT-licensed public-source and npm
 prerelease; hosted access remains invite-only. AdRouterCLI is derived from
 [Mario Zechner's upstream project](UPSTREAM.md), whose MIT license and
 attribution are preserved.
@@ -139,13 +139,14 @@ belong in GitHub Issues; usage questions belong in GitHub Discussions. See
 Inspect the immutable source tag before installation:
 
 ```sh
-gh api repos/adrouter/adrouterCLI/git/ref/tags/v0.81.0-beta.1
-gh api repos/adrouter/adrouterCLI/tarball/v0.81.0-beta.1 > adrouterCLI-v0.81.0-beta.1.tar.gz
+gh api repos/adrouter/adrouterCLI/git/ref/tags/v0.81.0-beta.2
+gh api repos/adrouter/adrouterCLI/tarball/v0.81.0-beta.2 > adrouterCLI-v0.81.0-beta.2.tar.gz
 ```
 
-The release draft includes a CycloneDX SBOM, bundled-source inventory,
-third-party notices, and checksums. All three metadata files must have GitHub
-artifact attestations before npm staging.
+The release draft includes the single bundled npm tarball, its artifact
+manifest, a CycloneDX SBOM, bundled-source inventory, third-party notices, and
+checksums. The tarball and release metadata must have GitHub artifact
+attestations before npm publication.
 
 - [Upstream provenance](UPSTREAM.md)
 - [MIT license](LICENSE)

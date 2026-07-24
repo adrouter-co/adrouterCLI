@@ -72,5 +72,5 @@ jobs:
       - name: Test with cross-platform isolation
         run: node scripts/test.mjs
 
-      - name: Pack, install all four tarballs, and smoke commands/resources
+      - name: Pack and install the single bundled CLI tarball
         run: node scripts/ci-package-smoke.mjs

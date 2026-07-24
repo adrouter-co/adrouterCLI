@@ -78,6 +78,7 @@ try {
 	run(profile, ["list"]);
 	const doctor = JSON.parse(run(adrouter, ["--json", "doctor"]));
 	if (!doctor || typeof doctor !== "object") throw new Error("adrouter --json doctor did not return a JSON object");
+	run(adrouter, ["--offline", "--no-approve", "--list-models", "adrouter"]);
 
 	const packageRoot =
 		process.platform === "win32"
@@ -90,6 +91,9 @@ try {
 		join("dist", "cli.js"),
 		join("dist", "profile-cli.js"),
 		join("dist", "modes", "interactive", "theme", "dark.json"),
+		join("node_modules", "@adrouter", "ai", "dist", "index.js"),
+		join("node_modules", "@adrouter", "tui", "dist", "index.js"),
+		join("node_modules", "@adrouter", "agent-core", "dist", "index.js"),
 	]) {
 		const path = join(packageRoot, resource);
 		if (!existsSync(path)) throw new Error(`Installed package resource is missing: ${path}`);
@@ -98,8 +102,12 @@ try {
 	if (installedVersion !== expectedVersion) {
 		throw new Error(`Installed package metadata is ${installedVersion}, expected ${expectedVersion}`);
 	}
+	const dependencyTree = JSON.parse(run(npm, ["ls", "--global", "--all", "--json", "--prefix", prefix]));
+	if (dependencyTree.problems?.length) {
+		throw new Error(`Global dependency tree is invalid: ${dependencyTree.problems.join(", ")}`);
+	}
 
-	console.log(`Anonymous registry install verified @adrouter/cli@${expectedVersion} and both commands.`);
+	console.log(`Anonymous registry install verified bundled @adrouter/cli@${expectedVersion} and both commands.`);
 } finally {
 	rmSync(root, { recursive: true, force: true });
 }

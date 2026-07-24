@@ -2,10 +2,11 @@
 
 ## [Unreleased]
 
-## [0.81.0-beta.1] - 2026-07-24
+## [0.81.0-beta.2] - 2026-07-24
 
 ### Changed
 
+- Embedded the private `@adrouter/ai` workspace in the single public AdRouterCLI npm tarball.
 - Changed AdRouter DeepSeek V4 Flash and Pro thinking metadata to expose only `off`, `medium`, and `high`, mapping `off` to the backend `none` level.
 - Changed the built-in AdRouter endpoint to `https://api-staging.adrouter.co`, made official hosted origins default to live ad presentation, added API-key profile validation, and aligned hosted output metadata with the 4,096-token service limit.
 

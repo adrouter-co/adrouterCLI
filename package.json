@@ -38,7 +38,7 @@
 		"version:major": "npm version major -ws --no-git-tag-version && node scripts/sync-versions.js && npm install --package-lock-only --ignore-scripts",
 		"version:set": "npm version -ws",
 		"prepublishOnly": "npm run clean && npm run build && npm run check",
-		"publish": "npm run prepublishOnly && node scripts/publish.mjs",
+		"publish": "npm run prepublishOnly && node scripts/publish.mjs --publish",
 		"publish:dry": "npm run prepublishOnly && node scripts/publish.mjs --dry-run",
 		"release:local": "node scripts/local-release.mjs",
 		"shrinkwrap:coding-agent": "node scripts/generate-coding-agent-shrinkwrap.mjs",
@@ -63,7 +63,7 @@
 	"engines": {
 		"node": ">=22.19.0"
 	},
-	"version": "0.81.0-beta.1",
+	"version": "0.81.0-beta.2",
 	"overrides": {
 		"brace-expansion": "5.0.7",
 		"protobufjs": "7.6.5",

@@ -2,11 +2,11 @@
 
 ## [Unreleased]
 
-## [0.81.0-beta.1] - 2026-07-24
+## [0.81.0-beta.2] - 2026-07-24
 
 ### Changed
 
-- Published the terminal UI as `@adrouter/tui` in lockstep with the AdRouterCLI beta.
+- Embedded the private `@adrouter/tui` workspace in the single public AdRouterCLI npm tarball.
 - Added the AdRouter fixed-viewport, selection, profile header, and sponsorship display adaptations.
 
 ## [0.80.6] - 2026-07-09

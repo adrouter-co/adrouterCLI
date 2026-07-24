@@ -1,6 +1,7 @@
 {
 	"name": "@adrouter/tui",
-	"version": "0.81.0-beta.1",
+	"version": "0.81.0-beta.2",
+	"private": true,
 	"description": "Terminal User Interface library with differential rendering for efficient text-based applications",
 	"type": "module",
 	"main": "dist/index.js",
@@ -34,10 +35,6 @@
 		"url": "https://github.com/adrouter/adrouterCLI/issues"
 	},
 	"homepage": "https://github.com/adrouter/adrouterCLI#readme",
-	"publishConfig": {
-		"access": "public",
-		"provenance": true
-	},
 	"engines": {
 		"node": ">=22.19.0"
 	},

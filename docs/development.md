@@ -9,6 +9,10 @@ npm run check
 ./test.sh
 ```
 
+`npm run release:local -- --skip-binary --skip-bun-install` builds the three
+private internal workspace tarballs in temporary staging, installs them into a
+staged CLI tree, and packs only `@adrouter/cli`.
+
 `npm run check` is read-only. Use `npm run format` explicitly to apply formatting. Development and tests must not use a maintainer's real home or AdRouter state. Package and smoke-test from a clean checkout outside the workspace.
 
 ## Source-linked CLI install

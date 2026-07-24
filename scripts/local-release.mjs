@@ -17,10 +17,11 @@ import {
 } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { delimiter, dirname, isAbsolute, join, relative, resolve } from "node:path";
+import { CLI_PACKAGE, INTERNAL_PACKAGES, createBundledCliTarball } from "./npm-artifact.mjs";
 import { compareBundledPayload } from "./verify-bundled-payload.mjs";
-import { assertPackageTarball, PUBLIC_PACKAGES } from "./package-policy.mjs";
+import { assertPackageTarball } from "./package-policy.mjs";
 
-const packages = PUBLIC_PACKAGES;
+const packages = [...INTERNAL_PACKAGES, CLI_PACKAGE];
 let childEnvironment = process.env;
 
 function printUsage() {
@@ -230,22 +231,6 @@ function createAdRouterShim(installDirectory) {
 	symlinkSync(join("node_modules", ".bin", "adrouter-profile"), join(installDirectory, "adrouter-profile"));
 }
 
-function packPackage(pkg, tarballDirectory) {
-	const packageJson = readPackageJson(pkg.directory);
-	if (packageJson.name !== pkg.name) {
-		throw new Error(`${pkg.directory}/package.json has name ${packageJson.name}, expected ${pkg.name}`);
-	}
-
-	const output = run("npm", ["pack", "--json", "--pack-destination", tarballDirectory], {
-		capture: true,
-		cwd: pkg.directory,
-	});
-	const packed = JSON.parse(output)[0];
-	const tarball = join(tarballDirectory, packed.filename);
-	assertPackageTarball(pkg, packed, tarball);
-	return tarball;
-}
-
 function verifyCliTarball(tarball, sourceBundleDirectory, provenancePath) {
 	const extractionDirectory = mkdtempSync(join(tmpdir(), "adrouter-cli-pack-"));
 	try {
@@ -331,12 +316,12 @@ for (const pkg of packages) {
 	}
 }
 
-const tarballs = new Map();
-for (const pkg of packages) {
-	const tarball = packPackage(pkg, tarballDirectory);
-	tarballs.set(pkg.name, tarball);
-}
-verifyCliTarball(tarballs.get("@adrouter/cli"), sourceBundleDirectory, provenancePath);
+const { packed, tarball: cliTarball } = createBundledCliTarball({
+	outputDirectory: tarballDirectory,
+	repoRoot,
+});
+assertPackageTarball(CLI_PACKAGE, packed, cliTarball);
+verifyCliTarball(cliTarball, sourceBundleDirectory, provenancePath);
 
 let binaryPlatform;
 if (!options.skipInstall) {
@@ -351,9 +336,7 @@ if (!options.skipInstall) {
 	}
 
 	mkdirSync(nodeInstallDirectory, { recursive: true });
-	const dependencies = Object.fromEntries(
-		packages.map((pkg) => [pkg.name, fileSpecifier(nodeInstallDirectory, tarballs.get(pkg.name))]),
-	);
+	const dependencies = { [CLI_PACKAGE.name]: fileSpecifier(nodeInstallDirectory, cliTarball) };
 	const installPackageJson = `${JSON.stringify({ private: true, dependencies, overrides: dependencies }, undefined, "\t")}\n`;
 	writeFileSync(join(nodeInstallDirectory, "package.json"), installPackageJson);
 
@@ -363,9 +346,7 @@ if (!options.skipInstall) {
 
 	if (!options.skipBunInstall) {
 		mkdirSync(bunInstallDirectory, { recursive: true });
-		const bunDependencies = Object.fromEntries(
-			packages.map((pkg) => [pkg.name, fileSpecifier(bunInstallDirectory, tarballs.get(pkg.name))]),
-		);
+		const bunDependencies = { [CLI_PACKAGE.name]: fileSpecifier(bunInstallDirectory, cliTarball) };
 		writeFileSync(join(bunInstallDirectory, "package.json"), `${JSON.stringify({ private: true, dependencies: bunDependencies, overrides: bunDependencies }, undefined, "\t")}\n`);
 		run("bun", ["install", "--production", "--ignore-scripts"], { cwd: bunInstallDirectory });
 		createAdRouterShim(bunInstallDirectory);
@@ -373,7 +354,7 @@ if (!options.skipInstall) {
 	}
 }
 
-const checksumArtifacts = [...tarballs.values()];
+const checksumArtifacts = [cliTarball];
 if (binaryPlatform) {
 	checksumArtifacts.push(
 		join(outDir, `adrouter-${binaryPlatform}.${String(binaryPlatform).startsWith("windows-") ? "zip" : "tar.gz"}`),
@@ -386,9 +367,7 @@ console.log(`  ${outDir}`);
 console.log(`  ${join(outDir, "BUNDLED_SOURCES.json")}`);
 console.log(`  ${join(outDir, "SHA256SUMS")}`);
 console.log("\nTarballs:");
-for (const tarball of tarballs.values()) {
-	console.log(`  ${tarball}`);
-}
+console.log(`  ${cliTarball}`);
 
 if (!options.skipInstall && !options.skipBinary) {
 	console.log("\nLocal Bun binary release:");

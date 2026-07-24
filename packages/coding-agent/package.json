@@ -1,6 +1,6 @@
 {
 	"name": "@adrouter/cli",
-	"version": "0.81.0-beta.1",
+	"version": "0.81.0-beta.2",
 	"description": "AdRouterCLI coding agent with read, bash, edit, and write tools",
 	"type": "module",
 	"piConfig": {
@@ -40,9 +40,9 @@
 		"prepublishOnly": "npm run clean && npm run build && npm run shrinkwrap"
 	},
 	"dependencies": {
-		"@adrouter/agent-core": "0.81.0-beta.1",
-		"@adrouter/ai": "0.81.0-beta.1",
-		"@adrouter/tui": "0.81.0-beta.1",
+		"@adrouter/agent-core": "0.81.0-beta.2",
+		"@adrouter/ai": "0.81.0-beta.2",
+		"@adrouter/tui": "0.81.0-beta.2",
 		"@silvia-odwyer/photon-node": "0.3.4",
 		"@mozilla/readability": "0.6.0",
 		"chalk": "5.6.2",
@@ -57,6 +57,7 @@
 		"minimatch": "10.2.5",
 		"p-limit": "6.2.0",
 		"proper-lockfile": "4.1.2",
+		"retry": "0.12.0",
 		"semver": "7.8.0",
 		"turndown": "7.2.4",
 		"typebox": "1.1.38",
@@ -64,6 +65,11 @@
 		"undici": "8.5.0",
 		"yaml": "2.9.0"
 	},
+	"bundleDependencies": [
+		"@adrouter/agent-core",
+		"@adrouter/ai",
+		"@adrouter/tui"
+	],
 	"overrides": {
 		"brace-expansion": "5.0.7",
 		"protobufjs": "7.6.5",
@@ -109,7 +115,7 @@
 	"homepage": "https://github.com/adrouter/adrouterCLI#readme",
 	"publishConfig": {
 		"access": "public",
-		"provenance": true
+		"tag": "beta"
 	},
 	"engines": {
 		"node": ">=22.19.0"

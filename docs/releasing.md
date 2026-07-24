@@ -1,97 +1,122 @@
 # Release and recovery procedure
 
-All four packages use one beta version and publish in this order:
-`@adrouter/ai`, `@adrouter/tui`, `@adrouter/agent-core`, then
-`@adrouter/cli`. The CLI is always last so no installable command is exposed
-before its exact dependencies exist. A prerelease uses only the `beta` dist-tag;
-it must never move `latest`.
+Only `@adrouter/cli` is public. `@adrouter/ai`, `@adrouter/tui`, and
+`@adrouter/agent-core` remain exact-version dependencies and distinct runtime
+packages, but they are private workspaces embedded in the CLI tarball through
+`bundleDependencies`. Never publish an internal workspace.
 
-## One-time public beta bootstrap
+## Beta.2 bootstrap
 
-Before creating the first tag:
+`0.81.0-beta.2` replaces the withdrawn beta.1 release; beta.1 is never reused.
+The first publication is a direct, user-authenticated npm publication without
+provenance because the package does not yet have a trusted publisher. npm
+requires every package to have `latest`, so both `beta` and the initial `latest`
+may point to beta.2. Testers are still instructed to install `@beta`.
 
-1. Create the GitHub `adrouter` organization, transfer the repository to
-   `adrouter/adrouterCLI`, update local remotes, and confirm Actions and
-   attestations run under that identity.
-2. Apply the branch, immutable beta-tag, and environment protections in
-   [repository settings](../.github/REPOSITORY_SETTINGS.md).
-3. Create the npm `adrouter` organization, require publisher 2FA, add only the
-   release maintainers, and reserve all four public package names.
-4. Merge the release hardening and require a green six-platform CI run before
-   creating `v0.81.0-beta.1`.
-5. Run the one-time bootstrap workflow with the short-lived token. Approve the
-   staged packages with human 2FA in dependency order and approve the CLI last.
-6. Configure the four stage-only trusted publishers, then run the promotion
-   workflow's `publish-github` phase.
-7. Delete the bootstrap token and remove
-   `.github/workflows/npm-bootstrap.yml` in a follow-up commit. Every later beta
-   uses OIDC `stage-npm`, human 2FA approval, then `publish-github`.
+Before tagging:
 
-If any artifact for the intended version already exists or differs in
-integrity or metadata, do not replace it. Increment the beta number in lockstep
-and restart from a new protected tag.
+1. Run `npm run build`, `npm run check`, `npm run test:isolated`,
+   `npm run check:beta-readiness`, and `node scripts/ci-package-smoke.mjs`.
+2. Require the existing Linux, macOS, and Windows arm64/x64 CI matrix to pass
+   against the single bundled tarball.
+3. Confirm the intended version does not exist on npm and that no current
+   release metadata refers to beta.1.
 
-## Tag and draft
+## Tag, canaries, and draft prerelease
 
-Create the immutable protected `vX.Y.Z-beta.N` tag only after the clean-checkout
-build, check, full bundled-source readiness check, isolated test suite, audit,
-signature audit, package dry-run, and six-platform matrix pass. The tag workflow
-runs the semantic ads-off and ads-enabled canaries, creates the CycloneDX SBOM,
-copies the bundled-source inventory and third-party notices, checksums all three,
-attests each file separately, and creates an exact-inventory draft prerelease.
+Create immutable tag `v0.81.0-beta.2` only after the release commit and
+six-platform CI are green. The tag workflow validates the exact tagged source,
+runs protected ads-off and ads-enabled staging canaries without printing the
+beta credential, builds the single npm tarball, records its SHA-512 integrity,
+creates the CycloneDX SBOM and checksums, attests the tarball and release
+metadata, and creates an exact-inventory draft GitHub prerelease.
 
-The bootstrap and promotion workflows accept the tag explicitly, check out that
-tag, repeat the validation, and verify the draft plus all three attestations
-before any npm registry operation.
+Do not publish npm or make the GitHub prerelease public if a canary, checksum,
+attestation, or draft-inventory check fails.
 
-## npm staging and human approval
+## Clean-tag rebuild and authentication pause
 
-Automation packs all four packages first and records each tarball's SHA-1,
-SHA-512 integrity, byte size, name, and version. It submits prebuilt tarballs to
-npm staging in dependency order and downloads every staged artifact again for
-integrity and metadata comparison.
+From a new temporary checkout of the exact tag:
 
-Approval is deliberately not described as atomic: npm stages and approves each
-package separately. A maintainer performs 2FA approval in the same dependency
-order and approves `@adrouter/cli` last. Publish the GitHub prerelease only after
-all four public packages resolve to the tagged version under `beta`, none resolve
-to it under `latest`, registry integrity and metadata match the recorded
-artifact, and anonymous temporary-prefix installs pass on all six supported
-platforms. Each install verifies `adrouter`, `adrouter-profile`, `--version`,
-`--help`, JSON doctor output, and packaged runtime resources.
+```sh
+npm ci --ignore-scripts
+npm run build
+npm run check
+npm run test:isolated
+npm run check:beta-readiness
+node scripts/publish.mjs --dry-run --out /absolute/clean/output --manifest /absolute/clean/npm-artifacts.json
+node scripts/ci-package-smoke.mjs
+```
 
-## Interrupted staging recovery
+Record `npm-artifacts.json` and the tarball without modifying either. Confirm
+the clean rebuild has the expected version, bundled tree, size, and SHA-512
+integrity. Pause here for the maintainer's npm authentication and any OTP or
+account verification. Credentials must not be committed, echoed, or retained.
 
-If staging or approval stops partway through:
+Verify the authenticated session, public registry, scope permission, and
+version absence:
 
-1. Do not approve `@adrouter/cli`.
-2. List and inspect every incomplete npm stage. Download its tarball instead of
-   trusting the stage label.
-3. Re-run the tag-bound staging workflow. It may resume only when every existing
-   staged or published package matches the local tagged artifact's version,
-   integrity, metadata, and beta tag, and existing artifacts form a dependency-
-   ordered prefix.
-4. Reject an incomplete stage only through a maintainer's 2FA-authenticated npm
-   session.
-5. On any integrity, metadata, order, or dist-tag mismatch, stop. Do not replace
-   or overwrite the version; increment the beta number everywhere, create a new
-   protected tag, and begin again.
+```sh
+npm whoami --registry https://registry.npmjs.org/
+npm access list packages @adrouter --registry https://registry.npmjs.org/
+npm view @adrouter/cli@0.81.0-beta.2 --registry https://registry.npmjs.org/
+```
 
-For a client defect after approval, deprecate the affected beta, publish a new
-beta version, move only `beta`, and mark the old GitHub prerelease withdrawn.
+The final command must return not found. If it resolves, stop: npm
+name/version combinations are immutable.
 
-## Credentials and follow-up
+## Publish the recorded tarball
 
-Bootstrap uses a short-lived granular token in a required-reviewer environment.
-Delete it immediately after all four package names exist, remove the one-time
-bootstrap workflow in a follow-up commit, and configure exact-workflow,
-stage-only npm OIDC trusted publishers. npm's trusted short-lived token is
-restricted to publish/stage-publish operations, so stage inspection and 2FA
-approval remain explicit maintainer actions.
+Publish only the already-recorded file:
 
-Third-party Actions stay pinned to immutable commit SHAs. Standalone archives
-remain blocked until each target has matching-environment certification and
-required platform signing.
+```sh
+npm publish /absolute/clean/output/adrouter-cli-0.81.0-beta.2.tgz \
+  --access public \
+  --tag beta \
+  --ignore-scripts \
+  --provenance=false \
+  --registry https://registry.npmjs.org/
+```
 
-Every staging, attestation, bootstrap, and publication job refuses to run unless
-`github.repository` is exactly `adrouter/adrouterCLI`.
+`node scripts/publish.mjs --publish --tarball <file> --manifest <file>` performs
+the same direct command after verifying the checkout, version absence,
+permission preflight, artifact filename, and recorded integrity. It must be run
+only during the authenticated publication step.
+
+## Registry verification and GitHub promotion
+
+Poll the public registry until beta.2 resolves. Rebuild
+`npm-artifacts.json` from the protected tag and run:
+
+```sh
+node scripts/verify-npm-release.mjs
+node scripts/verify-registry-install.mjs
+```
+
+Verification requires `beta` and initial `latest` to resolve to beta.2,
+registry integrity and metadata to match the recorded artifact, anonymous
+global installation in a clean prefix, both executables and their diagnostics,
+all embedded internal package roots and runtime assets, and a clean
+`npm ls --global --all`.
+
+Run the promotion workflow's `verify-npm` phase, then its `publish-github`
+phase. The latter runs anonymous registry-install verification on all six
+platforms and publishes the draft GitHub prerelease only after every platform
+succeeds. Log out and revoke the temporary npm credential after verification.
+
+## Later releases and recovery
+
+Configure an npm trusted publisher for `@adrouter/cli` after the bootstrap so
+later releases use OIDC provenance. Exact repository/workflow binding and
+required-reviewer protections remain mandatory.
+
+If beta.2 is defective, preserve and deprecate it, publish beta.3, and move both
+`beta` and `latest` to beta.3. Never overwrite or reuse a published version.
+Backend incidents remain independently containable by pausing traffic and
+revoking beta keys.
+
+Third-party Actions stay pinned to immutable commit SHAs. Standalone native
+archives remain blocked until each target has matching-environment
+certification and required platform signing. Every canary, attestation,
+verification, and publication workflow refuses to run outside
+`adrouter/adrouterCLI`.

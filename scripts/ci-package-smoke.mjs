@@ -5,10 +5,6 @@ import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-function commandPath(directory, name) {
-	return join(directory, "node_modules", ".bin", process.platform === "win32" ? `${name}.cmd` : name);
-}
-
 function run(command, args, options = {}) {
 	const result = spawnSync(command, args, {
 		cwd: options.cwd,
@@ -40,19 +36,31 @@ try {
 		"--skip-test",
 		"--skip-binary",
 		"--skip-bun-install",
+		"--skip-install",
 	]);
-	const install = join(output, "node");
-	const cli = commandPath(install, "adrouter");
-	const profiles = commandPath(install, "adrouter-profile");
+	const install = join(smokeRoot, "global-prefix");
+	const binDirectory = process.platform === "win32" ? install : join(install, "bin");
+	const cli = process.platform === "win32" ? join(install, "adrouter.cmd") : join(binDirectory, "adrouter");
+	const profiles = process.platform === "win32" ? join(install, "adrouter-profile.cmd") : join(binDirectory, "adrouter-profile");
 	const env = {
 		...process.env,
 		ADROUTER_API_URL: "http://127.0.0.1:1",
 		ADROUTER_CODING_AGENT_DIR: join(isolatedHome, ".adrouter", "agent"),
 		ADROUTER_PROFILES_DIR: join(isolatedHome, ".adrouter", "profiles"),
 		HOME: isolatedHome,
+		NPM_CONFIG_PREFIX: install,
 		PI_NO_LOCAL_LLM: "1",
 		USERPROFILE: isolatedHome,
 	};
+	const tarball = join(output, "tarballs", `adrouter-cli-${version}.tgz`);
+	run(process.platform === "win32" ? "npm.cmd" : "npm", [
+		"install",
+		"--global",
+		"--ignore-scripts",
+		"--no-audit",
+		"--no-fund",
+		tarball,
+	], { env });
 
 	if (run(cli, ["--version"], { capture: true, cwd: project, env }).trim() !== version) {
 		throw new Error("Packaged CLI reported the wrong version");
@@ -81,10 +89,26 @@ try {
 		"README.md",
 		"dist/bundled/adroutercli/skills/adroutercli/docs/SKILL.md",
 		"dist/bundled/pi-web-access-0.13.0/dist/index.js",
+		"node_modules/@adrouter/ai/dist/index.js",
+		"node_modules/@adrouter/tui/dist/index.js",
+		"node_modules/@adrouter/agent-core/dist/index.js",
 	]) {
-		if (!existsSync(join(install, "node_modules", "@adrouter", "cli", resource))) {
+		const packageRoot =
+			process.platform === "win32"
+				? join(install, "node_modules", "@adrouter", "cli")
+				: join(install, "lib", "node_modules", "@adrouter", "cli");
+		if (!existsSync(join(packageRoot, resource))) {
 			throw new Error(`Packaged resource is missing: ${resource}`);
 		}
+	}
+	const dependencyTree = JSON.parse(
+		run(process.platform === "win32" ? "npm.cmd" : "npm", ["ls", "--global", "--all", "--json", "--prefix", install], {
+			capture: true,
+			env,
+		}),
+	);
+	if (dependencyTree.problems?.length) {
+		throw new Error(`Packaged dependency tree is invalid: ${dependencyTree.problems.join(", ")}`);
 	}
 	console.log(`Packaged ${version} command and resource smokes passed.`);
 } finally {
