@@ -272,7 +272,10 @@ function writeChecksums(outDir, artifactPaths) {
 }
 
 function requireExecutable(path) {
-	if ((statSync(path).mode & 0o111) === 0) throw new Error(`Expected executable permissions: ${path}`);
+	if (!existsSync(path)) throw new Error(`Expected executable: ${path}`);
+	if (process.platform !== "win32" && (statSync(path).mode & 0o111) === 0) {
+		throw new Error(`Expected executable permissions: ${path}`);
+	}
 }
 
 const options = parseArgs();

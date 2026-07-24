@@ -85,7 +85,9 @@ export function parseCanaryResponse({ adsEnabled, apiKey, contentType, expectedM
 		.map((event) => event.content)
 		.join("");
 	const output = text || events[doneIndex]?.assistant?.content;
-	if (output !== EXPECTED_OUTPUT) throw new Error("Canary response output did not match the expected sentinel");
+	if (typeof output !== "string" || output.trim() !== EXPECTED_OUTPUT) {
+		throw new Error("Canary response output did not match the expected sentinel");
+	}
 	if (text && events[doneIndex]?.assistant?.content && events[doneIndex].assistant.content !== text) {
 		throw new Error("Canary response done snapshot disagrees with reconstructed output");
 	}

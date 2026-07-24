@@ -26,6 +26,14 @@ test("accepts valid JSON and NDJSON protocol responses", () => {
 	assert.equal(parse(baseEvents, { ndjson: false }).turnId, "turn-1");
 	assert.equal(
 		parse([
+			{ ...baseEvents[0], content: " staging-canary-ok\n" },
+			baseEvents[1],
+			{ ...baseEvents[2], assistant: { content: " staging-canary-ok\n" } },
+		]).turnId,
+		"turn-1",
+	);
+	assert.equal(
+		parse([
 			baseEvents[0],
 			{ type: "settlement", settlement: { model } },
 			{ type: "done", model, assistant: { content: "staging-canary-ok" } },
