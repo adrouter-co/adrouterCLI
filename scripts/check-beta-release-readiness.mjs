@@ -2,7 +2,7 @@
 
 import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync, readdirSync } from "node:fs";
-import { join } from "node:path";
+import { join, normalize } from "node:path";
 
 const targetVersion = JSON.parse(readFileSync("package.json", "utf8")).version;
 const repositoryUrl = "git+https://github.com/adrouter/adrouterCLI.git";
@@ -80,6 +80,7 @@ if (
 }
 
 function scanForOldScope(directory) {
+	const readinessScriptPath = normalize("scripts/check-beta-release-readiness.mjs");
 	for (const entry of readdirSync(directory, { withFileTypes: true })) {
 		if ([".git", "dist", "install-lock", "node_modules"].includes(entry.name)) continue;
 		const path = join(directory, entry.name);
@@ -91,7 +92,7 @@ function scanForOldScope(directory) {
 			!/\.(?:c?js|mjs|json|ts)$/.test(entry.name) ||
 			entry.name.endsWith("-lock.json") ||
 			entry.name === "npm-shrinkwrap.json" ||
-			path === "scripts/check-beta-release-readiness.mjs"
+			normalize(path) === readinessScriptPath
 		) {
 			continue;
 		}
