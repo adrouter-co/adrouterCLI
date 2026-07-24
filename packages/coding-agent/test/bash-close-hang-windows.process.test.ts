@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { executeBashWithOperations } from "../src/core/bash-executor.ts";
 import { createBashTool, createLocalBashOperations } from "../src/core/tools/bash.ts";
+import { CHILD_PROCESS_DEADLINE_MS } from "./helpers/child-process.ts";
 
 function toBashSingleQuotedArg(value: string): string {
 	return `'${value.replace(/\\/g, "/").replace(/'/g, `'"'"'`)}'`;
@@ -40,12 +41,16 @@ function cleanupDetachedChild(pidFile: string): void {
 	}
 }
 
-async function withTimeout<T>(promise: Promise<T>, ms: number, onTimeout: () => void): Promise<T> {
+async function withTimeout<T>(promise: Promise<T>, onTimeout: () => void, diagnostics: () => string): Promise<T> {
 	return new Promise<T>((resolve, reject) => {
 		const timeoutId = setTimeout(() => {
 			onTimeout();
-			reject(new Error(`Timed out after ${ms}ms`));
-		}, ms);
+			reject(
+				new Error(
+					`Child-process operation exceeded ${CHILD_PROCESS_DEADLINE_MS}ms and cleanup was forced.\n${diagnostics()}`,
+				),
+			);
+		}, CHILD_PROCESS_DEADLINE_MS);
 
 		promise.then(
 			(value) => {
@@ -91,10 +96,10 @@ describe.skipIf(process.platform !== "win32")("Windows child-process close handl
 				executeBashWithOperations(command, process.cwd(), createLocalBashOperations(), {
 					signal: controller.signal,
 				}),
-				3000,
 				() => {
 					controller.abort();
 				},
+				() => `Command: ${command}\nPID file: ${pidFile}`,
 			);
 
 			expect(result.output).toContain("child-exiting");
@@ -113,9 +118,13 @@ describe.skipIf(process.platform !== "win32")("Windows child-process close handl
 		const bashTool = createBashTool(testDir);
 
 		try {
-			const result = await withTimeout(bashTool.execute("test-call", { command }, controller.signal), 3000, () => {
-				controller.abort();
-			});
+			const result = await withTimeout(
+				bashTool.execute("test-call", { command }, controller.signal),
+				() => {
+					controller.abort();
+				},
+				() => `Command: ${command}\nPID file: ${pidFile}`,
+			);
 
 			expect(getTextOutput(result)).toContain("child-exiting");
 		} finally {

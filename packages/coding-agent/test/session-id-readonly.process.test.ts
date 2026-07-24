@@ -13,6 +13,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { ENV_AGENT_DIR } from "../src/config.ts";
+import { withChildProcessDeadline } from "./helpers/child-process.ts";
 
 const cliPath = resolve(__dirname, "../src/cli.ts");
 const tempDirs: string[] = [];
@@ -72,23 +73,27 @@ async function runCli(
 	const resolvedArgs = typeof args === "function" ? args(dirs) : args;
 
 	let stderr = "";
-	const code = await new Promise<number | null>((resolvePromise, reject) => {
-		const child = spawn(process.execPath, [cliPath, ...resolvedArgs], {
-			cwd: dirs.projectDir,
-			env: {
-				...process.env,
-				[ENV_AGENT_DIR]: dirs.agentDir,
-				PI_OFFLINE: "1",
-				TSX_TSCONFIG_PATH: resolve(__dirname, "../../../tsconfig.json"),
-			},
-			stdio: ["ignore", "ignore", "pipe"],
-		});
-		child.stderr.on("data", (chunk) => {
-			stderr += chunk.toString();
-		});
-		child.on("error", reject);
-		child.on("close", resolvePromise);
+	const child = spawn(process.execPath, [cliPath, ...resolvedArgs], {
+		cwd: dirs.projectDir,
+		env: {
+			...process.env,
+			[ENV_AGENT_DIR]: dirs.agentDir,
+			PI_OFFLINE: "1",
+			TSX_TSCONFIG_PATH: resolve(__dirname, "../../../tsconfig.json"),
+		},
+		stdio: ["ignore", "ignore", "pipe"],
 	});
+	child.stderr.on("data", (chunk) => {
+		stderr += chunk.toString();
+	});
+	const code = await withChildProcessDeadline(
+		child,
+		new Promise<number | null>((resolvePromise, reject) => {
+			child.on("error", reject);
+			child.on("close", resolvePromise);
+		}),
+		() => `STDERR:\n${stderr}`,
+	);
 
 	return { code, agentDir: dirs.agentDir, stderr };
 }

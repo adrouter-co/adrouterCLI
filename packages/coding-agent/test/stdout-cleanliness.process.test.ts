@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { ENV_AGENT_DIR } from "../src/config.ts";
+import { withChildProcessDeadline } from "./helpers/child-process.ts";
 
 const cliPath = resolve(__dirname, "../src/cli.ts");
 
@@ -53,30 +54,34 @@ async function runCli(args: string[]): Promise<{ stdout: string; stderr: string;
 		"utf-8",
 	);
 
-	return await new Promise((resolvePromise, reject) => {
-		const child = spawn(process.execPath, [cliPath, ...args], {
-			cwd: projectDir,
-			env: {
-				...process.env,
-				[ENV_AGENT_DIR]: agentDir,
-				TSX_TSCONFIG_PATH: resolve(__dirname, "../../../tsconfig.json"),
-			},
-			stdio: ["ignore", "pipe", "pipe"],
-		});
-
-		let stdout = "";
-		let stderr = "";
-		child.stdout.on("data", (chunk) => {
-			stdout += chunk.toString();
-		});
-		child.stderr.on("data", (chunk) => {
-			stderr += chunk.toString();
-		});
-		child.on("error", reject);
-		child.on("close", (code) => {
-			resolvePromise({ stdout, stderr, code });
-		});
+	const child = spawn(process.execPath, [cliPath, ...args], {
+		cwd: projectDir,
+		env: {
+			...process.env,
+			[ENV_AGENT_DIR]: agentDir,
+			TSX_TSCONFIG_PATH: resolve(__dirname, "../../../tsconfig.json"),
+		},
+		stdio: ["ignore", "pipe", "pipe"],
 	});
+
+	let stdout = "";
+	let stderr = "";
+	child.stdout.on("data", (chunk) => {
+		stdout += chunk.toString();
+	});
+	child.stderr.on("data", (chunk) => {
+		stderr += chunk.toString();
+	});
+	return await withChildProcessDeadline(
+		child,
+		new Promise((resolvePromise, reject) => {
+			child.on("error", reject);
+			child.on("close", (code) => {
+				resolvePromise({ stdout, stderr, code });
+			});
+		}),
+		() => `STDOUT:\n${stdout}\nSTDERR:\n${stderr}`,
+	);
 }
 
 describe("stdout cleanliness in non-interactive modes", () => {

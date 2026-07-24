@@ -2,6 +2,7 @@ import type { ChildProcessByStdio } from "node:child_process";
 import type { Readable } from "node:stream";
 import { afterEach, describe, expect, it } from "vitest";
 import { spawnProcess, waitForChildProcess } from "../../../src/utils/child-process.ts";
+import { withChildProcessDeadline } from "../../helpers/child-process.ts";
 
 /**
  * Regression test for https://github.com/badlogic/pi-mono/issues/5303
@@ -33,8 +34,8 @@ describe.skipIf(process.platform === "win32")("issue #5303 bash output truncatio
 
 	it("captures output emitted after exit while a detached child holds stdout open", async () => {
 		// The shell exits immediately, but a backgrounded subshell keeps the stdout
-		// pipe open and emits ticks every 50ms, the last well past the 100ms grace.
-		const command = 'printf "HEAD\\n"; ( for i in 1 2 3 4 5 6; do sleep 0.05; printf "TICK$i\\n"; done ) &';
+		// pipe open and emits ticks every 200ms, the last well past the 500ms grace.
+		const command = 'printf "HEAD\\n"; ( for i in 1 2 3 4; do sleep 0.2; printf "TICK$i\\n"; done ) &';
 		child = spawnProcess("/bin/sh", ["-c", command], {
 			stdio: ["ignore", "pipe", "pipe"],
 			detached: true,
@@ -45,11 +46,11 @@ describe.skipIf(process.platform === "win32")("issue #5303 bash output truncatio
 			output += chunk.toString();
 		});
 
-		const exitCode = await waitForChildProcess(child);
+		const exitCode = await withChildProcessDeadline(child, waitForChildProcess(child), () => `STDOUT:\n${output}`);
 
 		expect(exitCode).toBe(0);
 		expect(output).toContain("HEAD");
-		expect(output).toContain("TICK6");
+		expect(output).toContain("TICK4");
 	});
 
 	it("resolves promptly when a detached child holds stdout open but stays quiet", async () => {
@@ -68,7 +69,7 @@ describe.skipIf(process.platform === "win32")("issue #5303 bash output truncatio
 		});
 
 		const start = Date.now();
-		const exitCode = await waitForChildProcess(child);
+		const exitCode = await withChildProcessDeadline(child, waitForChildProcess(child), () => `STDOUT:\n${output}`);
 		const elapsed = Date.now() - start;
 
 		expect(exitCode).toBe(0);

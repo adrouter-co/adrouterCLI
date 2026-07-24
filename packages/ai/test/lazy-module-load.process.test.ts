@@ -44,10 +44,13 @@ function runProbe(action: string): ProbeResult {
 	const result = spawnSync(process.execPath, ["--input-type=module", "--eval", script], {
 		cwd: packageRoot,
 		encoding: "utf8",
+		timeout: 45_000,
 	});
 
 	if (result.status !== 0) {
-		throw new Error(`Probe failed (exit ${result.status})\nSTDOUT:\n${result.stdout}\nSTDERR:\n${result.stderr}`);
+		throw new Error(
+			`Probe failed (exit ${result.status}, signal ${result.signal ?? "none"}, error ${result.error?.message ?? "none"})\nSTDOUT:\n${result.stdout}\nSTDERR:\n${result.stderr}`,
+		);
 	}
 
 	const stdoutLines = result.stdout

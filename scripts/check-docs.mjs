@@ -18,7 +18,7 @@ visit(".");
 
 const failures = [];
 for (const path of markdown) {
-	if (path.endsWith("/CHANGELOG.md")) continue;
+	if (/[\\/]CHANGELOG\.md$/.test(path)) continue;
 	const text = readFileSync(path, "utf8");
 	for (const match of text.matchAll(/\[[^\]]+\]\(([^)]+)\)/g)) {
 		const target = match[1].split("#", 1)[0];

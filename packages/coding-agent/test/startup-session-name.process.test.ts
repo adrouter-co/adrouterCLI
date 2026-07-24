@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { ENV_AGENT_DIR } from "../src/config.ts";
+import { withChildProcessDeadline } from "./helpers/child-process.ts";
 
 const cliPath = resolve(__dirname, "../src/cli.ts");
 const tempDirs: string[] = [];
@@ -79,19 +80,18 @@ async function runCli(args: string[], dirs: CliDirs): Promise<CliResult> {
 		stderr += chunk.toString();
 	});
 
-	return new Promise((resolvePromise, reject) => {
-		const timeout = setTimeout(() => {
-			child.kill("SIGKILL");
-		}, 10_000);
-		child.on("error", (error) => {
-			clearTimeout(timeout);
-			reject(error);
-		});
-		child.on("close", (code, signal) => {
-			clearTimeout(timeout);
-			resolvePromise({ code, signal, stderr });
-		});
-	});
+	return withChildProcessDeadline(
+		child,
+		new Promise((resolvePromise, reject) => {
+			child.on("error", (error) => {
+				reject(error);
+			});
+			child.on("close", (code, signal) => {
+				resolvePromise({ code, signal, stderr });
+			});
+		}),
+		() => `STDERR:\n${stderr}`,
+	);
 }
 
 function setup(): CliDirs {

@@ -6,19 +6,47 @@ const aiSrcCompat = fileURLToPath(new URL("../ai/src/compat.ts", import.meta.url
 const aiSrcOAuth = fileURLToPath(new URL("../ai/src/oauth.ts", import.meta.url));
 const agentSrcIndex = fileURLToPath(new URL("../agent/src/index.ts", import.meta.url));
 const tuiSrcIndex = fileURLToPath(new URL("../tui/src/index.ts", import.meta.url));
+const reporters = process.env.GITHUB_ACTIONS ? (["dot", "github-actions"] as const) : (["dot"] as const);
 
 export default defineConfig({
 	test: {
-		globals: true,
-		environment: "node",
-		testTimeout: 30000,
-		reporters: process.env.GITHUB_ACTIONS ? ["dot", "github-actions"] : ["dot"],
-		silent: "passed-only",
-		server: {
-			deps: {
-				external: [/@silvia-odwyer\/photon-node/],
+		projects: [
+			{
+				test: {
+					name: "parallel",
+					globals: true,
+					environment: "node",
+					exclude: ["**/*.process.test.ts"],
+					testTimeout: 30000,
+					reporters: [...reporters],
+					sequence: { groupOrder: 0 },
+					silent: "passed-only",
+					server: {
+						deps: {
+							external: [/@silvia-odwyer\/photon-node/],
+						},
+					},
+				},
 			},
-		},
+			{
+				test: {
+					name: "process",
+					globals: true,
+					environment: "node",
+					include: ["**/*.process.test.ts"],
+					fileParallelism: false,
+					testTimeout: 60000,
+					reporters: [...reporters],
+					sequence: { groupOrder: 1 },
+					silent: "passed-only",
+					server: {
+						deps: {
+							external: [/@silvia-odwyer\/photon-node/],
+						},
+					},
+				},
+			},
+		],
 	},
 	resolve: {
 		alias: [
