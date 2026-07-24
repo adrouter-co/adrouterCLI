@@ -9,12 +9,19 @@ import { assertResumablePublication, publicationChannel } from "./release-policy
 
 const dryRun = process.argv.includes("--dry-run");
 const stage = process.argv.includes("--stage");
+const firstPublish = process.argv.includes("--first-publish");
 const manifestIndex = process.argv.indexOf("--manifest");
 const manifestPath = manifestIndex >= 0 ? process.argv[manifestIndex + 1] : undefined;
-const knownArgs = new Set(["--dry-run", "--stage", "--manifest", manifestPath]);
+const knownArgs = new Set(["--dry-run", "--stage", "--first-publish", "--manifest", manifestPath]);
 const unknownArgs = process.argv.slice(2).filter((argument) => !knownArgs.has(argument));
-if (unknownArgs.length > 0 || dryRun === stage || (manifestIndex >= 0 && !manifestPath)) {
-	throw new Error("Usage: node scripts/publish.mjs (--dry-run|--stage) [--manifest <path>]");
+if (
+	unknownArgs.length > 0 ||
+	Number(dryRun) + Number(stage) + Number(firstPublish) !== 1 ||
+	(manifestIndex >= 0 && !manifestPath)
+) {
+	throw new Error(
+		"Usage: node scripts/publish.mjs (--dry-run|--stage|--first-publish) [--manifest <path>]",
+	);
 }
 
 function commandForPlatform(command) {
@@ -205,9 +212,13 @@ try {
 		process.exit(0);
 	}
 
-	let items = stagedItems();
+	let items = stage ? stagedItems() : [];
 	let states = collectStates(artifacts, items, downloadDirectory);
 	assertResumablePublication(states, version, channel);
+
+	if (firstPublish && !channel.prerelease) {
+		throw new Error("One-time first publication is restricted to the beta prerelease channel");
+	}
 
 	for (let index = 0; index < PUBLIC_PACKAGES.length; index++) {
 		const pkg = PUBLIC_PACKAGES[index];
@@ -215,10 +226,11 @@ try {
 			console.log(`Verified existing ${states[index].status} artifact ${pkg.name}@${version}; resuming.`);
 			continue;
 		}
+		const publishArgs = stage
+			? ["stage", "publish", artifacts.get(pkg.name).tarball]
+			: ["publish", artifacts.get(pkg.name).tarball];
 		run("npm", [
-			"stage",
-			"publish",
-			artifacts.get(pkg.name).tarball,
+			...publishArgs,
 			"--access",
 			"public",
 			"--tag",
@@ -226,13 +238,22 @@ try {
 			"--provenance",
 			"--ignore-scripts",
 		]);
-		items = stagedItems();
+		items = stage ? stagedItems() : [];
 		states = collectStates(artifacts, items, downloadDirectory);
 		assertResumablePublication(states, version, channel);
-		if (states[index].status !== "staged") throw new Error(`${pkg.name}@${version} was not visible after staging`);
-		console.log(`Staged and integrity-verified ${pkg.name}@${version}.`);
+		const expectedStatus = stage ? "staged" : "published";
+		if (states[index].status !== expectedStatus) {
+			throw new Error(`${pkg.name}@${version} was not visible after ${expectedStatus}`);
+		}
+		console.log(`${stage ? "Staged" : "Published"} and integrity-verified ${pkg.name}@${version}.`);
 	}
-	console.log("All four packages are staged and verified. Approve them with human 2FA in dependency order; approve @adrouter/cli last.");
+	if (stage) {
+		console.log(
+			"All four packages are staged and verified. Approve them with human 2FA in dependency order; approve @adrouter/cli last.",
+		);
+	} else {
+		console.log("All four first-publication packages are public, verified under beta, and absent from latest.");
+	}
 } finally {
 	rmSync(workDirectory, { recursive: true, force: true });
 }
