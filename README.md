@@ -1,0 +1,151 @@
+# AdRouterCLI
+
+AdRouterCLI is a terminal coding agent that routes model requests through
+AdRouter. Version `0.81.0-beta.1` is an MIT-licensed public-source and npm
+prerelease; hosted access remains invite-only. AdRouterCLI is derived from
+[Mario Zechner's upstream project](UPSTREAM.md), whose MIT license and
+attribution are preserved.
+
+Sponsor content is display-only. It is rendered in the terminal and is never
+added to model messages, tool payloads, commands, or edits. The agent can read
+files and propose or execute commands, so accept trust prompts only for
+workspaces you recognize and review command approvals.
+
+## Install and platform support
+
+Node.js 22.19 or newer is required. npm is the only beta distribution channel.
+The six-platform CI matrix must pass before a release can continue.
+
+| Installation | macOS arm64 | macOS x64 | Linux arm64 | Linux x64 | Windows arm64 | Windows x64 |
+| --- | --- | --- | --- | --- | --- | --- |
+| npm on Node.js 22.19+ | Supported | Supported | Supported | Supported | Supported | Supported |
+| Signed standalone archive | Unavailable | Unavailable | Unavailable | Unavailable | Unavailable | Unavailable |
+
+```sh
+npm install --global --ignore-scripts @adrouter/cli@beta
+adrouter --version
+adrouter --help
+```
+
+Unsigned native keyboard helpers are omitted. macOS modifier detection is
+limited to terminal input events, and Windows Shift+Tab depends on the
+terminal's escape-sequence support. The JavaScript fallback remains available.
+Do not download standalone archives: all six entries in
+[`release-manifest.json`](release-manifest.json) are blocked until
+matching-platform certification and signing are available.
+
+## First login, trust, and ads
+
+1. Request an individual, revocable beta key through
+   `https://app-staging.adrouter.co`.
+2. Start `adrouter` inside the intended project.
+3. Accept the trust prompt only after reviewing the project-local `.adrouter`
+   resources it may load.
+4. Run `/login adrouter` and paste the issued key.
+5. Run `/ads` to inspect sponsorship status or opt out immediately.
+
+The hosted beta routes `deepseek-v4-flash` and `deepseek-v4-pro`:
+
+```sh
+adrouter --provider adrouter --model deepseek-v4-flash
+adrouter --provider adrouter --model deepseek-v4-pro
+```
+
+## Profiles
+
+`adrouter-profile` supports only `set`, `list`, `apply`, and `restore`.
+Profiles live outside projects; applying one backs up the managed project
+settings before writing `.adrouter/`.
+
+```sh
+adrouter-profile set work --provider adrouter --model deepseek-v4-flash
+adrouter-profile list
+adrouter-profile apply work --dry-run --no-launch
+adrouter-profile apply work --no-launch
+adrouter-profile restore
+```
+
+Use `--cwd <path>` with `apply` or `restore` to target another workspace.
+
+## Configuration and local data
+
+Global agent state is stored under `~/.adrouter/agent`, profiles under
+`~/.adrouter/profiles`, and trusted project configuration under `.adrouter/`.
+The main environment variables are:
+
+- `ADROUTER_API_URL`: hosted gateway URL.
+- `ADROUTER_API_KEY`: runtime key; prefer `/login` storage for interactive use.
+- `ADROUTER_AD_MODE=live|mock|off`: sponsorship display mode.
+- `ADROUTER_MODEL_ROUTE`: default hosted model route.
+- `ADROUTER_CODING_AGENT_DIR`: explicit global state override.
+- `ADROUTER_PROFILES_DIR`: explicit profile storage override.
+
+See [configuration](docs/configuration.md) for precedence and the complete
+schema. No beta release changes the command names, configuration format,
+hosted API, or persisted state.
+
+## Diagnostics and troubleshooting
+
+The JSON doctor output reports configuration and router reachability without
+printing credentials:
+
+```sh
+adrouter --json doctor
+adrouter --offline --list-models adrouter
+adrouter-profile list
+```
+
+If startup fails, confirm Node.js is at least 22.19, verify the global npm bin
+directory is on `PATH`, rerun doctor, and try `--offline` to separate local
+startup from gateway access. See [troubleshooting](docs/troubleshooting.md) for
+terminal, authentication, trust, model, profile, and connectivity guidance.
+
+## Updates, backup, and uninstallation
+
+```sh
+npm install --global --ignore-scripts @adrouter/cli@beta
+tar -czf adrouter-state-backup.tar.gz -C "$HOME" .adrouter
+npm uninstall --global @adrouter/cli
+```
+
+Uninstalling the package does not delete `~/.adrouter`. Remove that directory
+only when you also intend to delete local sessions, profiles, credentials, and
+trust decisions.
+
+## Privacy and security
+
+Conversation and tool context transit the hosted gateway and selected model
+provider to produce a response. AdRouter does not persist prompts, model output,
+or tool payloads in application logs or its usage ledger. Account, quota,
+routing, sponsorship, settlement, and audit metadata may be retained as
+described in the [beta privacy notice](docs/privacy.md). Send privacy questions
+to `privacy@adrouter.co` only after the tester invitation confirms that the
+mailbox is operational.
+
+Report vulnerabilities through GitHub private vulnerability reporting, not a
+public issue. See [SECURITY.md](SECURITY.md). Reproducible non-sensitive defects
+belong in GitHub Issues; usage questions belong in GitHub Discussions. See
+[SUPPORT.md](SUPPORT.md) and [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md).
+
+## Source verification and attribution
+
+Inspect the immutable source tag before installation:
+
+```sh
+gh api repos/adrouter/adrouterCLI/git/ref/tags/v0.81.0-beta.1
+gh api repos/adrouter/adrouterCLI/tarball/v0.81.0-beta.1 > adrouterCLI-v0.81.0-beta.1.tar.gz
+```
+
+The release draft includes a CycloneDX SBOM, bundled-source inventory,
+third-party notices, and checksums. All three metadata files must have GitHub
+artifact attestations before npm staging.
+
+- [Upstream provenance](UPSTREAM.md)
+- [MIT license](LICENSE)
+- [Third-party notices](THIRD_PARTY_NOTICES.md)
+- [Bundled-source inventory](docs/bundled-sources.json)
+- [Architecture and data flow](docs/architecture.md)
+- [Contributing](CONTRIBUTING.md)
+- [Maintainer development](docs/development.md)
+- [Release and recovery process](docs/releasing.md)
+- [Incident response](docs/incidents.md)

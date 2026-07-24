@@ -1,0 +1,47 @@
+name: Beta bug
+description: Report a reproducible AdRouterCLI beta defect
+title: "[Bug]: "
+labels: ["bug", "beta"]
+body:
+  - type: markdown
+    attributes:
+      value: Remove credentials, prompts, output, tool payloads, account identifiers, and personal paths. Security issues belong in private vulnerability reporting.
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      placeholder: 0.81.0-beta.1
+    validations:
+      required: true
+  - type: input
+    id: platform
+    attributes:
+      label: OS, architecture, Node version, and terminal
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Reproduction
+      description: Minimal sanitized steps from a clean state.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+  - type: checkboxes
+    id: sanitized
+    attributes:
+      label: Privacy
+      options:
+        - label: I removed secrets and private conversation, tool, account, and filesystem data.
+          required: true

@@ -1,0 +1,36 @@
+---
+name: adroutercli
+description: Operate, diagnose, modify, and verify the bundled AdRouterCLI launch safely.
+---
+
+# AdRouterCLI
+
+Use this skill for AdRouterCLI runtime operation, local backend diagnosis, profile overlays, bundled web access, or release verification.
+
+## Run modes
+
+- Normal: `adrouter` starts the interactive coding agent in the current workspace.
+- Live: set `ADROUTER_API_URL`, `ADROUTER_API_KEY`, `ADROUTER_RUNTIME_MODE=live`, and `ADROUTER_AD_MODE=live`, then select `--provider adrouter --model deepseek-v4-flash` or `deepseek-v4-pro`.
+- Mock: omit `DEEPSEEK_API_KEY` from the backend and use `ADROUTER_RUNTIME_MODE=mock`; ad routing and display remain testable with canned model output.
+- Profile: create with `adrouter-profile set <name> --provider <provider> --model <model>`, apply with `adrouter-profile apply <name>`, and undo the project overlay with `adrouter-profile restore`. `adrouter --profile <name>` applies the same overlay explicitly. Plain `adrouter` applies no profile.
+- Web access: bundled tools are `web_search` and `fetch_content`; invoke `/skill:librarian` for research workflows. Configuration is `ADROUTER_CODING_AGENT_DIR/web-search.json`, defaulting to `~/.adrouter/agent/web-search.json`.
+- Ads: inspect with `adrouter ads status`; ads are display-only and must never enter prompts, tools, commands, or edits.
+- Diagnostics: use `adrouter --json doctor`, `adrouter --list-models adrouter`, and read-only `adrouter --json request get /health` or `/v1/models`.
+
+## Troubleshooting
+
+The local backend and CLI use `ADROUTER_API_KEY`; the backend alone uses `DEEPSEEK_API_KEY`. Never reuse or print either key. A healthy mock backend does not prove live DeepSeek auth works. Confirm `/health`, then `/v1/models`, then run a minimal prompt with the selected model. Only `deepseek-v4-flash` and `deepseek-v4-pro` are supported; `deepseek` is a rejected legacy alias.
+
+Inspect isolated state under `~/.adrouter/agent` and project `.adrouter`. Profiles live under `ADROUTER_PROFILES_DIR` or `~/.adrouter/profiles`. Do not read or migrate personal state from other coding agents.
+
+## Safe source changes
+
+The router backend is under `router/backend`. AdRouterCLI source is under `packages/coding-agent`, provider/model integration under `packages/ai`, bundled extensions under `packages/coding-agent/bundled`, and provenance under `docs/bundled-sources.json` plus `THIRD_PARTY_NOTICES.md`.
+
+Preserve unrelated work. Read the local `AGENTS.md`, edit source rather than generated output, and never modify `packages/ai/src/models.generated.ts` directly. Change `packages/ai/scripts/generate-models.ts`, regenerate, then verify the resulting catalog. Keep exact bundle versions, integrity, licenses, and local modification records synchronized.
+
+## Launch constraints and verification
+
+In-app updates are frozen for this bundled launch. `adrouter update ...` only reports the freeze and must not access the network or filesystem. User-managed package install, remove, list, and config remain available.
+
+Run focused tests, `npm run check:branding`, backend typecheck and provider verification, `./test.sh`, then `npm run release:local -- --out <temporary-directory> --force`. Smoke test Node and Bun artifacts with a temporary `HOME`. Inspect packed artifacts for bundled source, compiled web dependencies, skills, licenses, model catalog consistency, and absence of inherited profile or state paths.
