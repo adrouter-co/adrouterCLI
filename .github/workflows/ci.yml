@@ -57,6 +57,12 @@ jobs:
         if: runner.os == 'macOS'
         run: brew install fd ripgrep
 
+      - name: Install Windows prerequisites
+        if: runner.os == 'Windows'
+        run: |
+          choco install fd --version=10.4.2 --yes --no-progress
+          choco install ripgrep --version=14.1.0 --yes --no-progress
+
       - name: Install dependencies without lifecycle scripts
         run: npm ci --ignore-scripts --no-audit --no-fund
 
@@ -72,5 +78,5 @@ jobs:
       - name: Test with cross-platform isolation
         run: node scripts/test.mjs
 
-      - name: Pack, install all four tarballs, and smoke commands/resources
+      - name: Pack and install the single bundled CLI tarball
         run: node scripts/ci-package-smoke.mjs

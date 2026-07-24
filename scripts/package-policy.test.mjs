@@ -47,7 +47,7 @@ test("rejects unexpected docs, local paths, and native executable magic", () => 
 				() =>
 					assertPackageTarball(
 						{ name: "@adrouter/tui", kind: "library" },
-						{ version: "0.81.0-beta.1" },
+						{ version: "0.81.0-beta.2" },
 						fixture.path,
 					),
 				expected,

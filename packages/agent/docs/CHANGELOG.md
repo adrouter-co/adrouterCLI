@@ -2,11 +2,11 @@
 
 ## [Unreleased]
 
-## [0.81.0-beta.1] - 2026-07-24
+## [0.81.0-beta.2] - 2026-07-24
 
 ### Changed
 
-- Published the agent runtime as `@adrouter/agent-core` in lockstep with the AdRouterCLI beta.
+- Embedded the private `@adrouter/agent-core` workspace in the single public AdRouterCLI npm tarball.
 - Preserved command approval, session isolation, and provider transport behavior from the reviewed source.
 
 ## [0.80.6] - 2026-07-09

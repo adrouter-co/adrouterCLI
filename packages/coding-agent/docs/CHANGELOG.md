@@ -2,7 +2,7 @@
 
 ## [Unreleased]
 
-## [0.81.0-beta.1] - 2026-07-24
+## [0.81.0-beta.2] - 2026-07-24
 
 ### Added
 
@@ -11,6 +11,7 @@
 
 ### Changed
 
+- Published only `@adrouter/cli`, with the three private internal workspaces installed into temporary staging and embedded through `bundleDependencies`.
 - Changed bundled state and temporary runtime paths to use AdRouterCLI-owned locations without reading personal Pi state.
 - Disabled AdRouterCLI self and extension updates for the bundled launch while retaining install, remove, list, and config commands.
 - Changed `/login adrouter` to validate staging API keys before saving them and immediately select `deepseek-v4-flash`.

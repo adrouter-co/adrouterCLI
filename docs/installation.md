@@ -8,6 +8,10 @@ adrouter --version
 adrouter --help
 ```
 
+This installs one public package. Its private `@adrouter/ai`, `@adrouter/tui`,
+and `@adrouter/agent-core` runtime packages are embedded in the CLI tarball and
+are not fetched as separate AdRouter registry packages.
+
 If the command is missing, inspect `npm prefix --global`. Add its executable directory to your shell `PATH`; on Windows this is commonly the npm prefix itself, while Unix installations commonly use its `bin` directory. Restart the terminal after changing `PATH`.
 
 For a published native archive, download the archive, `SHA256SUMS`, and SBOM from the same prerelease. Confirm the asset is listed as eligible in `release-manifest.json`, then run `sha256sum -c SHA256SUMS` (or `shasum -a 256 -c SHA256SUMS` on macOS) and `gh attestation verify <asset> --repo adrouter/adrouterCLI`. Do not install an artifact marked blocked.

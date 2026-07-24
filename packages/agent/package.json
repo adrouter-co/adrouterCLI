@@ -1,6 +1,7 @@
 {
 	"name": "@adrouter/agent-core",
-	"version": "0.81.0-beta.1",
+	"version": "0.81.0-beta.2",
+	"private": true,
 	"description": "General-purpose agent with transport abstraction, state management, and attachment support",
 	"type": "module",
 	"main": "./dist/index.js",
@@ -29,7 +30,7 @@
 		"prepublishOnly": "npm run clean && npm run build"
 	},
 	"dependencies": {
-		"@adrouter/ai": "0.81.0-beta.1",
+		"@adrouter/ai": "0.81.0-beta.2",
 		"ignore": "7.0.5",
 		"typebox": "1.1.38",
 		"yaml": "2.9.0"
@@ -52,10 +53,6 @@
 		"url": "https://github.com/adrouter/adrouterCLI/issues"
 	},
 	"homepage": "https://github.com/adrouter/adrouterCLI#readme",
-	"publishConfig": {
-		"access": "public",
-		"provenance": true
-	},
 	"engines": {
 		"node": ">=22.19.0"
 	},

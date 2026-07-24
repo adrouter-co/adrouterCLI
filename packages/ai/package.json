@@ -1,6 +1,7 @@
 {
 	"name": "@adrouter/ai",
-	"version": "0.81.0-beta.1",
+	"version": "0.81.0-beta.2",
+	"private": true,
 	"description": "Unified LLM API with automatic model discovery and provider configuration",
 	"type": "module",
 	"main": "./dist/index.js",
@@ -83,10 +84,6 @@
 		"url": "https://github.com/adrouter/adrouterCLI/issues"
 	},
 	"homepage": "https://github.com/adrouter/adrouterCLI#readme",
-	"publishConfig": {
-		"access": "public",
-		"provenance": true
-	},
 	"engines": {
 		"node": ">=22.19.0"
 	},

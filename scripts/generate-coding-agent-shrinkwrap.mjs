@@ -46,8 +46,10 @@ function sortedPackageEntry(entry) {
 		"version",
 		"resolved",
 		"integrity",
+		"inBundle",
 		"license",
 		"dependencies",
+		"bundleDependencies",
 		"optionalDependencies",
 		"peerDependencies",
 		"peerDependenciesMeta",
@@ -124,11 +126,6 @@ function packageNameFromLockPath(lockPath) {
 	return parts[0];
 }
 
-function registryTarballUrl(packageName, version) {
-	const tarballName = packageName.startsWith("@") ? packageName.split("/")[1] : packageName;
-	return `https://registry.npmjs.org/${packageName}/-/${tarballName}-${version}.tgz`;
-}
-
 function getInternalWorkspaces(lockPackages) {
 	const workspaces = new Map();
 
@@ -196,7 +193,7 @@ function addInternalWorkspace(shrinkwrapPackages, addedPaths, queue, name, works
 	const packageJson = workspace.packageJson;
 	const outputPath = `node_modules/${name}`;
 	const entry = copyPackageJsonEntry(packageJson, { includeName: false });
-	entry.resolved = registryTarballUrl(name, packageJson.version);
+	entry.inBundle = true;
 
 	shrinkwrapPackages[outputPath] = sortedPackageEntry(entry);
 	addedPaths.add(outputPath);

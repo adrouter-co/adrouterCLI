@@ -24,14 +24,22 @@ try {
 		"BUNDLED_SOURCES.json",
 		"SHA256SUMS",
 		"THIRD_PARTY_NOTICES.md",
+		`adrouter-cli-${tag.replace(/^v/, "")}.tgz`,
 		"adrouterCLI.cdx.json",
+		"npm-artifacts.json",
 	];
 	const actual = readdirSync(directory).sort();
 	if (JSON.stringify(actual) !== JSON.stringify(expected)) {
 		throw new Error(`Draft inventory mismatch: ${actual.join(", ")}`);
 	}
 	run("sha256sum", ["-c", "SHA256SUMS"], directory);
-	for (const artifact of ["adrouterCLI.cdx.json", "BUNDLED_SOURCES.json", "THIRD_PARTY_NOTICES.md"]) {
+	for (const artifact of [
+		"adrouterCLI.cdx.json",
+		`adrouter-cli-${tag.replace(/^v/, "")}.tgz`,
+		"BUNDLED_SOURCES.json",
+		"npm-artifacts.json",
+		"THIRD_PARTY_NOTICES.md",
+	]) {
 		const args = ["attestation", "verify", join(directory, artifact), "--repo", "adrouter/adrouterCLI"];
 		if (artifact === "adrouterCLI.cdx.json") {
 			args.push("--predicate-type", "https://cyclonedx.org/bom");

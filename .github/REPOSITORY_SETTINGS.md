@@ -12,12 +12,11 @@ Enable secret scanning with push protection, dependency graph, Dependabot alerts
 Create these protected environments:
 
 - `adrouter-staging`: a required reviewer and `ADROUTER_STAGING_API_KEY`.
-- `npm-bootstrap`: a required reviewer other than the workflow initiator and a
-  short-lived `NPM_BOOTSTRAP_TOKEN`.
-- `npm-publish`: a required reviewer other than the workflow initiator for OIDC
-  staging and final GitHub promotion.
+- `npm-publish`: a required reviewer other than the workflow initiator for
+  registry verification and final GitHub promotion.
 
-Use a unique, low-quota, revocable staging canary key. After bootstrap, configure
-stage-only npm trusted publishers for all four packages against
-`adrouter/adrouterCLI`, `.github/workflows/promote-release.yml`, and the
-`npm-publish` environment.
+Use a unique, low-quota, revocable staging canary key. Do not store the
+short-lived credential used for the direct beta.2 bootstrap in Actions. After
+bootstrap, configure an npm trusted publisher only for `@adrouter/cli`, bound to
+`adrouter/adrouterCLI`, the provenance-enabled publication workflow used by
+later releases, and the `npm-publish` environment.

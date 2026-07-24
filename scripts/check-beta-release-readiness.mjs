@@ -6,14 +6,15 @@ import { join, normalize } from "node:path";
 
 const targetVersion = JSON.parse(readFileSync("package.json", "utf8")).version;
 const repositoryUrl = "git+https://github.com/adrouter/adrouterCLI.git";
-const publicPackages = [
-	{ directory: "packages/ai", name: "@adrouter/ai", dependencies: [] },
-	{ directory: "packages/tui", name: "@adrouter/tui", dependencies: [] },
-	{ directory: "packages/agent", name: "@adrouter/agent-core", dependencies: ["@adrouter/ai"] },
+const packages = [
+	{ directory: "packages/ai", name: "@adrouter/ai", dependencies: [], public: false },
+	{ directory: "packages/tui", name: "@adrouter/tui", dependencies: [], public: false },
+	{ directory: "packages/agent", name: "@adrouter/agent-core", dependencies: ["@adrouter/ai"], public: false },
 	{
 		directory: "packages/coding-agent",
 		name: "@adrouter/cli",
 		dependencies: ["@adrouter/agent-core", "@adrouter/ai", "@adrouter/tui"],
+		public: true,
 	},
 ];
 const metadataOnly = process.argv.includes("--metadata-only");
@@ -30,11 +31,12 @@ function readJson(path) {
 
 const failures = [];
 
-for (const descriptor of publicPackages) {
+for (const descriptor of packages) {
 	const manifest = readJson(join(descriptor.directory, "package.json"));
 	if (manifest.name !== descriptor.name) failures.push(`${descriptor.directory}: expected package name ${descriptor.name}`);
 	if (manifest.version !== targetVersion) failures.push(`${descriptor.name}: expected version ${targetVersion}`);
-	if (manifest.private === true) failures.push(`${descriptor.name}: public package must not be private`);
+	if (descriptor.public && manifest.private === true) failures.push(`${descriptor.name}: public package must not be private`);
+	if (!descriptor.public && manifest.private !== true) failures.push(`${descriptor.name}: internal package must be private`);
 	if (manifest.repository?.url !== repositoryUrl) failures.push(`${descriptor.name}: repository URL must be ${repositoryUrl}`);
 	if (manifest.repository?.directory !== descriptor.directory) {
 		failures.push(`${descriptor.name}: repository directory must be ${descriptor.directory}`);
@@ -45,14 +47,28 @@ for (const descriptor of publicPackages) {
 	if (manifest.homepage !== "https://github.com/adrouter/adrouterCLI#readme") {
 		failures.push(`${descriptor.name}: canonical homepage is missing`);
 	}
-	if (manifest.publishConfig?.access !== "public" || manifest.publishConfig?.provenance !== true) {
-		failures.push(`${descriptor.name}: public access and provenance publish metadata are required`);
+	if (
+		descriptor.public &&
+		(manifest.publishConfig?.access !== "public" ||
+			manifest.publishConfig?.tag !== "beta" ||
+			manifest.publishConfig?.provenance !== undefined)
+	) {
+		failures.push(`${descriptor.name}: bootstrap publication must use public beta access without forced provenance`);
+	}
+	if (!descriptor.public && manifest.publishConfig !== undefined) {
+		failures.push(`${descriptor.name}: private internal package must not define publishConfig`);
 	}
 	for (const dependency of descriptor.dependencies) {
 		if (manifest.dependencies?.[dependency] !== targetVersion) {
 			failures.push(`${descriptor.name}: ${dependency} must be pinned exactly to ${targetVersion}`);
 		}
 	}
+}
+
+const cliManifest = readJson("packages/coding-agent/package.json");
+const expectedBundles = ["@adrouter/agent-core", "@adrouter/ai", "@adrouter/tui"];
+if (JSON.stringify(cliManifest.bundleDependencies) !== JSON.stringify(expectedBundles)) {
+	failures.push("@adrouter/cli must bundle exactly the three internal workspaces");
 }
 
 if (readJson("packages/ai/package.json").bin !== undefined) {
