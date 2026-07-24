@@ -13,7 +13,10 @@ function npmView(specifier, field) {
 	const args = ["view", specifier];
 	if (field) args.push(field);
 	args.push("--json", "--registry", "https://registry.npmjs.org/");
-	const result = spawnSync(process.platform === "win32" ? "npm.cmd" : "npm", args, { encoding: "utf8" });
+	const result = spawnSync(process.platform === "win32" ? "npm.cmd" : "npm", args, {
+		encoding: "utf8",
+		shell: process.platform === "win32",
+	});
 	if (result.status !== 0) {
 		throw new Error(`Could not read npm state for ${specifier} ${field ?? ""}\n${result.stdout}\n${result.stderr}`);
 	}

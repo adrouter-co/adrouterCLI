@@ -38,6 +38,7 @@ function run(command, args, timeout = 45_000) {
 	const result = spawnSync(command, args, {
 		encoding: "utf8",
 		env,
+		shell: process.platform === "win32" && /\.(?:cmd|bat)$/i.test(command),
 		timeout,
 	});
 	if (result.status !== 0) {

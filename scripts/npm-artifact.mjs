@@ -24,10 +24,13 @@ function runNpmJson(args, cwd) {
 		cwd,
 		encoding: "utf8",
 		maxBuffer: 128 * 1024 * 1024,
+		shell: process.platform === "win32",
 		stdio: ["ignore", "pipe", "pipe"],
 	});
 	if (result.status !== 0) {
-		throw new Error(`npm ${args.join(" ")} failed\n${result.stdout ?? ""}\n${result.stderr ?? ""}`);
+		throw new Error(
+			`npm ${args.join(" ")} failed\n${result.error?.message ?? ""}\n${result.stdout ?? ""}\n${result.stderr ?? ""}`,
+		);
 	}
 	return JSON.parse(result.stdout || "null");
 }

@@ -45,6 +45,7 @@ function run(command, args, options = {}) {
 	const result = spawnSync(commandForPlatform(command), args, {
 		cwd: options.cwd,
 		encoding: "utf8",
+		shell: process.platform === "win32",
 		stdio: options.capture ? ["ignore", "pipe", "pipe"] : "inherit",
 	});
 	if (result.status !== 0) {
@@ -57,6 +58,7 @@ function run(command, args, options = {}) {
 function npmJsonOrMissing(args) {
 	const result = spawnSync(commandForPlatform("npm"), [...args, "--json", "--registry", registry], {
 		encoding: "utf8",
+		shell: process.platform === "win32",
 		stdio: ["ignore", "pipe", "pipe"],
 	});
 	if (result.status === 0) return JSON.parse(result.stdout || "null");
