@@ -24,6 +24,14 @@ function parse(events, options = {}) {
 test("accepts valid JSON and NDJSON protocol responses", () => {
 	assert.equal(parse(baseEvents).turnId, "turn-1");
 	assert.equal(parse(baseEvents, { ndjson: false }).turnId, "turn-1");
+	assert.equal(
+		parse([
+			baseEvents[0],
+			{ type: "settlement", settlement: { model } },
+			{ type: "done", model, assistant: { content: "staging-canary-ok" } },
+		]).turnId,
+		"turn-1",
+	);
 });
 
 test("rejects HTML 200, malformed streams, wrong output, missing settlement/done, and router errors", () => {
@@ -47,6 +55,7 @@ test("rejects HTML 200, malformed streams, wrong output, missing settlement/done
 
 test("rejects reflected credentials and mismatched turns", () => {
 	assert.throws(() => parse([{ ...baseEvents[0], content: key }, ...baseEvents.slice(1)]), /reflected the credential/);
+	assert.throws(() => parse(baseEvents.map(({ turn_id: _turnId, ...event }) => event)), /missing/);
 	assert.throws(() => parse([{ ...baseEvents[0], turn_id: "turn-other" }, ...baseEvents.slice(1)]), /mismatched/);
 });
 

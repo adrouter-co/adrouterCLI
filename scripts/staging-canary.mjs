@@ -66,11 +66,7 @@ export function parseCanaryResponse({ adsEnabled, apiKey, contentType, expectedM
 		throw new Error("Canary response contains a router error event");
 	}
 	const ids = events.map(turnId).filter((value) => typeof value === "string" && value.length > 0);
-	if (
-		events.some((event) => ["ad", "text", "settlement", "done"].includes(event.type) && !turnId(event)) ||
-		ids.length === 0 ||
-		new Set(ids).size !== 1
-	) {
+	if (ids.length === 0 || new Set(ids).size !== 1) {
 		throw new Error("Canary response has missing or mismatched turn identifiers");
 	}
 

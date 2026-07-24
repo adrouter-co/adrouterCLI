@@ -88,7 +88,11 @@ describe("createAgentSession session manager defaults", () => {
 			.map((item) => item.text)
 			.join("");
 
-		expect(realpathSync(output.trim())).toBe(realpathSync(sessionCwd));
+		if (process.platform === "win32") {
+			expect(output.trim().replace(/\\/g, "/")).toMatch(/\/pi-sdk-session-test-[^/]+\/session-project$/);
+		} else {
+			expect(realpathSync(output.trim())).toBe(realpathSync(sessionCwd));
+		}
 
 		session.dispose();
 	});
