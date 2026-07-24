@@ -36,6 +36,11 @@ Do not download standalone archives: all six entries in
 [`release-manifest.json`](release-manifest.json) are blocked until
 matching-platform certification and signing are available.
 
+While a registry release is still being promoted, maintainers can install the
+CLI directly from a source checkout with `npm run install:local`. See
+[maintainer development](docs/development.md#source-linked-cli-install) for
+rebuilding, unlinking, and returning to the registry version.
+
 ## First login, trust, and ads
 
 1. Request an individual, revocable beta key through
