@@ -72,7 +72,11 @@ try {
 	for (const name of secretVariables) delete env[name];
 	console.log("Running tests with isolated state and without API credentials...");
 	const npm = process.platform === "win32" ? "npm.cmd" : "npm";
-	const result = spawnSync(npm, ["test", ...process.argv.slice(2)], { env, stdio: "inherit" });
+	const result = spawnSync(npm, ["test", ...process.argv.slice(2)], {
+		env,
+		shell: process.platform === "win32",
+		stdio: "inherit",
+	});
 	if (result.error) throw result.error;
 	process.exitCode = result.status ?? 1;
 } finally {
