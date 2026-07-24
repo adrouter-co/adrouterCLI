@@ -57,6 +57,12 @@ jobs:
         if: runner.os == 'macOS'
         run: brew install fd ripgrep
 
+      - name: Install Windows prerequisites
+        if: runner.os == 'Windows'
+        run: |
+          choco install fd --version=10.4.2 --yes --no-progress
+          choco install ripgrep --version=14.1.0 --yes --no-progress
+
       - name: Install dependencies without lifecycle scripts
         run: npm ci --ignore-scripts --no-audit --no-fund
 
