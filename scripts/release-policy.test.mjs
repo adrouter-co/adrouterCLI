@@ -83,6 +83,13 @@ test("release workflows are bound to the canonical repository and registry insta
 		assert.match(promote, new RegExp(`platform: ${platform}`));
 	}
 	assert.match(promote, /needs:\s*\n\s*- promote\s*\n\s*- registry-install/);
+	assert.match(promote, /gh release download "\$\{\{ inputs\.tag \}\}"/);
+	assert.match(promote, /subject-path: release-assets\/adrouter-cli-\*\.tgz/);
+	assert.ok(
+		promote.indexOf("node scripts/verify-npm-release.mjs") <
+			promote.indexOf("subject-path: release-assets/adrouter-cli-*.tgz"),
+		"the recorded npm artifact must match the registry before it is re-attested",
+	);
 	assert.ok(
 		promote.indexOf("node scripts/verify-registry-install.mjs") <
 			promote.indexOf("gh release edit"),

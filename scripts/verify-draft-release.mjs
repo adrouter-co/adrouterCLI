@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import { spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { mkdtempSync, readFileSync, readdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -33,9 +34,21 @@ try {
 		throw new Error(`Draft inventory mismatch: ${actual.join(", ")}`);
 	}
 	run("sha256sum", ["-c", "SHA256SUMS"], directory);
+	const tarballName = `adrouter-cli-${tag.replace(/^v/, "")}.tgz`;
+	const artifactManifest = JSON.parse(readFileSync(join(directory, "npm-artifacts.json"), "utf8"));
+	const artifact = artifactManifest.packages?.[0];
+	if (artifactManifest.packages?.length !== 1 || artifact?.filename !== tarballName) {
+		throw new Error("Draft npm artifact manifest must describe only the bundled CLI tarball");
+	}
+	const tarballIntegrity = `sha512-${createHash("sha512")
+		.update(readFileSync(join(directory, tarballName)))
+		.digest("base64")}`;
+	if (artifact.integrity !== tarballIntegrity) {
+		throw new Error("Draft npm tarball integrity differs from npm-artifacts.json");
+	}
 	for (const artifact of [
 		"adrouterCLI.cdx.json",
-		`adrouter-cli-${tag.replace(/^v/, "")}.tgz`,
+		tarballName,
 		"BUNDLED_SOURCES.json",
 		"npm-artifacts.json",
 		"THIRD_PARTY_NOTICES.md",
