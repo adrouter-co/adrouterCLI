@@ -121,8 +121,15 @@ jobs:
         with:
           node-version: "22.19.0"
           registry-url: https://registry.npmjs.org
+      - name: Checkout protected registry verifier from the workflow commit
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ github.sha }}
+          path: registry-verifier-source
+          sparse-checkout: scripts/verify-registry-install.mjs
+          persist-credentials: false
       - name: Install and verify beta anonymously in a clean global prefix
-        run: node scripts/verify-registry-install.mjs
+        run: node registry-verifier-source/scripts/verify-registry-install.mjs
 
   publish-github:
     if: ${{ inputs.phase == 'publish-github' }}

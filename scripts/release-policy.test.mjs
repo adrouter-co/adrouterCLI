@@ -85,6 +85,8 @@ test("release workflows are bound to the canonical repository and registry insta
 	assert.match(promote, /needs:\s*\n\s*- promote\s*\n\s*- registry-install/);
 	assert.match(promote, /gh release download "\$\{\{ inputs\.tag \}\}"/);
 	assert.match(promote, /subject-path: release-assets\/adrouter-cli-\*\.tgz/);
+	assert.match(promote, /path: registry-verifier-source/);
+	assert.match(promote, /node registry-verifier-source\/scripts\/verify-registry-install\.mjs/);
 	assert.ok(
 		promote.indexOf("node scripts/verify-npm-release.mjs") <
 			promote.indexOf("subject-path: release-assets/adrouter-cli-*.tgz"),

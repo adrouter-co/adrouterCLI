@@ -64,7 +64,7 @@ try {
 			"https://registry.npmjs.org/",
 			"@adrouter/cli@beta",
 		],
-		120_000,
+		600_000,
 	);
 
 	const adrouter = executable("adrouter");
@@ -110,5 +110,9 @@ try {
 
 	console.log(`Anonymous registry install verified bundled @adrouter/cli@${expectedVersion} and both commands.`);
 } finally {
-	rmSync(root, { recursive: true, force: true });
+	try {
+		rmSync(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 250 });
+	} catch (error) {
+		console.warn(`Could not remove isolated registry-install directory ${root}: ${error.message}`);
+	}
 }
