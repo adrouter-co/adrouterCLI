@@ -14,6 +14,7 @@ function run(command, args, options = {}) {
 		cwd: options.cwd,
 		encoding: "utf8",
 		env: options.env,
+		shell: process.platform === "win32" && /\.(?:cmd|bat)$/i.test(command),
 		stdio: options.capture ? ["ignore", "pipe", "pipe"] : "inherit",
 	});
 	if (result.status !== 0) {
