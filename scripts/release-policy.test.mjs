@@ -86,12 +86,10 @@ test("enforces dependency order and CLI-last", () => {
 
 test("release workflows are bound to the canonical repository and registry install gate", () => {
 	const releaseTag = readFileSync(".github/workflows/release-tag.yml", "utf8");
-	const bootstrap = readFileSync(".github/workflows/npm-bootstrap.yml", "utf8");
 	const promote = readFileSync(".github/workflows/promote-release.yml", "utf8");
 
 	for (const [name, workflow] of [
 		["release-tag", releaseTag],
-		["npm-bootstrap", bootstrap],
 		["promote-release", promote],
 	]) {
 		assert.match(workflow, /test "\$\{ACTUAL_REPOSITORY\}" = "adrouter\/adrouterCLI"/, `${name} identity guard`);
