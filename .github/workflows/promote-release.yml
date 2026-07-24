@@ -60,7 +60,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: node release-verifier-source/scripts/verify-draft-release.mjs "${{ inputs.tag }}"
-      - name: Verify the single bundled CLI package is public under beta and initial latest
+      - name: Verify the single bundled CLI package is public under beta and latest
         run: node scripts/verify-npm-release.mjs
 
   registry-install:

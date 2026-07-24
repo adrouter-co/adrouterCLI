@@ -32,7 +32,7 @@ export function assertResumablePublication(states, version, channel) {
 	if (state.tags?.[channel.tag] !== version) {
 		throw new Error(`${state.name}@${version} is published under an incorrect beta dist-tag`);
 	}
-	if (version === "0.81.0-beta.2" && state.tags?.latest !== version) {
-		throw new Error(`${state.name}@${version} initial publication must also be latest`);
+	if (version === "0.81.0-beta.3" && state.tags?.latest !== version) {
+		throw new Error(`${state.name}@${version} recovery publication must also be latest`);
 	}
 }

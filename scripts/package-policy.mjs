@@ -83,6 +83,23 @@ function findExecutableMagic(buffer) {
 	return executableMagic.find(({ bytes }) => bytes.every((byte, index) => buffer[index] === byte))?.label;
 }
 
+export function embeddedDirectDependencyFailures(packageManifest, entries) {
+	const failures = [];
+	for (const [name, declaredVersion] of Object.entries(packageManifest.dependencies ?? {})) {
+		if (!/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/.test(declaredVersion)) continue;
+		const manifestPath = `package/node_modules/${name}/package.json`;
+		const entry = entries.find(({ path }) => path === manifestPath);
+		if (!entry) continue;
+		const embeddedManifest = JSON.parse(entry.content.toString("utf8"));
+		if (embeddedManifest.version !== declaredVersion) {
+			failures.push(
+				`embedded ${name}@${embeddedManifest.version ?? "unknown"} does not match declared ${declaredVersion}`,
+			);
+		}
+	}
+	return failures;
+}
+
 export function assertPackageTarball(pkg, packed, tarballPath) {
 	const entries = readTarEntries(tarballPath);
 	const paths = new Set(entries.map((entry) => entry.path.replace(/^package\//, "")));
@@ -136,6 +153,7 @@ export function assertPackageTarball(pkg, packed, tarballPath) {
 		if (packed.bundled && expectedBundles.some((name) => !packed.bundled.includes(name))) {
 			failures.push(`npm pack bundled tree is missing an internal package: ${packed.bundled.join(", ")}`);
 		}
+		failures.push(...embeddedDirectDependencyFailures(packageManifest, entries));
 		for (const internal of INTERNAL_PACKAGES) {
 			if (packageManifest.dependencies?.[internal.name] !== packageManifest.version) {
 				failures.push(`${internal.name} is not pinned exactly to ${packageManifest.version}`);

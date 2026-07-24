@@ -1,6 +1,6 @@
 {
 	"name": "@adrouter/cli",
-	"version": "0.81.0-beta.2",
+	"version": "0.81.0-beta.3",
 	"description": "AdRouterCLI coding agent with read, bash, edit, and write tools",
 	"type": "module",
 	"piConfig": {
@@ -40,9 +40,9 @@
 		"prepublishOnly": "npm run clean && npm run build && npm run shrinkwrap"
 	},
 	"dependencies": {
-		"@adrouter/agent-core": "0.81.0-beta.2",
-		"@adrouter/ai": "0.81.0-beta.2",
-		"@adrouter/tui": "0.81.0-beta.2",
+		"@adrouter/agent-core": "0.81.0-beta.3",
+		"@adrouter/ai": "0.81.0-beta.3",
+		"@adrouter/tui": "0.81.0-beta.3",
 		"@silvia-odwyer/photon-node": "0.3.4",
 		"@mozilla/readability": "0.6.0",
 		"chalk": "5.6.2",
@@ -57,7 +57,7 @@
 		"minimatch": "10.2.5",
 		"p-limit": "6.2.0",
 		"proper-lockfile": "4.1.2",
-		"retry": "0.12.0",
+		"retry": "0.13.1",
 		"semver": "7.8.0",
 		"turndown": "7.2.4",
 		"typebox": "1.1.38",

@@ -72,7 +72,7 @@
     {
       "name": "BTW",
       "commit": "23017e9",
-      "source_url": "https://github.com/adrouter/adrouterCLI/blob/v0.81.0-beta.2/packages/coding-agent/bundled/btw-23017e9/index.ts",
+      "source_url": "https://github.com/adrouter/adrouterCLI/blob/v0.81.0-beta.3/packages/coding-agent/bundled/btw-23017e9/index.ts",
       "source_sha256": "b8883f6ec263f6d2522a86ce0086c22259779704f08fda745b98f9b9728f5e83",
       "license": "MIT",
       "redistribution": {
@@ -80,7 +80,7 @@
         "basis": "Authored for AdRouterCLI and distributed under the tag's repository MIT License",
         "authorized_by": "Imari <127758097+HappyCool121@users.noreply.github.com>",
         "authorized_on": "2026-07-16",
-        "evidence": "https://github.com/adrouter/adrouterCLI/blob/v0.81.0-beta.2/LICENSE"
+        "evidence": "https://github.com/adrouter/adrouterCLI/blob/v0.81.0-beta.3/LICENSE"
       },
       "local_modifications": ["Child process binary renamed from pi to adrouter."],
       "update_procedure": "Fetch the exact tag-relative source URL, verify source_sha256, replace bundled/btw-23017e9, and run npm run check.",
@@ -90,7 +90,7 @@
       "name": "pi-opencode-tui-patch",
       "version": "0.1.6",
       "commit": "e687e69b84556cd894304ff2f2320afb4ee45c4e",
-      "source_url": "https://github.com/adrouter/adrouterCLI/tree/v0.81.0-beta.2/packages/tui/src",
+      "source_url": "https://github.com/adrouter/adrouterCLI/tree/v0.81.0-beta.3/packages/tui/src",
       "source_tarball_sha256": "f56ca588540453305c2da67e526ee03e0989d10f0141213979095ec2c317d856",
       "license": "MIT",
       "redistribution": {
@@ -98,7 +98,7 @@
         "basis": "Authored for AdRouterCLI and distributed under the tag's repository MIT License",
         "authorized_by": "Imari <127758097+HappyCool121@users.noreply.github.com>",
         "authorized_on": "2026-07-16",
-        "evidence": "https://github.com/adrouter/adrouterCLI/blob/v0.81.0-beta.2/LICENSE"
+        "evidence": "https://github.com/adrouter/adrouterCLI/blob/v0.81.0-beta.3/LICENSE"
       },
       "local_modifications": [
         "Ported the reviewed alternate-screen, fixed viewport/editor/footer, selection/copy, PageUp/PageDown, profile header, and panel-color behavior into the AdRouterCLI TypeScript source instead of loading the runtime patch."

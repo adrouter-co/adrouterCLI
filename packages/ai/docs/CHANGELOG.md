@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+## [0.81.0-beta.3] - 2026-07-25
+
+### Changed
+
+- Republished the private `@adrouter/ai` workspace inside the corrected single-package CLI bundle after deprecating beta.2.
+
 ## [0.81.0-beta.2] - 2026-07-24
 
 ### Changed

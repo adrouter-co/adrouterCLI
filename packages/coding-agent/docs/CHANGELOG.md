@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+## [0.81.0-beta.3] - 2026-07-25
+
+### Fixed
+
+- Fixed the bundled dependency tree so the embedded hoisted `retry@0.13.1` matches the CLI manifest while `proper-lockfile` retains its nested `retry@0.12.0`.
+- Added package-policy coverage that rejects embedded direct dependency versions which conflict with the CLI declaration.
+
 ## [0.81.0-beta.2] - 2026-07-24
 
 ### Added
