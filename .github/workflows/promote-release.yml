@@ -25,7 +25,9 @@ jobs:
     runs-on: ubuntu-latest
     environment: npm-publish
     permissions:
+      attestations: write
       contents: write
+      id-token: write
     steps:
       - name: Refuse release operations outside the canonical repository
         env:
@@ -48,7 +50,26 @@ jobs:
       - run: npm run check
       - run: npm run check:beta-readiness
       - run: node scripts/test.mjs
-      - run: node scripts/publish.mjs --dry-run --manifest npm-artifacts.json
+      - name: Download the recorded npm artifact from the draft prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p release-assets
+          gh release download "${{ inputs.tag }}" \
+            --pattern "adrouter-cli-*.tgz" \
+            --pattern "npm-artifacts.json" \
+            --dir release-assets
+          cp release-assets/npm-artifacts.json npm-artifacts.json
+      - name: Verify the recorded package is public under beta and latest
+        run: node scripts/verify-npm-release.mjs
+      - name: Attest the exact npm-published tarball
+        uses: actions/attest@f7c74d28b9d84cb8768d0b8ca14a4bac6ef463e6 # v4
+        with:
+          subject-path: release-assets/adrouter-cli-*.tgz
+      - name: Attest the exact npm artifact manifest
+        uses: actions/attest@f7c74d28b9d84cb8768d0b8ca14a4bac6ef463e6 # v4
+        with:
+          subject-path: release-assets/npm-artifacts.json
       - name: Checkout protected verifier from the workflow commit
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
@@ -60,8 +81,6 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: node release-verifier-source/scripts/verify-draft-release.mjs "${{ inputs.tag }}"
-      - name: Verify the single bundled CLI package is public under beta and latest
-        run: node scripts/verify-npm-release.mjs
 
   registry-install:
     name: registry-install-${{ matrix.platform }}
