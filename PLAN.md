@@ -2,7 +2,7 @@
 
 ## Goal
 
-Produce and validate a single public `@adrouter/cli@0.81.0-beta.2` npm tarball that embeds the private `@adrouter/ai`, `@adrouter/tui`, and `@adrouter/agent-core` workspaces through `bundleDependencies`, while preserving the existing commands, Node.js requirement, runtime behavior, six-platform gates, and closed-beta hosted authentication.
+Produce and validate a corrected single public `@adrouter/cli@0.81.0-beta.3` npm tarball that embeds the private `@adrouter/ai`, `@adrouter/tui`, and `@adrouter/agent-core` workspaces through `bundleDependencies`, while preserving the existing commands, Node.js requirement, runtime behavior, six-platform gates, and closed-beta hosted authentication. Preserve and deprecate the immutable beta.2 publication whose anonymous registry installation exposed a bundled dependency-tree conflict.
 
 ## Context
 
@@ -391,13 +391,85 @@ git status --short
 
 ---
 
+## Step F: Recover from defective beta.2 with beta.3
+
+### Status
+
+`in_progress`
+
+### Objective
+
+Publish beta.3 with a registry-safe bundled dependency tree, move both public
+dist-tags only after anonymous verification, and retain beta.2 as deprecated
+historical evidence.
+
+### Tasks
+
+- [x] Deprecate `@adrouter/cli@0.81.0-beta.2` without overwriting or promoting its draft GitHub prerelease.
+- [x] Align the CLI's declared `retry` version with the embedded hoisted version while preserving `proper-lockfile`'s nested compatible version.
+- [x] Add package-policy regression coverage for conflicting embedded direct dependency versions.
+- [x] Build and smoke-test the beta.3 tarball, including a clean dependency tree.
+- [ ] Push beta.3, pass both six-platform matrices and protected canaries, publish the recorded tarball, and verify anonymous registry installation before GitHub promotion.
+
+### Relevant Files
+
+- root and workspace manifests, lockfile, and CLI shrinkwrap
+- `scripts/package-policy.mjs`
+- `scripts/package-policy.test.mjs`
+- release manifests, changelogs, and documentation
+
+### Expected Changes
+
+- modify: current release version from beta.2 to beta.3
+- modify: bundled dependency policy and regression test
+- preserve: beta.2 tag, npm version, draft release, and historical changelog
+
+### Do Not Modify
+
+- Published beta.2 bytes or immutable tag
+- Internal package names or module boundaries
+- Hosted access controls, public commands, or Node.js engine floor
+
+### Commands
+
+```bash
+npm run build
+npm run check
+npm run test:isolated
+npm run check:beta-readiness
+node scripts/ci-package-smoke.mjs
+git diff --check
+```
+
+### Acceptance Criteria
+
+- [x] beta.2 is deprecated with a recovery message.
+- [x] beta.3 policy rejects the beta.2 embedded-version mismatch.
+- [ ] Local and six-platform tarball installation report no missing or invalid dependencies.
+- [ ] Anonymous registry installation of beta.3 passes before either dist-tag or the GitHub prerelease is promoted.
+- [ ] Both `beta` and `latest` resolve to verified beta.3 integrity.
+
+### Validation Results
+
+- `npm view @adrouter/cli@0.81.0-beta.2 deprecated`: passed; defect notice is public
+- `npm run build`, `npm run check`, `npm run test:isolated`, `npm run check:beta-readiness`: passed
+- `node scripts/ci-package-smoke.mjs`: passed locally, including `npm ls --global --all`
+- beta.3 six-platform CI and registry verification: in progress
+
+### Findings / Notes
+
+- Local tarball installation reconciled the conflicting bundled dependency, while registry installation retained the embedded hoisted version and correctly reported `ELSPROBLEMS`.
+- The beta.3 package policy compares exact direct dependency declarations with any corresponding embedded root package before publication.
+
+---
+
 ## Follow-up Work
 
-- Push the reviewed release commit and require the existing six-platform CI matrix.
-- Create and push immutable `v0.81.0-beta.2` only after CI passes, then inspect the tag workflow's canaries and draft prerelease assets.
-- Rebuild from a clean checkout of the exact tag, record integrity, and repeat global-install smoke.
-- Pause for user npm/GitHub authentication and any OTP/account verification before registry mutation.
-- After beta.2 succeeds, configure npm trusted publishing for subsequent provenance-enabled releases.
+- Push the reviewed beta.3 recovery commit and require the existing six-platform CI matrix.
+- Create and push immutable `v0.81.0-beta.3` only after CI passes, then inspect the tag workflow's canaries and draft prerelease assets.
+- Rebuild from a clean checkout of the exact beta.3 tag, record integrity, and repeat global-install smoke.
+- Publish and promote beta.3 only after anonymous registry installation reports a clean dependency tree.
+- Configure npm trusted publishing for subsequent provenance-enabled releases.
 - Defer package-size optimization and internal-module flattening.
 
 ## Decision Log
@@ -407,3 +479,4 @@ git status --short
 | 2026-07-24 | Use one public CLI artifact with three exact-version bundled private workspaces | Preserves module boundaries while avoiding unpublished internal registry dependencies and workspace symlink packing | Release policy, artifact construction, CI, verification, and docs collapse from four public packages to one |
 | 2026-07-24 | Keep remote mutation outside local implementation until the artifact and six-platform gates are proven | Tagging and npm publication are immutable or externally visible and require user authentication | Local work can be fully validated without risking a partial release |
 | 2026-07-24 | Use official npm documentation as fallback research | Required Context7 tools were unavailable and the current-docs index lacked npm | Plan relies on primary npm sources and records the tooling limitation |
+| 2026-07-25 | Deprecate beta.2 and recover with beta.3 | Anonymous registry installation exposed an embedded `retry@0.13.1` conflicting with the CLI's exact `0.12.0` declaration | beta.2 remains immutable and deprecated; beta.3 adds dependency-version policy coverage before publication |

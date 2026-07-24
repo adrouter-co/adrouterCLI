@@ -5,13 +5,15 @@ Only `@adrouter/cli` is public. `@adrouter/ai`, `@adrouter/tui`, and
 packages, but they are private workspaces embedded in the CLI tarball through
 `bundleDependencies`. Never publish an internal workspace.
 
-## Beta.2 bootstrap
+## Beta.3 recovery
 
-`0.81.0-beta.2` replaces the withdrawn beta.1 release; beta.1 is never reused.
-The first publication is a direct, user-authenticated npm publication without
-provenance because the package does not yet have a trusted publisher. npm
-requires every package to have `latest`, so both `beta` and the initial `latest`
-may point to beta.2. Testers are still instructed to install `@beta`.
+`0.81.0-beta.3` supersedes the deprecated beta.2 release, whose registry-style
+installation exposed a bundled dependency-tree conflict. Neither beta.1 nor
+beta.2 is reused or overwritten.
+This recovery publication is direct and user-authenticated without provenance
+because the package does not yet have a trusted publisher. Move both `beta` and
+`latest` from deprecated beta.2 to beta.3. Testers remain instructed to install
+`@beta`.
 
 Before tagging:
 
@@ -24,7 +26,7 @@ Before tagging:
 
 ## Tag, canaries, and draft prerelease
 
-Create immutable tag `v0.81.0-beta.2` only after the release commit and
+Create immutable tag `v0.81.0-beta.3` only after the release commit and
 six-platform CI are green. The tag workflow validates the exact tagged source,
 runs protected ads-off and ads-enabled staging canaries without printing the
 beta credential, builds the single npm tarball, records its SHA-512 integrity,
@@ -59,7 +61,7 @@ version absence:
 ```sh
 npm whoami --registry https://registry.npmjs.org/
 npm access list packages @adrouter --registry https://registry.npmjs.org/
-npm view @adrouter/cli@0.81.0-beta.2 --registry https://registry.npmjs.org/
+npm view @adrouter/cli@0.81.0-beta.3 --registry https://registry.npmjs.org/
 ```
 
 The final command must return not found. If it resolves, stop: npm
@@ -70,7 +72,7 @@ name/version combinations are immutable.
 Publish only the already-recorded file:
 
 ```sh
-npm publish /absolute/clean/output/adrouter-cli-0.81.0-beta.2.tgz \
+npm publish /absolute/clean/output/adrouter-cli-0.81.0-beta.3.tgz \
   --access public \
   --tag beta \
   --ignore-scripts \
@@ -85,7 +87,7 @@ only during the authenticated publication step.
 
 ## Registry verification and GitHub promotion
 
-Poll the public registry until beta.2 resolves. Rebuild
+Poll the public registry until beta.3 resolves. Rebuild
 `npm-artifacts.json` from the protected tag and run:
 
 ```sh
@@ -93,7 +95,7 @@ node scripts/verify-npm-release.mjs
 node scripts/verify-registry-install.mjs
 ```
 
-Verification requires `beta` and initial `latest` to resolve to beta.2,
+Verification requires both `beta` and `latest` to resolve to beta.3,
 registry integrity and metadata to match the recorded artifact, anonymous
 global installation in a clean prefix, both executables and their diagnostics,
 all embedded internal package roots and runtime assets, and a clean
@@ -110,8 +112,8 @@ Configure an npm trusted publisher for `@adrouter/cli` after the bootstrap so
 later releases use OIDC provenance. Exact repository/workflow binding and
 required-reviewer protections remain mandatory.
 
-If beta.2 is defective, preserve and deprecate it, publish beta.3, and move both
-`beta` and `latest` to beta.3. Never overwrite or reuse a published version.
+If beta.3 is defective, preserve and deprecate it, publish beta.4, and move both
+`beta` and `latest` to beta.4. Never overwrite or reuse a published version.
 Backend incidents remain independently containable by pausing traffic and
 revoking beta keys.
 

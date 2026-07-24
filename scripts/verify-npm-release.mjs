@@ -55,4 +55,4 @@ if (!isDeepStrictEqual(publicationMetadata(remote), publicationMetadata(local)))
 	throw new Error(`${packageName}@${version} registry metadata differs from the tagged manifest`);
 }
 
-console.log(`${packageName}@${version} matches tagged metadata and integrity under beta and initial latest.`);
+console.log(`${packageName}@${version} matches tagged metadata and integrity under beta and latest.`);

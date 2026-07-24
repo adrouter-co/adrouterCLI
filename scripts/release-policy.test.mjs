@@ -8,7 +8,7 @@ import {
 	publicationChannel,
 } from "./release-policy.mjs";
 
-const version = "0.81.0-beta.2";
+const version = "0.81.0-beta.3";
 const integrity = "sha512-local";
 const channel = publicationChannel(version);
 
@@ -33,12 +33,12 @@ test("maps beta SemVer to beta and rejects unsupported prerelease channels", () 
 	assert.throws(() => publicationChannel("not-semver"), /Invalid SemVer/);
 });
 
-test("permits a missing package or the exact verified initial publication", () => {
+test("permits a missing package or the exact verified recovery publication", () => {
 	assert.doesNotThrow(() => assertResumablePublication(state("missing"), version, channel));
 	assert.doesNotThrow(() => assertResumablePublication(state("published"), version, channel));
 });
 
-test("rejects integrity, beta tag, and initial latest mismatches", () => {
+test("rejects integrity, beta tag, and recovery latest mismatches", () => {
 	assert.throws(
 		() => assertResumablePublication(state("published", { registryIntegrity: "sha512-other" }), version, channel),
 		/integrity differs/,

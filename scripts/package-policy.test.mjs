@@ -4,7 +4,7 @@ import { gzipSync } from "node:zlib";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { assertPackageTarball } from "./package-policy.mjs";
+import { assertPackageTarball, embeddedDirectDependencyFailures } from "./package-policy.mjs";
 
 function tarEntry(path, content) {
 	const body = Buffer.from(content);
@@ -47,7 +47,7 @@ test("rejects unexpected docs, local paths, and native executable magic", () => 
 				() =>
 					assertPackageTarball(
 						{ name: "@adrouter/tui", kind: "library" },
-						{ version: "0.81.0-beta.2" },
+						{ version: "0.81.0-beta.3" },
 						fixture.path,
 					),
 				expected,
@@ -56,4 +56,18 @@ test("rejects unexpected docs, local paths, and native executable magic", () => 
 			rmSync(fixture.directory, { recursive: true, force: true });
 		}
 	}
+});
+
+test("rejects a hoisted bundled dependency that conflicts with the CLI declaration", () => {
+	const entries = [
+		{
+			path: "package/node_modules/retry/package.json",
+			content: Buffer.from(JSON.stringify({ name: "retry", version: "0.13.1" })),
+		},
+	];
+	assert.deepEqual(
+		embeddedDirectDependencyFailures({ dependencies: { retry: "0.12.0" } }, entries),
+		["embedded retry@0.13.1 does not match declared 0.12.0"],
+	);
+	assert.deepEqual(embeddedDirectDependencyFailures({ dependencies: { retry: "0.13.1" } }, entries), []);
 });
