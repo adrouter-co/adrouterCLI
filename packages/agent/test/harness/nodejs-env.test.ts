@@ -198,7 +198,13 @@ describe("NodeExecutionEnv", () => {
 				env: { NODE_ENV_TEST: "ok" },
 			}),
 		);
-		expect(result).toEqual({ stdout: `${await realpath(root)}:ok`, stderr: "", exitCode: 0 });
+		expect(result.stderr).toBe("");
+		expect(result.exitCode).toBe(0);
+		if (process.platform === "win32") {
+			expect(result.stdout.replace(/\\/g, "/")).toMatch(/\/pi-agent-session-[^/]+:ok$/);
+		} else {
+			expect(result.stdout).toBe(`${await realpath(root)}:ok`);
+		}
 	});
 
 	it("uses stdin command transport for legacy WSL bash paths", async () => {
