@@ -76,6 +76,10 @@ test("requires ads off and validates ad schema and ordering when inventory exist
 	};
 	assert.throws(() => parse([ad, ...baseEvents]), /Ads-off/);
 	assert.equal(parse([ad, ...baseEvents], { adsEnabled: true }).adsReturned, true);
+	assert.equal(
+		parse([{ ...ad, ads: [{ ...ad.ads[0], tier: 3 }] }, ...baseEvents], { adsEnabled: true }).adsReturned,
+		true,
+	);
 	assert.throws(() => parse([baseEvents[0], ad, ...baseEvents.slice(1)], { adsEnabled: true }), /after text/);
 	assert.throws(
 		() => parse([{ ...ad, ads: [{ tier: "A" }] }, ...baseEvents], { adsEnabled: true }),

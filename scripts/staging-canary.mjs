@@ -4,6 +4,7 @@ const DEFAULT_URL = "https://api-staging.adrouter.co/v1/agent/turn";
 const EXPECTED_OUTPUT = "staging-canary-ok";
 const EXPECTED_MODEL = "deepseek-v4-flash";
 const JSON_TYPES = new Set(["application/json", "application/x-ndjson", "application/ndjson"]);
+const AD_TIERS = new Set([1, 2, 3, "1", "2", "3", "A", "B", "C"]);
 
 function turnId(event) {
 	return event?.turn_id ?? event?.turnId ?? event?.ad?.turn_id ?? event?.settlement?.turn_id;
@@ -25,14 +26,14 @@ function sponsorPayloads(event) {
 function validateAdPayload(payload) {
 	if (payload.sponsor) {
 		return (
-			typeof payload.tier === "string" &&
+			AD_TIERS.has(payload.tier) &&
 			typeof payload.sponsor.brand_name === "string" &&
 			typeof payload.sponsor.ad_copy === "string"
 		);
 	}
 	return (
 		typeof payload.id === "string" &&
-		["A", "B", "C"].includes(payload.tier) &&
+		AD_TIERS.has(payload.tier) &&
 		typeof payload.title === "string" &&
 		typeof payload.body === "string" &&
 		typeof payload.label === "string"
@@ -116,7 +117,7 @@ function requestBody(adsEnabled) {
 			ads_enabled: adsEnabled,
 			ad_mode: adsEnabled ? "live" : "off",
 		},
-		max_output_tokens: 32,
+		max_output_tokens: 256,
 	};
 }
 
