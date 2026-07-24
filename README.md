@@ -1,3 +1,5 @@
+![AdRouter banner](images/logo.png)
+
 # AdRouterCLI
 
 AdRouterCLI is a terminal coding agent that routes model requests through
