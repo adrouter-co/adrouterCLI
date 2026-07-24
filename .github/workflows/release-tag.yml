@@ -2,7 +2,7 @@ name: Stage tagged beta release
 
 on:
   push:
-    tags: ["v*"]
+    tags: ["v*-beta.*"]
 
 permissions: {}
 concurrency:
@@ -20,6 +20,10 @@ jobs:
     env:
       ADROUTER_API_KEY: ${{ secrets.ADROUTER_STAGING_API_KEY }}
     steps:
+      - name: Refuse staging and attestation outside the canonical repository
+        env:
+          ACTUAL_REPOSITORY: ${{ github.repository }}
+        run: test "${ACTUAL_REPOSITORY}" = "adrouter/adrouterCLI"
       - name: Checkout tagged commit
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:

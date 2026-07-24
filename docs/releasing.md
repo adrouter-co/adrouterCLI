@@ -6,6 +6,31 @@ All four packages use one beta version and publish in this order:
 before its exact dependencies exist. A prerelease uses only the `beta` dist-tag;
 it must never move `latest`.
 
+## One-time public beta bootstrap
+
+Before creating the first tag:
+
+1. Create the GitHub `adrouter` organization, transfer the repository to
+   `adrouter/adrouterCLI`, update local remotes, and confirm Actions and
+   attestations run under that identity.
+2. Apply the branch, immutable beta-tag, and environment protections in
+   [repository settings](../.github/REPOSITORY_SETTINGS.md).
+3. Create the npm `adrouter` organization, require publisher 2FA, add only the
+   release maintainers, and reserve all four public package names.
+4. Merge the release hardening and require a green six-platform CI run before
+   creating `v0.81.0-beta.1`.
+5. Run the one-time bootstrap workflow with the short-lived token. Approve the
+   staged packages with human 2FA in dependency order and approve the CLI last.
+6. Configure the four stage-only trusted publishers, then run the promotion
+   workflow's `publish-github` phase.
+7. Delete the bootstrap token and remove
+   `.github/workflows/npm-bootstrap.yml` in a follow-up commit. Every later beta
+   uses OIDC `stage-npm`, human 2FA approval, then `publish-github`.
+
+If any artifact for the intended version already exists or differs in
+integrity or metadata, do not replace it. Increment the beta number in lockstep
+and restart from a new protected tag.
+
 ## Tag and draft
 
 Create the immutable protected `vX.Y.Z-beta.N` tag only after the clean-checkout
@@ -30,7 +55,10 @@ Approval is deliberately not described as atomic: npm stages and approves each
 package separately. A maintainer performs 2FA approval in the same dependency
 order and approves `@adrouter/cli` last. Publish the GitHub prerelease only after
 all four public packages resolve to the tagged version under `beta`, none resolve
-to it under `latest`, and registry integrity matches the recorded artifact.
+to it under `latest`, registry integrity and metadata match the recorded
+artifact, and anonymous temporary-prefix installs pass on all six supported
+platforms. Each install verifies `adrouter`, `adrouter-profile`, `--version`,
+`--help`, JSON doctor output, and packaged runtime resources.
 
 ## Interrupted staging recovery
 
@@ -64,3 +92,6 @@ approval remain explicit maintainer actions.
 Third-party Actions stay pinned to immutable commit SHAs. Standalone archives
 remain blocked until each target has matching-environment certification and
 required platform signing.
+
+Every staging, attestation, bootstrap, and publication job refuses to run unless
+`github.repository` is exactly `adrouter/adrouterCLI`.

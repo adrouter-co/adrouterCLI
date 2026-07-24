@@ -28,6 +28,10 @@ jobs:
       contents: write
       id-token: write
     steps:
+      - name: Refuse release operations outside the canonical repository
+        env:
+          ACTUAL_REPOSITORY: ${{ github.repository }}
+        run: test "${ACTUAL_REPOSITORY}" = "adrouter/adrouterCLI"
       - name: Checkout protected tag
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
@@ -47,7 +51,7 @@ jobs:
       - run: npm run check
       - run: npm run check:beta-readiness
       - run: node scripts/test.mjs
-      - run: node scripts/publish.mjs --dry-run
+      - run: node scripts/publish.mjs --dry-run --manifest npm-artifacts.json
       - name: Verify draft inventory, checksums, and attestations
         env:
           GH_TOKEN: ${{ github.token }}
@@ -58,8 +62,64 @@ jobs:
       - name: Verify all four npm packages are public under beta
         if: ${{ inputs.phase == 'publish-github' }}
         run: node scripts/verify-npm-release.mjs
-      - name: Publish GitHub prerelease after npm approval
-        if: ${{ inputs.phase == 'publish-github' }}
+
+  registry-install:
+    name: registry-install-${{ matrix.platform }}
+    if: ${{ inputs.phase == 'publish-github' }}
+    needs: promote
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux-x64
+            os: ubuntu-24.04
+          - platform: linux-arm64
+            os: ubuntu-24.04-arm
+          - platform: windows-x64
+            os: windows-2025
+          - platform: windows-arm64
+            os: windows-11-arm
+          - platform: darwin-x64
+            os: macos-15-intel
+          - platform: darwin-arm64
+            os: macos-15
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
+    steps:
+      - name: Refuse registry verification outside the canonical repository
+        env:
+          ACTUAL_REPOSITORY: ${{ github.repository }}
+        run: test "${ACTUAL_REPOSITORY}" = "adrouter/adrouterCLI"
+        shell: bash
+      - name: Checkout protected tag
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ inputs.tag }}
+          persist-credentials: false
+      - name: Setup Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22.19.0"
+          registry-url: https://registry.npmjs.org
+      - name: Install and verify beta anonymously in a clean global prefix
+        run: node scripts/verify-registry-install.mjs
+
+  publish-github:
+    if: ${{ inputs.phase == 'publish-github' }}
+    needs:
+      - promote
+      - registry-install
+    runs-on: ubuntu-latest
+    environment: npm-publish
+    permissions:
+      contents: write
+    steps:
+      - name: Refuse publication outside the canonical repository
+        env:
+          ACTUAL_REPOSITORY: ${{ github.repository }}
+        run: test "${ACTUAL_REPOSITORY}" = "adrouter/adrouterCLI"
+      - name: Publish GitHub prerelease after every registry install succeeds
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release edit "${{ inputs.tag }}" --draft=false --prerelease
+        run: gh release edit "${{ inputs.tag }}" --repo adrouter/adrouterCLI --draft=false --prerelease

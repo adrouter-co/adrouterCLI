@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 import {
 	PUBLICATION_ORDER,
@@ -80,5 +81,36 @@ test("enforces dependency order and CLI-last", () => {
 	assert.throws(
 		() => assertPackageOrder([...states(["missing", "missing", "missing", "missing"])].reverse()),
 		/cli last/,
+	);
+});
+
+test("release workflows are bound to the canonical repository and registry install gate", () => {
+	const releaseTag = readFileSync(".github/workflows/release-tag.yml", "utf8");
+	const bootstrap = readFileSync(".github/workflows/npm-bootstrap.yml", "utf8");
+	const promote = readFileSync(".github/workflows/promote-release.yml", "utf8");
+
+	for (const [name, workflow] of [
+		["release-tag", releaseTag],
+		["npm-bootstrap", bootstrap],
+		["promote-release", promote],
+	]) {
+		assert.match(workflow, /test "\$\{ACTUAL_REPOSITORY\}" = "adrouter\/adrouterCLI"/, `${name} identity guard`);
+	}
+	assert.match(releaseTag, /tags: \["v\*-beta\.\*"\]/);
+	for (const platform of [
+		"linux-x64",
+		"linux-arm64",
+		"windows-x64",
+		"windows-arm64",
+		"darwin-x64",
+		"darwin-arm64",
+	]) {
+		assert.match(promote, new RegExp(`platform: ${platform}`));
+	}
+	assert.match(promote, /needs:\s*\n\s*- promote\s*\n\s*- registry-install/);
+	assert.ok(
+		promote.indexOf("node scripts/verify-registry-install.mjs") <
+			promote.indexOf("gh release edit"),
+		"GitHub publication must follow registry installation",
 	);
 });
