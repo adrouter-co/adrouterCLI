@@ -23,15 +23,7 @@ function run(command, args, options = {}) {
 }
 
 function removeTemporaryDirectory(directory) {
-	try {
-		rmSync(directory, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 });
-	} catch (error) {
-		// Windows runners can retain a short-lived loader/antivirus handle on native
-		// dependencies after the installed CLI exits. The smoke has already passed,
-		// and the runner's temporary directory is discarded with the job.
-		if (process.platform !== "win32" || error?.code !== "EPERM") throw error;
-		console.warn(`Unable to remove temporary Windows smoke directory ${directory}: ${error.message}`);
-	}
+	rmSync(directory, { recursive: true, force: true, maxRetries: 10, retryDelay: 250 });
 }
 
 const root = process.cwd();
@@ -134,7 +126,15 @@ try {
 	}
 	console.log(`Packaged ${version} command and resource smokes passed.`);
 } finally {
-	removeTemporaryDirectory(smokeRoot);
+	// Windows runners can retain a loader/antivirus handle on a native dependency
+	// after the installed CLI exits. The runner discards its temporary directory
+	// with the job, so avoid turning successful runtime verification into a cleanup
+	// failure or a long recursive retry across the installed dependency tree.
+	if (process.platform === "win32") {
+		console.warn(`Leaving temporary Windows smoke prefix for runner cleanup: ${smokeRoot}`);
+	} else {
+		removeTemporaryDirectory(smokeRoot);
+	}
 	removeTemporaryDirectory(isolatedHome);
 	removeTemporaryDirectory(project);
 }
