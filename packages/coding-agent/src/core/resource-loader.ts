@@ -8,6 +8,13 @@ import type { ResourceDiagnostic } from "./diagnostics.ts";
 export type { ResourceCollision, ResourceDiagnostic } from "./diagnostics.ts";
 
 import { canonicalizePath, isLocalPath, resolvePath } from "../utils/paths.ts";
+import {
+	type BundledFeatureReport,
+	bundledExtensionPaths,
+	bundledSkillPaths,
+	formatBundledFeatureFailure,
+	validateBundledFeatures,
+} from "./bundled-features.ts";
 import { createEventBus, type EventBus } from "./event-bus.ts";
 import {
 	clearExtensionCache,
@@ -16,6 +23,7 @@ import {
 	loadExtensionsCached,
 } from "./extensions/loader.ts";
 import type { Extension, ExtensionRuntime, InlineExtension, LoadExtensionsResult } from "./extensions/types.ts";
+import { packagedInstallationRequiresBundledFeatures } from "./installation.ts";
 import { DefaultPackageManager, type PathMetadata, type ResolvedResource } from "./package-manager.ts";
 import type { PromptTemplate } from "./prompt-templates.ts";
 import { loadPromptTemplates } from "./prompt-templates.ts";
@@ -43,6 +51,7 @@ export interface ResourceLoader {
 	getAgentsFiles(): { agentsFiles: Array<{ path: string; content: string }> };
 	getSystemPrompt(): string | undefined;
 	getAppendSystemPrompt(): string[];
+	getBundledFeatureReport?(): BundledFeatureReport;
 	extendResources(paths: ResourceExtensionPaths): void;
 	reload(options?: ResourceLoaderReloadOptions): Promise<void>;
 }
@@ -213,6 +222,7 @@ export class DefaultResourceLoader implements ResourceLoader {
 	private lastPromptPaths: string[];
 	private lastThemePaths: string[];
 	private loaded: boolean;
+	private bundledFeatureReport: BundledFeatureReport;
 
 	constructor(options: DefaultResourceLoaderOptions) {
 		this.cwd = resolvePath(options.cwd);
@@ -261,6 +271,7 @@ export class DefaultResourceLoader implements ResourceLoader {
 		this.lastPromptPaths = [];
 		this.lastThemePaths = [];
 		this.loaded = false;
+		this.bundledFeatureReport = { mode: "disabled", ready: true, failures: [] };
 	}
 
 	getExtensions(): LoadExtensionsResult {
@@ -289,6 +300,10 @@ export class DefaultResourceLoader implements ResourceLoader {
 
 	getAppendSystemPrompt(): string[] {
 		return this.appendSystemPrompt;
+	}
+
+	getBundledFeatureReport(): BundledFeatureReport {
+		return this.bundledFeatureReport;
 	}
 
 	extendResources(paths: ResourceExtensionPaths): void {
@@ -406,24 +421,17 @@ export class DefaultResourceLoader implements ResourceLoader {
 		const bundledRoot = existsSync(join(packageDir, "bundled"))
 			? join(packageDir, "bundled")
 			: join(packageDir, "dist", "bundled");
-		const bundledExtensions =
-			!this.includeBundledFeatures || process.env.ADROUTER_BUNDLED_FEATURES === "off"
-				? []
-				: [
-						join(bundledRoot, "pi-subagents-0.30.0", "src", "extension", "index.ts"),
-						join(bundledRoot, "pi-cache-optimizer-2.6.16", "index.ts"),
-						join(bundledRoot, "pi-opencode-bridge-0.2.1", "index.ts"),
-						join(bundledRoot, "btw-23017e9", "index.ts"),
-						join(bundledRoot, "pi-web-access-0.13.0", "dist", "index.js"),
-					].filter((extensionPath) => existsSync(extensionPath));
-		const bundledSkills =
-			!this.includeBundledFeatures || process.env.ADROUTER_BUNDLED_FEATURES === "off"
-				? []
-				: [
-						join(bundledRoot, "pi-subagents-0.30.0", "skills"),
-						join(bundledRoot, "pi-web-access-0.13.0", "skills"),
-						join(bundledRoot, "adroutercli", "skills"),
-					].filter((skillPath) => existsSync(skillPath));
+		const bundledFeaturesEnabled =
+			this.includeBundledFeatures &&
+			process.env.ADROUTER_BUNDLED_FEATURES !== "off" &&
+			!this.noExtensions &&
+			!this.noSkills;
+		const bundledExtensions = bundledFeaturesEnabled
+			? bundledExtensionPaths(bundledRoot).filter((extensionPath) => existsSync(extensionPath))
+			: [];
+		const bundledSkills = bundledFeaturesEnabled
+			? bundledSkillPaths(bundledRoot).filter((skillPath) => existsSync(skillPath))
+			: [];
 
 		const extensionPaths = this.noExtensions
 			? cliEnabledExtensions
@@ -514,6 +522,10 @@ export class DefaultResourceLoader implements ResourceLoader {
 		this.appendSystemPrompt = this.appendSystemPromptOverride
 			? this.appendSystemPromptOverride(baseAppend)
 			: baseAppend;
+		this.bundledFeatureReport = validateBundledFeatures(this.extensionsResult, this.skills, bundledFeaturesEnabled);
+		if (!this.bundledFeatureReport.ready && packagedInstallationRequiresBundledFeatures()) {
+			throw new Error(formatBundledFeatureFailure(this.bundledFeatureReport));
+		}
 		this.loaded = true;
 	}
 

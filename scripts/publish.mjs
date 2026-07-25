@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { CLI_PACKAGE, createBundledCliTarball } from "./npm-artifact.mjs";
 import { assertPackageTarball, readTarEntries } from "./package-policy.mjs";
-import { publicationChannel } from "./release-policy.mjs";
+import { assertResumablePublication, publicationChannel } from "./release-policy.mjs";
 
 const registry = "https://registry.npmjs.org/";
 
@@ -76,7 +76,17 @@ function packageJsonFromTarball(tarball) {
 function artifactRecord(tarball, packed) {
 	const verified = assertPackageTarball(CLI_PACKAGE, packed, tarball);
 	const channel = publicationChannel(verified.version);
+	const releaseManifest = JSON.parse(readFileSync("release-manifest.json", "utf8"));
+	if (
+		releaseManifest.schema !== 2 ||
+		releaseManifest.version !== verified.version ||
+		releaseManifest.release?.candidateTag !== "candidate" ||
+		releaseManifest.release?.githubPrerelease !== channel.prerelease
+	) {
+		throw new Error("release-manifest.json does not describe this beta/stable publication");
+	}
 	return {
+		schema: 2,
 		commit: run("git", ["rev-parse", "HEAD"], { capture: true }).trim(),
 		packages: [
 			{
@@ -88,7 +98,7 @@ function artifactRecord(tarball, packed) {
 				version: verified.version,
 			},
 		],
-		tag: channel.tag,
+		publication: releaseManifest.release,
 		version: verified.version,
 	};
 }
@@ -108,7 +118,7 @@ if (dryRun) {
 			"--access",
 			"public",
 			"--tag",
-			record.tag,
+			record.publication.candidateTag,
 			"--ignore-scripts",
 			"--provenance=false",
 		]);
@@ -131,8 +141,9 @@ const artifact = recorded.packages?.[0];
 const head = run("git", ["rev-parse", "HEAD"], { capture: true }).trim();
 if (
 	recorded.commit !== head ||
+	recorded.schema !== 2 ||
 	recorded.version !== localManifest.version ||
-	recorded.tag !== "beta" ||
+	recorded.publication?.candidateTag !== "candidate" ||
 	recorded.packages?.length !== 1 ||
 	artifact?.name !== CLI_PACKAGE.name ||
 	artifact?.integrity !== verified.integrity ||
@@ -140,22 +151,42 @@ if (
 ) {
 	throw new Error("Recorded npm artifact does not match the exact checkout and tarball selected for publication");
 }
-if (npmJsonOrMissing(["view", `${CLI_PACKAGE.name}@${recorded.version}`]) !== undefined) {
-	throw new Error(`${CLI_PACKAGE.name}@${recorded.version} already exists; npm versions are immutable`);
+const remote = npmJsonOrMissing(["view", `${CLI_PACKAGE.name}@${recorded.version}`]);
+if (remote !== undefined) {
+	const tags = npmJsonOrMissing(["view", CLI_PACKAGE.name, "dist-tags"]) ?? {};
+	assertResumablePublication(
+		[
+			{
+				localIntegrity: verified.integrity,
+				metadataMatches: remote.dist?.integrity === verified.integrity,
+				name: CLI_PACKAGE.name,
+				registryIntegrity: remote.dist?.integrity,
+				status: "published",
+				tags,
+				version: remote.version,
+			},
+		],
+		recorded.version,
+		publicationChannel(recorded.version),
+	);
+	console.log(`${CLI_PACKAGE.name}@${recorded.version} already matches the recorded candidate/final publication.`);
+	process.exit(0);
 }
 const username = run("npm", ["whoami", "--registry", registry], { capture: true }).trim();
 if (!username) throw new Error("npm whoami returned no authenticated user");
-run("npm", ["access", "list", "packages", "@adrouter", "--registry", registry], { capture: true });
 run("npm", [
 	"publish",
 	tarball,
 	"--access",
 	"public",
 	"--tag",
-	"beta",
+	recorded.publication.candidateTag,
 	"--ignore-scripts",
-	"--provenance=false",
+	"--provenance",
 	"--registry",
 	registry,
 ]);
-console.log(`Published only ${CLI_PACKAGE.name}@${recorded.version}; verify registry integrity before promotion.`);
+console.log(
+	`Published only ${CLI_PACKAGE.name}@${recorded.version} under ${recorded.publication.candidateTag}; ` +
+		"verify installed runtime integrity before promotion.",
+);

@@ -4,6 +4,7 @@ import { spawnSync } from "node:child_process";
 import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { verifyInstalledRuntime } from "./verify-installed-runtime.mjs";
 
 function run(command, args, options = {}) {
 	const result = spawnSync(command, args, {
@@ -42,6 +43,10 @@ try {
 	const binDirectory = process.platform === "win32" ? install : join(install, "bin");
 	const cli = process.platform === "win32" ? join(install, "adrouter.cmd") : join(binDirectory, "adrouter");
 	const profiles = process.platform === "win32" ? join(install, "adrouter-profile.cmd") : join(binDirectory, "adrouter-profile");
+	const packageRoot =
+		process.platform === "win32"
+			? join(install, "node_modules", "@adrouter", "cli")
+			: join(install, "lib", "node_modules", "@adrouter", "cli");
 	const env = {
 		...process.env,
 		ADROUTER_API_URL: "http://127.0.0.1:1",
@@ -70,6 +75,9 @@ try {
 	}
 	const doctor = JSON.parse(run(cli, ["--json", "doctor"], { capture: true, cwd: project, env }));
 	if (doctor.ok !== true || doctor.version !== version) throw new Error("Packaged doctor JSON is invalid");
+	if (doctor.installation?.kind !== "packaged" || doctor.installation?.deployable !== true) {
+		throw new Error(`Packaged doctor rejected the installation: ${JSON.stringify(doctor.installation)}`);
+	}
 	run(cli, ["--offline", "--no-approve", "--list-models", "adrouter"], {
 		capture: true,
 		cwd: project,
@@ -93,14 +101,16 @@ try {
 		"node_modules/@adrouter/tui/dist/index.js",
 		"node_modules/@adrouter/agent-core/dist/index.js",
 	]) {
-		const packageRoot =
-			process.platform === "win32"
-				? join(install, "node_modules", "@adrouter", "cli")
-				: join(install, "lib", "node_modules", "@adrouter", "cli");
 		if (!existsSync(join(packageRoot, resource))) {
 			throw new Error(`Packaged resource is missing: ${resource}`);
 		}
 	}
+	await verifyInstalledRuntime({
+		packageRoot,
+		project,
+		agentDir: join(isolatedHome, ".adrouter", "agent"),
+		expectedVersion: version,
+	});
 	const dependencyTree = JSON.parse(
 		run(process.platform === "win32" ? "npm.cmd" : "npm", ["ls", "--global", "--all", "--json", "--prefix", install], {
 			capture: true,

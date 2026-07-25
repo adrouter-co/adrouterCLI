@@ -70,6 +70,18 @@ describe("DefaultResourceLoader", () => {
 			const { skills, diagnostics } = loader.getSkills();
 			expect(diagnostics).toEqual([]);
 			expect(skills.map((skill) => skill.name).sort()).toEqual(["adroutercli", "librarian", "pi-subagents"]);
+			expect(loader.getBundledFeatureReport()).toEqual({
+				mode: "required",
+				ready: true,
+				failures: [],
+			});
+
+			await loader.reload();
+			const reloadedOpenCode = loader
+				.getExtensions()
+				.extensions.find((extension) => extension.path.includes("pi-opencode-bridge"));
+			expect([...reloadedOpenCode!.commands.keys()].sort()).toEqual(["opencode-go-key", "opencode-status"]);
+			expect(loader.getBundledFeatureReport().ready).toBe(true);
 		});
 
 		it("disables every bundled extension and skill with ADROUTER_BUNDLED_FEATURES=off", async () => {
@@ -79,6 +91,11 @@ describe("DefaultResourceLoader", () => {
 				await loader.reload();
 				expect(loader.getExtensions().extensions).toEqual([]);
 				expect(loader.getSkills().skills).toEqual([]);
+				expect(loader.getBundledFeatureReport()).toEqual({
+					mode: "disabled",
+					ready: true,
+					failures: [],
+				});
 			} finally {
 				delete process.env.ADROUTER_BUNDLED_FEATURES;
 			}

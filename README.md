@@ -3,7 +3,7 @@
 # AdRouterCLI
 
 AdRouterCLI is a terminal coding agent that routes model requests through
-AdRouter. Version `0.81.0-beta.3` is an MIT-licensed public-source and npm
+AdRouter. Version `0.81.0-beta.4` is an MIT-licensed public-source and npm
 prerelease; hosted access remains invite-only. AdRouterCLI is derived from
 [Mario Zechner's upstream project](UPSTREAM.md), whose MIT license and
 attribution are preserved.
@@ -36,10 +36,9 @@ Do not download standalone archives: all six entries in
 [`release-manifest.json`](release-manifest.json) are blocked until
 matching-platform certification and signing are available.
 
-While a registry release is still being promoted, maintainers can install the
-CLI directly from a source checkout with `npm run install:local`. See
-[maintainer development](docs/development.md#source-linked-cli-install) for
-rebuilding, unlinking, and returning to the registry version.
+Maintainers can install a production-faithful staged tarball from a checkout
+with `npm run install:local`. `npm run link:dev` is reserved for development
+and is never valid release or deployment evidence.
 
 ## First login, trust, and ads
 
@@ -139,8 +138,8 @@ belong in GitHub Issues; usage questions belong in GitHub Discussions. See
 Inspect the immutable source tag before installation:
 
 ```sh
-gh api repos/adrouter/adrouterCLI/git/ref/tags/v0.81.0-beta.3
-gh api repos/adrouter/adrouterCLI/tarball/v0.81.0-beta.3 > adrouterCLI-v0.81.0-beta.3.tar.gz
+gh api repos/adrouter/adrouterCLI/git/ref/tags/v0.81.0-beta.4
+gh api repos/adrouter/adrouterCLI/tarball/v0.81.0-beta.4 > adrouterCLI-v0.81.0-beta.4.tar.gz
 ```
 
 The release draft includes the single bundled npm tarball, its artifact

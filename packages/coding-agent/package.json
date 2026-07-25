@@ -1,6 +1,6 @@
 {
 	"name": "@adrouter/cli",
-	"version": "0.81.0-beta.3",
+	"version": "0.81.0-beta.4",
 	"description": "AdRouterCLI coding agent with read, bash, edit, and write tools",
 	"type": "module",
 	"piConfig": {
@@ -37,12 +37,13 @@
 		"copy-binary-assets": "shx cp package.json dist/ && shx mkdir -p dist/theme && shx cp src/modes/interactive/theme/*.json dist/theme/ && shx mkdir -p dist/assets && shx cp src/modes/interactive/assets/*.png dist/assets/ && shx cp -r bundled dist/ && shx mkdir -p dist/export-html/vendor && shx cp src/core/export-html/template.html dist/export-html/ && shx cp src/core/export-html/vendor/*.js dist/export-html/vendor/ && shx cp -r docs dist/ && shx cp ../../node_modules/@silvia-odwyer/photon-node/photon_rs_bg.wasm dist/",
 		"test": "vitest --run",
 		"shrinkwrap": "node ../../scripts/generate-coding-agent-shrinkwrap.mjs",
+		"prepack": "node ../../scripts/guard-direct-pack.mjs",
 		"prepublishOnly": "npm run clean && npm run build && npm run shrinkwrap"
 	},
 	"dependencies": {
-		"@adrouter/agent-core": "0.81.0-beta.3",
-		"@adrouter/ai": "0.81.0-beta.3",
-		"@adrouter/tui": "0.81.0-beta.3",
+		"@adrouter/agent-core": "0.81.0-beta.4",
+		"@adrouter/ai": "0.81.0-beta.4",
+		"@adrouter/tui": "0.81.0-beta.4",
 		"@silvia-odwyer/photon-node": "0.3.4",
 		"@mozilla/readability": "0.6.0",
 		"chalk": "5.6.2",
@@ -115,7 +116,7 @@
 	"homepage": "https://github.com/adrouter/adrouterCLI#readme",
 	"publishConfig": {
 		"access": "public",
-		"tag": "beta"
+		"tag": "candidate"
 	},
 	"engines": {
 		"node": ">=22.19.0"

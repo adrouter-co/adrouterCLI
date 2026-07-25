@@ -3,8 +3,8 @@
 import { readFileSync } from "node:fs";
 
 const tag = process.argv[2];
-if (!tag || !/^v\d+\.\d+\.\d+-beta\.\d+$/.test(tag)) {
-	throw new Error("Release tag must have the form vX.Y.Z-beta.N");
+if (!tag || !/^v\d+\.\d+\.\d+(?:-beta\.\d+)?$/.test(tag)) {
+	throw new Error("Release tag must have the form vX.Y.Z or vX.Y.Z-beta.N");
 }
 
 const version = JSON.parse(readFileSync("package.json", "utf8")).version;

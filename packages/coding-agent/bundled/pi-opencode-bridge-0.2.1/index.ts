@@ -204,12 +204,7 @@ function buildPiModels(rawModels: RawModel[], provider: string): any[] {
 // Registration
 // ---------------------------------------------------------------------------
 
-const REG_KEY = Symbol.for("pi-oc-sdk:registered");
-
 export default function (pi: ExtensionAPI) {
-	const g = globalThis as Record<symbol, any>;
-	if (g[REG_KEY]) return; // already registered
-
 	const { go, zen } = discoverModels();
 
 	// Register Go provider (OpenCode Go plan)
@@ -237,10 +232,6 @@ export default function (pi: ExtensionAPI) {
 			});
 		}
 	}
-
-	g[REG_KEY] = true;
-
-
 
 	pi.registerCommand("opencode-go-key", {
 		description: "Set your OpenCode Go API key directly (no CLI required)",

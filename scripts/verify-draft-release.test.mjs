@@ -18,4 +18,5 @@ test("draft verifier checks the npm artifact and release metadata attestations",
 	assert.match(source, /createHash\("sha512"\)/);
 	assert.match(source, /Draft npm tarball integrity differs from npm-artifacts\.json/);
 	assert.match(source, /--predicate-type", "https:\/\/cyclonedx\.org\/bom"/);
+	assert.match(source, /--allow-published/);
 });

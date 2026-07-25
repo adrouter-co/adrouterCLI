@@ -6,11 +6,16 @@ AdRouterCLI requires Node.js 22.19 or newer. On macOS and Linux, install Node wi
 npm install --global --ignore-scripts @adrouter/cli@beta
 adrouter --version
 adrouter --help
+adrouter --json doctor
 ```
 
 This installs one public package. Its private `@adrouter/ai`, `@adrouter/tui`,
 and `@adrouter/agent-core` runtime packages are embedded in the CLI tarball and
 are not fetched as separate AdRouter registry packages.
+
+The doctor result must report `"installation":{"kind":"packaged","deployable":true}`
+for a supported deployment. A source-linked or incomplete installation can run
+some metadata commands but is not deployment-qualified.
 
 If the command is missing, inspect `npm prefix --global`. Add its executable directory to your shell `PATH`; on Windows this is commonly the npm prefix itself, while Unix installations commonly use its `bin` directory. Restart the terminal after changing `PATH`.
 

@@ -4,6 +4,7 @@ import { resolveAdRouterAdMode } from "@adrouter/ai";
 import { APP_NAME, getSettingsPath, VERSION } from "../config.ts";
 import { resolveAdRouterCredentials } from "../core/adrouter-auth.ts";
 import { AuthStorage } from "../core/auth-storage.ts";
+import { inspectInstallation } from "../core/installation.ts";
 
 type JsonRecord = Record<string, unknown>;
 
@@ -131,6 +132,7 @@ async function doctor(cwd: string, authStorage: AuthStorage): Promise<void> {
 			authRequired: adMode !== "off",
 		},
 		modelRoute: process.env.ADROUTER_MODEL_ROUTE ?? "deepseek-v4-flash",
+		installation: inspectInstallation(),
 	});
 }
 

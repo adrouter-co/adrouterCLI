@@ -2,6 +2,22 @@
 
 ## [Unreleased]
 
+## [0.81.0-beta.4] - 2026-07-25
+
+### Added
+
+- Added deployable-install diagnostics and an installed-artifact verifier covering bundled dependencies, extensions, `/reload`, `/new`, and profiles.
+
+### Changed
+
+- Changed `install:local` to install the staged bundled tarball; source linking moved to `link:dev`.
+- Staged npm releases now use a temporary `candidate` dist-tag and promote final tags only after six-platform installed-runtime verification.
+
+### Fixed
+
+- Fixed `pi-opencode-bridge` registration disappearing when `/reload` or `/new` creates a fresh extension runtime.
+- Rejected direct workspace packing that omits the three bundled private runtime packages.
+
 ## [0.81.0-beta.3] - 2026-07-25
 
 ### Fixed

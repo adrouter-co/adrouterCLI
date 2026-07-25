@@ -1,9 +1,11 @@
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import test from "node:test";
 import { gzipSync } from "node:zlib";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { CLI_PACKAGE } from "./npm-artifact.mjs";
 import { assertPackageTarball, embeddedDirectDependencyFailures } from "./package-policy.mjs";
 
 function tarEntry(path, content) {
@@ -70,4 +72,39 @@ test("rejects a hoisted bundled dependency that conflicts with the CLI declarati
 		["embedded retry@0.13.1 does not match declared 0.12.0"],
 	);
 	assert.deepEqual(embeddedDirectDependencyFailures({ dependencies: { retry: "0.13.1" } }, entries), []);
+});
+
+test("rejects direct workspace packing before an incomplete deployment artifact is created", () => {
+	const npm = process.platform === "win32" ? "npm.cmd" : "npm";
+	const result = spawnSync(npm, ["pack", "--dry-run", "--workspace", "@adrouter/cli"], {
+		encoding: "utf8",
+		shell: process.platform === "win32",
+	});
+	assert.notEqual(result.status, 0);
+	assert.match(`${result.stdout}\n${result.stderr}`, /Direct @adrouter\/cli packing\/publishing is unsupported/);
+});
+
+test("package policy rejects a direct pack even when lifecycle guards are bypassed", () => {
+	const npm = process.platform === "win32" ? "npm.cmd" : "npm";
+	const directory = mkdtempSync(join(tmpdir(), "adrouter-direct-pack-"));
+	try {
+		const result = spawnSync(
+			npm,
+			["pack", "--ignore-scripts", "--json", "--pack-destination", directory, "--min-release-age=0"],
+			{
+				cwd: "packages/coding-agent",
+				encoding: "utf8",
+				env: { ...process.env, NPM_CONFIG_CACHE: join(directory, "npm-cache") },
+				shell: process.platform === "win32",
+			},
+		);
+		assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
+		const packed = JSON.parse(result.stdout)[0];
+		assert.throws(
+			() => assertPackageTarball(CLI_PACKAGE, packed, join(directory, packed.filename)),
+			/missing bundled package/,
+		);
+	} finally {
+		rmSync(directory, { recursive: true, force: true });
+	}
 });

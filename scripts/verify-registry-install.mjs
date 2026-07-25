@@ -4,6 +4,7 @@ import { spawnSync } from "node:child_process";
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { delimiter, join } from "node:path";
+import { verifyInstalledRuntime } from "./verify-installed-runtime.mjs";
 
 const expectedVersion = JSON.parse(readFileSync("package.json", "utf8")).version;
 const root = mkdtempSync(join(tmpdir(), "adrouter-registry-install-"));
@@ -36,6 +37,7 @@ function executable(name) {
 
 function run(command, args, timeout = 45_000) {
 	const result = spawnSync(command, args, {
+		cwd: root,
 		encoding: "utf8",
 		env,
 		shell: process.platform === "win32" && /\.(?:cmd|bat)$/i.test(command),
@@ -62,7 +64,8 @@ try {
 			"--no-fund",
 			"--registry",
 			"https://registry.npmjs.org/",
-			"@adrouter/cli@beta",
+			"--min-release-age=0",
+			`@adrouter/cli@${expectedVersion}`,
 		],
 		600_000,
 	);
@@ -79,6 +82,9 @@ try {
 	run(profile, ["list"]);
 	const doctor = JSON.parse(run(adrouter, ["--json", "doctor"]));
 	if (!doctor || typeof doctor !== "object") throw new Error("adrouter --json doctor did not return a JSON object");
+	if (doctor.installation?.kind !== "packaged" || doctor.installation?.deployable !== true) {
+		throw new Error(`Installed doctor rejected the package: ${JSON.stringify(doctor.installation)}`);
+	}
 	run(adrouter, ["--offline", "--no-approve", "--list-models", "adrouter"]);
 
 	const packageRoot =
@@ -107,6 +113,16 @@ try {
 	if (dependencyTree.problems?.length) {
 		throw new Error(`Global dependency tree is invalid: ${dependencyTree.problems.join(", ")}`);
 	}
+	run(profile, ["set", "registry-ci", "--provider", "adrouter", "--model", "deepseek-v4-flash"]);
+	if (!run(profile, ["list"]).includes("registry-ci")) throw new Error("Installed profile listing failed");
+	run(profile, ["apply", "registry-ci", "--cwd", root, "--no-launch"]);
+	run(profile, ["restore", "--cwd", root]);
+	await verifyInstalledRuntime({
+		packageRoot,
+		project: root,
+		agentDir: join(root, "state"),
+		expectedVersion,
+	});
 
 	console.log(`Anonymous registry install verified bundled @adrouter/cli@${expectedVersion} and both commands.`);
 } finally {
