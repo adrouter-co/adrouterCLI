@@ -1,15 +1,15 @@
-# Plan: Package and release AdRouterCLI 0.81.0-beta.4
+# Plan: Package and release AdRouterCLI 0.81.0-beta.5
 
 ## Goal
 
-Publish one production-faithful `@adrouter/cli@0.81.0-beta.4` package that embeds the private
+Publish one production-faithful `@adrouter/cli@0.81.0-beta.5` package that embeds the private
 `@adrouter/agent-core`, `@adrouter/ai`, and `@adrouter/tui` workspaces, proves the installed
 runtime on every supported platform, promotes npm only after those gates pass, and publishes
 the matching GitHub prerelease.
 
 ## Context
 
-The public beta.3 package is the current `beta` and `latest`. The beta.4 candidate fixes missing
+The public beta.3 package is the current `beta` and `latest`. The beta.5 candidate fixes missing
 private runtime packages and makes bundled extensions, skills, `/reload`, `/new`, profiles, and
 installation diagnostics part of the deployable-package contract. Only `@adrouter/cli` is public;
 the internal packages remain exact-version private workspaces embedded through
@@ -66,7 +66,7 @@ when required bundled features are incomplete.
 
 ### Tasks
 
-- [x] Keep all workspaces lockstep at beta.4 and all internal workspaces private.
+- [x] Keep all workspaces lockstep at beta.5 and all internal workspaces private.
 - [x] Materialize the three private packages as real nested directories in the CLI tarball.
 - [x] Generate a shrinkwrap with `inBundle` entries and no internal registry tarball URLs.
 - [x] Guard unsupported direct workspace packing and publishing.
@@ -302,7 +302,7 @@ git diff --check
   listeners with `EPERM`; 498 AI, 180 agent, and 1,511 CLI tests passed, with documented skips)
 - `node --test scripts/install-local.test.mjs`: passed
 - `node scripts/ci-package-smoke.mjs`: passed against the exact staged tarball
-- publication dry run: passed; one 17,843,967-byte beta.4 tarball with 102 bundled dependencies
+- publication dry run: passed; one 17,843,967-byte beta.5 tarball with 102 bundled dependencies
 - workflow YAML parsing, release-script syntax checks, and `git diff --check`: passed
 - `npm run check`: every release-owned gate passed; the aggregate command stops at
   `check:public-boundary` only because the preserved, unrelated untracked `docs/bugs.md` contains a
@@ -322,7 +322,7 @@ git diff --check
 ## Follow-up Work
 
 - Configure credentials and execute the two protected workflow phases.
-- Monitor beta.4 for at least 48 hours and collect packaged-user evidence on macOS, Linux, and
+- Monitor beta.5 for at least 48 hours and collect packaged-user evidence on macOS, Linux, and
   Windows before planning stable `0.81.0`.
 - Revoke the temporary npm token after final verification.
 
@@ -330,7 +330,8 @@ git diff --check
 
 | Date | Decision | Rationale | Impact |
 | --- | --- | --- | --- |
-| 2026-07-25 | Publish beta.4 to both `beta` and `latest` | Selected release policy and current beta channel behavior | beta.4 becomes the default npm install |
+| 2026-07-25 | Publish beta.5 to both `beta` and `latest` | Selected release policy and current beta channel behavior | beta.5 becomes the default npm install |
 | 2026-07-25 | Publish a GitHub prerelease, not GitHub Packages | Avoid duplicate registry policy | One npm package plus attested GitHub assets |
 | 2026-07-25 | Use a scoped CI token | Enables automated candidate publication, tag promotion, and deprecation | Requires protected secret and post-release revocation |
 | 2026-07-25 | Keep private workspaces bundled | Fixes missing installed runtimes without publishing internal packages | One public tarball with three embedded private packages |
+| 2026-07-25 | Recover the unpublished beta.4 attempt as beta.5 | The protected beta.4 tag is immutable and points to the pre-release commit; npm and GitHub beta.4 were never published | Preserve the bad tag for auditability and release the verified commit under a new immutable version |
