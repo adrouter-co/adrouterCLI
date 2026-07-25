@@ -2,8 +2,12 @@
 
 import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 
 const packageName = "@adrouter/cli";
+const verifierPath = fileURLToPath(new URL("verify-npm-release.mjs", import.meta.url));
+const finalStateAttempts = 12;
+const finalStateRetryMs = 5_000;
 const manifest = JSON.parse(readFileSync("npm-artifacts.json", "utf8"));
 const version = manifest.version;
 const publication = manifest.publication;
@@ -36,7 +40,30 @@ function npmJson(args) {
 	return JSON.parse(result.stdout);
 }
 
-run("node", ["scripts/verify-npm-release.mjs", "--state", "resumable"]);
+async function verifyFinalState() {
+	for (let attempt = 1; attempt <= finalStateAttempts; attempt += 1) {
+		const result = spawnSync(process.execPath, [verifierPath, "--state", "final"], {
+			encoding: "utf8",
+			shell: process.platform === "win32",
+		});
+		if (result.status === 0) {
+			process.stdout.write(result.stdout);
+			process.stderr.write(result.stderr);
+			return;
+		}
+		if (attempt === finalStateAttempts) {
+			process.stdout.write(result.stdout);
+			process.stderr.write(result.stderr);
+			throw new Error(`npm final state did not become visible after ${finalStateAttempts} attempts`);
+		}
+		console.warn(
+			`npm final state is not visible yet (attempt ${attempt}/${finalStateAttempts}); retrying in ${finalStateRetryMs / 1_000}s`,
+		);
+		await new Promise((resolve) => setTimeout(resolve, finalStateRetryMs));
+	}
+}
+
+run("node", [verifierPath, "--state", "resumable"]);
 const currentTags = npmJson(["view", packageName, "dist-tags"]);
 for (const [tag, target] of Object.entries(publication.finalTags)) {
 	if (currentTags[tag] === target) continue;
@@ -63,12 +90,17 @@ if (currentTags[publication.candidateTag] !== undefined) {
 	]);
 }
 if (publication.supersedes) {
-	run("npm", [
-		"deprecate",
-		`${packageName}@${publication.supersedes}`,
-		`Superseded by ${packageName}@${version}; reinstall @beta.`,
-		"--registry",
-		"https://registry.npmjs.org/",
-	]);
+	const supersededSpecifier = `${packageName}@${publication.supersedes}`;
+	const deprecation = `Superseded by ${packageName}@${version}; reinstall @beta.`;
+	const supersededMetadata = npmJson(["view", supersededSpecifier]);
+	if (supersededMetadata.deprecated !== deprecation) {
+		run("npm", [
+			"deprecate",
+			supersededSpecifier,
+			deprecation,
+			"--registry",
+			"https://registry.npmjs.org/",
+		]);
+	}
 }
-run("node", ["scripts/verify-npm-release.mjs", "--state", "final"]);
+await verifyFinalState();
