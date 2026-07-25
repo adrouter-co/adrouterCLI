@@ -96,7 +96,8 @@ test("release workflows are bound to the canonical repository and registry insta
 	assert.match(promote, /--tarball release-assets\/adrouter-cli-\*\.tgz/);
 	assert.match(promote, /node scripts\/verify-npm-release\.mjs --state resumable/);
 	assert.match(promote, /finalize-npm:/);
-	assert.match(promote, /node scripts\/promote-npm-tags\.mjs/);
+	assert.match(promote, /path: release-finalizer-source/);
+	assert.match(promote, /node release-finalizer-source\/scripts\/promote-npm-tags\.mjs/);
 	assert.match(promote, /gh release download "\$\{\{ inputs\.tag \}\}"/);
 	assert.match(promote, /subject-path: release-assets\/adrouter-cli-\*\.tgz/);
 	assert.match(promote, /path: registry-verifier-source/);
@@ -108,14 +109,17 @@ test("release workflows are bound to the canonical repository and registry insta
 	);
 	assert.ok(
 		promote.indexOf("node registry-verifier-source/scripts/verify-registry-install.mjs") <
-			promote.indexOf("node scripts/promote-npm-tags.mjs"),
+			promote.indexOf("node release-finalizer-source/scripts/promote-npm-tags.mjs"),
 		"npm dist-tags must follow registry installation",
 	);
 	assert.ok(
-		promote.indexOf("node scripts/promote-npm-tags.mjs") <
+		promote.indexOf("node release-finalizer-source/scripts/promote-npm-tags.mjs") <
 			promote.indexOf("gh release edit"),
 		"GitHub publication must follow npm promotion",
 	);
+	const finalizerSource = readFileSync("scripts/promote-npm-tags.mjs", "utf8");
+	assert.match(finalizerSource, /finalStateAttempts = 12/);
+	assert.match(finalizerSource, /supersededMetadata\.deprecated !== deprecation/);
 	const publishSource = readFileSync("scripts/publish.mjs", "utf8");
 	assert.match(publishSource, /"--provenance"/);
 	assert.doesNotMatch(publishSource, /"access", "list", "packages"/);

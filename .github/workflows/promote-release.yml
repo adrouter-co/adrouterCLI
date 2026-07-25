@@ -168,10 +168,19 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh release download "${{ inputs.tag }}" --pattern "npm-artifacts.json" --dir .
+      - name: Checkout protected release finalizer from the workflow commit
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ github.sha }}
+          path: release-finalizer-source
+          sparse-checkout: |
+            scripts/promote-npm-tags.mjs
+            scripts/verify-npm-release.mjs
+          persist-credentials: false
       - name: Promote final dist-tags only after every installed-runtime gate passes
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: node scripts/promote-npm-tags.mjs
+        run: node release-finalizer-source/scripts/promote-npm-tags.mjs
 
   publish-github:
     if: ${{ inputs.phase == 'finalize-release' }}
