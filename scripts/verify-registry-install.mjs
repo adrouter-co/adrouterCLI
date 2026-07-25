@@ -3,7 +3,7 @@
 import { spawnSync } from "node:child_process";
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { delimiter, join } from "node:path";
+import { delimiter, dirname, join } from "node:path";
 import { verifyInstalledRuntime } from "./verify-installed-runtime.mjs";
 
 const expectedVersion = JSON.parse(readFileSync("package.json", "utf8")).version;
@@ -13,7 +13,13 @@ const isolatedHome = join(root, "home");
 const userConfig = join(root, "anonymous.npmrc");
 writeFileSync(userConfig, "registry=https://registry.npmjs.org/\nalways-auth=false\n", { mode: 0o600 });
 
-const npm = process.platform === "win32" ? "npm.cmd" : "npm";
+const npm =
+	process.platform === "win32"
+		? {
+				command: process.execPath,
+				args: [join(dirname(process.execPath), "node_modules", "npm", "bin", "npm-cli.js")],
+			}
+		: { command: "npm", args: [] };
 const binDirectory = process.platform === "win32" ? prefix : join(prefix, "bin");
 const env = {
 	...process.env,
@@ -40,7 +46,6 @@ function run(command, args, timeout = 45_000) {
 		cwd: root,
 		encoding: "utf8",
 		env,
-		shell: process.platform === "win32" && /\.(?:cmd|bat)$/i.test(command),
 		timeout,
 	});
 	if (result.status !== 0) {
@@ -53,9 +58,12 @@ function run(command, args, timeout = 45_000) {
 	return result.stdout;
 }
 
+function runNpm(args, timeout) {
+	return run(npm.command, [...npm.args, ...args], timeout);
+}
+
 try {
-	run(
-		npm,
+	runNpm(
 		[
 			"install",
 			"--global",
@@ -109,7 +117,7 @@ try {
 	if (installedVersion !== expectedVersion) {
 		throw new Error(`Installed package metadata is ${installedVersion}, expected ${expectedVersion}`);
 	}
-	const dependencyTree = JSON.parse(run(npm, ["ls", "--global", "--all", "--json", "--prefix", prefix]));
+	const dependencyTree = JSON.parse(runNpm(["ls", "--global", "--all", "--json", "--prefix", prefix]));
 	if (dependencyTree.problems?.length) {
 		throw new Error(`Global dependency tree is invalid: ${dependencyTree.problems.join(", ")}`);
 	}
