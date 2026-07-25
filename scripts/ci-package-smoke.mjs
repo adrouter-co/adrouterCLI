@@ -22,6 +22,18 @@ function run(command, args, options = {}) {
 	return result.stdout ?? "";
 }
 
+function removeTemporaryDirectory(directory) {
+	try {
+		rmSync(directory, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 });
+	} catch (error) {
+		// Windows runners can retain a short-lived loader/antivirus handle on native
+		// dependencies after the installed CLI exits. The smoke has already passed,
+		// and the runner's temporary directory is discarded with the job.
+		if (process.platform !== "win32" || error?.code !== "EPERM") throw error;
+		console.warn(`Unable to remove temporary Windows smoke directory ${directory}: ${error.message}`);
+	}
+}
+
 const root = process.cwd();
 const version = JSON.parse(readFileSync(join(root, "package.json"), "utf8")).version;
 const smokeRoot = mkdtempSync(join(tmpdir(), "adrouter-ci-package-smoke-"));
@@ -122,7 +134,7 @@ try {
 	}
 	console.log(`Packaged ${version} command and resource smokes passed.`);
 } finally {
-	rmSync(smokeRoot, { recursive: true, force: true });
-	rmSync(isolatedHome, { recursive: true, force: true });
-	rmSync(project, { recursive: true, force: true });
+	removeTemporaryDirectory(smokeRoot);
+	removeTemporaryDirectory(isolatedHome);
+	removeTemporaryDirectory(project);
 }
