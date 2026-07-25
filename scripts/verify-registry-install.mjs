@@ -46,6 +46,7 @@ function run(command, args, timeout = 45_000) {
 		cwd: root,
 		encoding: "utf8",
 		env,
+		shell: process.platform === "win32" && /\.(?:cmd|bat)$/i.test(command),
 		timeout,
 	});
 	if (result.status !== 0) {
