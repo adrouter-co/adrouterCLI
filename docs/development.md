@@ -15,20 +15,31 @@ staged CLI tree, and packs only `@adrouter/cli`.
 
 `npm run check` is read-only. Use `npm run format` explicitly to apply formatting. Development and tests must not use a maintainer's real home or AdRouter state. Package and smoke-test from a clean checkout outside the workspace.
 
-## Source-linked CLI install
+## Local packaged CLI install
 
-Build every workspace and expose the local CLI package through npm's global
-link:
+Build every workspace, stage the private packages, validate the resulting
+tarball, and install it into the configured global npm prefix:
 
 ```sh
 npm run install:local
 adrouter --version
 adrouter --help
 adrouter-profile --help
+adrouter --json doctor
 ```
 
-The link points at the current checkout, but generated JavaScript does not
-rebuild automatically. Run `npm run build` after source changes.
+The doctor result must be deployable and classified as `packaged`.
+
+For fast source development only, create an explicit workspace link:
+
+```sh
+npm run link:dev
+```
+
+The link resolves dependencies from the checkout and can hide packaging
+defects. It is classified as `source-linked` and must never be used as release
+or deployment evidence. Generated JavaScript does not rebuild automatically;
+run `npm run build` after source changes.
 
 Remove the source link with:
 

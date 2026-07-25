@@ -199,7 +199,7 @@ run("npm run shrinkwrap:coding-agent");
 console.log();
 
 console.log("Checking release clearance...");
-run("npm run check:beta-readiness");
+run("npm run check:release-readiness");
 console.log();
 
 // 5. Run checks and tests

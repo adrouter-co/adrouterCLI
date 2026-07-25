@@ -34,7 +34,10 @@ describe("AgentSessionRuntime session lifecycle events", () => {
 		}
 	});
 
-	async function createRuntimeHost(extensionFactory: ExtensionFactory) {
+	async function createRuntimeHost(
+		extensionFactory: ExtensionFactory,
+		options: { includeBundledFeatures?: boolean } = {},
+	) {
 		const tempDir = join(tmpdir(), `pi-runtime-events-${Date.now()}-${Math.random().toString(36).slice(2)}`);
 		mkdirSync(tempDir, { recursive: true });
 
@@ -50,7 +53,8 @@ describe("AgentSessionRuntime session lifecycle events", () => {
 			model: faux.getModel(),
 			resourceLoaderOptions: {
 				extensionFactories: [extensionFactory],
-				noSkills: true,
+				includeBundledFeatures: options.includeBundledFeatures,
+				noSkills: !options.includeBundledFeatures,
 				noPromptTemplates: true,
 				noThemes: true,
 			},
@@ -88,6 +92,29 @@ describe("AgentSessionRuntime session lifecycle events", () => {
 
 		return { runtimeHost, faux };
 	}
+
+	function expectBundledFeaturesReady(runtimeHost: Awaited<ReturnType<typeof createRuntimeHost>>["runtimeHost"]) {
+		const report = runtimeHost.services.resourceLoader.getBundledFeatureReport?.();
+		expect(report).toEqual({ mode: "required", ready: true, failures: [] });
+		const openCode = runtimeHost.services.resourceLoader
+			.getExtensions()
+			.extensions.find((extension) => extension.path.includes("pi-opencode-bridge"));
+		expect([...openCode!.commands.keys()].sort()).toEqual(["opencode-go-key", "opencode-status"]);
+	}
+
+	it("keeps every bundled feature registered across /reload and /new runtime paths", async () => {
+		const { runtimeHost } = await createRuntimeHost(() => {}, { includeBundledFeatures: true });
+
+		expectBundledFeaturesReady(runtimeHost);
+
+		await runtimeHost.session.reload();
+		expectBundledFeaturesReady(runtimeHost);
+
+		const result = await runtimeHost.newSession();
+		expect(result.cancelled).toBe(false);
+		await runtimeHost.session.bindExtensions({});
+		expectBundledFeaturesReady(runtimeHost);
+	});
 
 	it("emits session_before_switch and session_start for new and resume flows", async () => {
 		const events: RecordedSessionEvent[] = [];

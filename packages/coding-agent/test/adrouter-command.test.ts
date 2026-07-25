@@ -116,7 +116,18 @@ describe("AdRouterCLI doctor command", () => {
 			router: { endpoint: "https://api-staging.adrouter.co", reachable: true },
 			auth: { available: true, source: "stored" },
 			ads: { mode: "live" },
+			installation: {
+				kind: "source-linked",
+				deployable: false,
+				bundledFeatures: { mode: "required" },
+			},
 		});
+		const installation = result.installation as { bundledDependencies: Record<string, unknown> };
+		expect(Object.keys(installation.bundledDependencies).sort()).toEqual([
+			"@adrouter/agent-core",
+			"@adrouter/ai",
+			"@adrouter/tui",
+		]);
 		expect(JSON.stringify(result)).not.toContain(secret);
 	});
 

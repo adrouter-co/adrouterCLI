@@ -48,13 +48,16 @@ test("install:local exposes both commands from a temporary global prefix", () =>
 		run(npm, ["run", "install:local"], env);
 		const adrouter = executable(prefix, "adrouter");
 		const profile = executable(prefix, "adrouter-profile");
-		assert.ok(existsSync(adrouter), `${adrouter} was not linked`);
-		assert.ok(existsSync(profile), `${profile} was not linked`);
+		assert.ok(existsSync(adrouter), `${adrouter} was not installed`);
+		assert.ok(existsSync(profile), `${profile} was not installed`);
 		assert.equal(run(adrouter, ["--version"], env, 45_000).trim(), expectedVersion);
 		assert.match(run(adrouter, ["--help"], env, 45_000), /Usage:/);
 		run(profile, ["list"], env, 45_000);
 		const doctor = JSON.parse(run(adrouter, ["--json", "doctor"], env, 45_000));
-		assert.equal(typeof doctor, "object");
+		assert.deepEqual(
+			{ kind: doctor.installation?.kind, deployable: doctor.installation?.deployable },
+			{ kind: "packaged", deployable: true },
+		);
 	} finally {
 		rmSync(root, { recursive: true, force: true });
 	}

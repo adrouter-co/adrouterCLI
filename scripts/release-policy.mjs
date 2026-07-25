@@ -29,10 +29,10 @@ export function assertResumablePublication(states, version, channel) {
 	if (!state.localIntegrity || state.registryIntegrity !== state.localIntegrity) {
 		throw new Error(`${state.name}@${version} registry integrity differs from the tagged artifact`);
 	}
-	if (state.tags?.[channel.tag] !== version) {
-		throw new Error(`${state.name}@${version} is published under an incorrect beta dist-tag`);
+	if (state.tags?.candidate !== undefined && state.tags.candidate !== version) {
+		throw new Error(`${state.name}@${version} has a conflicting candidate dist-tag`);
 	}
-	if (version === "0.81.0-beta.3" && state.tags?.latest !== version) {
-		throw new Error(`${state.name}@${version} recovery publication must also be latest`);
+	if (state.tags?.candidate !== version && state.tags?.[channel.tag] !== version) {
+		throw new Error(`${state.name}@${version} is neither staged as candidate nor promoted to ${channel.tag}`);
 	}
 }

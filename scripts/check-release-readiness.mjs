@@ -21,7 +21,7 @@ const metadataOnly = process.argv.includes("--metadata-only");
 const unknownArgs = process.argv.slice(2).filter((argument) => argument !== "--metadata-only");
 
 if (unknownArgs.length > 0) {
-	console.error("Usage: node scripts/check-beta-release-readiness.mjs [--metadata-only]");
+	console.error("Usage: node scripts/check-release-readiness.mjs [--metadata-only]");
 	process.exit(2);
 }
 
@@ -50,10 +50,10 @@ for (const descriptor of packages) {
 	if (
 		descriptor.public &&
 		(manifest.publishConfig?.access !== "public" ||
-			manifest.publishConfig?.tag !== "beta" ||
+			manifest.publishConfig?.tag !== "candidate" ||
 			manifest.publishConfig?.provenance !== undefined)
 	) {
-		failures.push(`${descriptor.name}: bootstrap publication must use public beta access without forced provenance`);
+		failures.push(`${descriptor.name}: publication metadata must use public candidate access without forced provenance`);
 	}
 	if (!descriptor.public && manifest.publishConfig !== undefined) {
 		failures.push(`${descriptor.name}: private internal package must not define publishConfig`);
@@ -96,7 +96,7 @@ if (
 }
 
 function scanForOldScope(directory) {
-	const readinessScriptPath = normalize("scripts/check-beta-release-readiness.mjs");
+	const readinessScriptPath = normalize("scripts/check-release-readiness.mjs");
 	for (const entry of readdirSync(directory, { withFileTypes: true })) {
 		if ([".git", "dist", "install-lock", "node_modules"].includes(entry.name)) continue;
 		const path = join(directory, entry.name);
@@ -123,6 +123,71 @@ scanForOldScope("scripts");
 
 const releaseWorkflow = readFileSync(".github/workflows/release-tag.yml", "utf8");
 const releaseManifestText = readFileSync("release-manifest.json", "utf8");
+const releaseManifest = JSON.parse(releaseManifestText);
+const prerelease = /-beta\.\d+$/.test(targetVersion);
+if (
+	releaseManifest.schema !== 2 ||
+	releaseManifest.version !== targetVersion ||
+	releaseManifest.release?.candidateTag !== "candidate" ||
+	releaseManifest.release?.githubPrerelease !== prerelease ||
+	releaseManifest.release?.finalTags?.latest !== targetVersion
+) {
+	failures.push("release manifest does not define the candidate and final channel for this version");
+}
+if (prerelease && releaseManifest.release?.finalTags?.beta !== targetVersion) {
+	failures.push("beta release manifest must promote both beta and latest to this version");
+}
+if (!prerelease && !/^\d+\.\d+\.\d+-beta\.\d+$/.test(releaseManifest.release?.finalTags?.beta ?? "")) {
+	failures.push("stable release manifest must preserve an explicit beta version");
+}
+if (!prerelease) {
+	const soak = releaseManifest.release?.soak;
+	const startedAt = Date.parse(soak?.startedAt ?? "");
+	if (
+		soak?.betaVersion !== releaseManifest.release.finalTags.beta ||
+		!Number.isFinite(startedAt) ||
+		Date.now() - startedAt < 48 * 60 * 60 * 1000
+	) {
+		failures.push("stable release requires a recorded 48-hour soak of the preserved beta version");
+	}
+	for (const platform of ["darwin", "linux", "windows"]) {
+		if (typeof soak?.cohortEvidence?.[platform] !== "string" || soak.cohortEvidence[platform].trim() === "") {
+			failures.push(`stable release requires packaged-user cohort evidence for ${platform}`);
+		}
+	}
+
+	const betaTag = `v${releaseManifest.release.finalTags.beta}`;
+	const betaExists = spawnSync("git", ["rev-parse", "--verify", "--quiet", `${betaTag}^{commit}`]);
+	if (betaExists.status !== 0) {
+		failures.push(`stable release beta baseline tag is missing: ${betaTag}`);
+	} else {
+		const diff = spawnSync("git", ["diff", "--name-only", betaTag, "HEAD"], { encoding: "utf8" });
+		const stableMetadataPaths = new Set([
+			"README.md",
+			"docs/releasing.md",
+			"package-lock.json",
+			"package.json",
+			"packages/agent/docs/CHANGELOG.md",
+			"packages/agent/package.json",
+			"packages/ai/docs/CHANGELOG.md",
+			"packages/ai/package.json",
+			"packages/coding-agent/docs/CHANGELOG.md",
+			"packages/coding-agent/docs/README.md",
+			"packages/coding-agent/npm-shrinkwrap.json",
+			"packages/coding-agent/package.json",
+			"packages/tui/docs/CHANGELOG.md",
+			"packages/tui/package.json",
+			"release-manifest.json",
+		]);
+		const behaviorChanges = diff.stdout
+			.split(/\r?\n/)
+			.filter(Boolean)
+			.filter((path) => !stableMetadataPaths.has(path));
+		if (behaviorChanges.length > 0) {
+			failures.push(`stable release differs from ${betaTag} outside release metadata: ${behaviorChanges.join(", ")}`);
+		}
+	}
+}
 for (const asset of [
 	"adrouter-darwin-arm64.tar.gz",
 	"adrouter-darwin-x64.tar.gz",
@@ -133,7 +198,9 @@ for (const asset of [
 ]) {
 	if (!releaseManifestText.includes(asset)) failures.push(`release manifest is missing ${asset}`);
 }
-if (!releaseWorkflow.includes("--prerelease")) failures.push("release workflow must mark GitHub releases as prereleases");
+if (!releaseWorkflow.includes("prerelease_args")) {
+	failures.push("release workflow must select GitHub prerelease state from the version");
+}
 if (!releaseWorkflow.includes("SHA256SUMS")) failures.push("release workflow must publish checksums");
 if (/\bpi-(?:darwin|linux|windows)-/.test(releaseWorkflow)) {
 	failures.push("release workflow still expects stale pi-* binary artifacts");
@@ -183,9 +250,9 @@ if (!metadataOnly) {
 }
 
 if (failures.length > 0) {
-	console.error(`${metadataOnly ? "Beta metadata" : "Beta release readiness"} check failed:`);
+	console.error(`${metadataOnly ? "Release metadata" : "Release readiness"} check failed:`);
 	for (const failure of failures) console.error(`- ${failure}`);
 	process.exit(1);
 }
 
-console.log(`${metadataOnly ? "Beta metadata" : "Beta release readiness"} check passed.`);
+console.log(`${metadataOnly ? "Release metadata" : "Release readiness"} check passed.`);

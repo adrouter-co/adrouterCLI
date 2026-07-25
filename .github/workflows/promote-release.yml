@@ -1,19 +1,19 @@
-name: Promote staged beta release
+name: Promote staged release
 
 on:
   workflow_dispatch:
     inputs:
       tag:
-        description: Protected beta tag to promote
+        description: Protected beta or stable tag to promote
         required: true
         type: string
       phase:
-        description: Verify the direct npm publication, then publish GitHub only after registry-install verification
+        description: Publish the recorded candidate, or finalize npm and GitHub after installed-runtime verification
         required: true
         type: choice
         options:
-          - verify-npm
-          - publish-github
+          - publish-candidate
+          - finalize-release
 
 permissions: {}
 concurrency:
@@ -21,7 +21,7 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  promote:
+  verify-and-publish:
     runs-on: ubuntu-latest
     environment: npm-publish
     permissions:
@@ -43,12 +43,11 @@ jobs:
         with:
           node-version: "22.19.0"
           registry-url: https://registry.npmjs.org
-          cache: npm
       - run: npm ci --ignore-scripts
       - run: node scripts/validate-release-tag.mjs "${{ inputs.tag }}"
       - run: npm run build
       - run: npm run check
-      - run: npm run check:beta-readiness
+      - run: npm run check:release-readiness
       - run: node scripts/test.mjs
       - name: Download the recorded npm artifact from the draft prerelease
         env:
@@ -60,8 +59,16 @@ jobs:
             --pattern "npm-artifacts.json" \
             --dir release-assets
           cp release-assets/npm-artifacts.json npm-artifacts.json
-      - name: Verify the recorded package is public under beta and latest
-        run: node scripts/verify-npm-release.mjs
+      - name: Publish the exact recorded tarball under candidate
+        if: ${{ inputs.phase == 'publish-candidate' }}
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: >-
+          node scripts/publish.mjs --publish
+          --tarball release-assets/adrouter-cli-*.tgz
+          --manifest release-assets/npm-artifacts.json
+      - name: Verify the recorded package is resumable
+        run: node scripts/verify-npm-release.mjs --state resumable
       - name: Attest the exact npm-published tarball
         uses: actions/attest@f7c74d28b9d84cb8768d0b8ca14a4bac6ef463e6 # v4
         with:
@@ -80,12 +87,14 @@ jobs:
       - name: Verify draft inventory, checksums, and attestations
         env:
           GH_TOKEN: ${{ github.token }}
-        run: node release-verifier-source/scripts/verify-draft-release.mjs "${{ inputs.tag }}"
+        run: >-
+          node release-verifier-source/scripts/verify-draft-release.mjs
+          "${{ inputs.tag }}" --allow-published
 
   registry-install:
     name: registry-install-${{ matrix.platform }}
-    if: ${{ inputs.phase == 'publish-github' }}
-    needs: promote
+    if: ${{ inputs.phase == 'finalize-release' }}
+    needs: verify-and-publish
     strategy:
       fail-fast: false
       matrix:
@@ -126,16 +135,47 @@ jobs:
         with:
           ref: ${{ github.sha }}
           path: registry-verifier-source
-          sparse-checkout: scripts/verify-registry-install.mjs
+          sparse-checkout: |
+            scripts/verify-installed-runtime.mjs
+            scripts/verify-registry-install.mjs
           persist-credentials: false
-      - name: Install and verify beta anonymously in a clean global prefix
+      - name: Install and verify the exact candidate anonymously in a clean global prefix
         run: node registry-verifier-source/scripts/verify-registry-install.mjs
 
-  publish-github:
-    if: ${{ inputs.phase == 'publish-github' }}
+  finalize-npm:
+    if: ${{ inputs.phase == 'finalize-release' }}
     needs:
-      - promote
+      - verify-and-publish
       - registry-install
+    runs-on: ubuntu-latest
+    environment: npm-publish
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Checkout protected tag
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ inputs.tag }}
+          persist-credentials: false
+      - name: Setup Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22.19.0"
+          registry-url: https://registry.npmjs.org
+      - name: Download the recorded npm artifact manifest
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release download "${{ inputs.tag }}" --pattern "npm-artifacts.json" --dir .
+      - name: Promote final dist-tags only after every installed-runtime gate passes
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: node scripts/promote-npm-tags.mjs
+
+  publish-github:
+    if: ${{ inputs.phase == 'finalize-release' }}
+    needs:
+      - finalize-npm
     runs-on: ubuntu-latest
     environment: npm-publish
     permissions:
@@ -145,7 +185,10 @@ jobs:
         env:
           ACTUAL_REPOSITORY: ${{ github.repository }}
         run: test "${ACTUAL_REPOSITORY}" = "adrouter/adrouterCLI"
-      - name: Publish GitHub prerelease after every registry install succeeds
+      - name: Publish GitHub release after npm promotion succeeds
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release edit "${{ inputs.tag }}" --repo adrouter/adrouterCLI --draft=false --prerelease
+        run: |
+          prerelease_args=(--prerelease=false)
+          if [[ "${{ inputs.tag }}" == *-beta.* ]]; then prerelease_args=(--prerelease); fi
+          gh release edit "${{ inputs.tag }}" --repo adrouter/adrouterCLI --draft=false "${prerelease_args[@]}"

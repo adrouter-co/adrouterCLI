@@ -7,7 +7,12 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 const tag = process.argv[2];
-if (!tag) throw new Error("Usage: node scripts/verify-draft-release.mjs <tag>");
+const allowPublished = process.argv.includes("--allow-published");
+const unknown = process.argv.slice(3).filter((argument) => argument !== "--allow-published");
+if (!tag || unknown.length > 0) {
+	throw new Error("Usage: node scripts/verify-draft-release.mjs <tag> [--allow-published]");
+}
+const expectedPrerelease = /-beta\.\d+$/.test(tag);
 
 function run(command, args, cwd) {
 	const result = spawnSync(command, args, { cwd, encoding: "utf8" });
@@ -16,7 +21,9 @@ function run(command, args, cwd) {
 }
 
 const draft = JSON.parse(run("gh", ["release", "view", tag, "--json", "isDraft,isPrerelease"]));
-if (!draft.isDraft || !draft.isPrerelease) throw new Error(`${tag} is not a draft prerelease`);
+if ((!draft.isDraft && !allowPublished) || draft.isPrerelease !== expectedPrerelease) {
+	throw new Error(`${tag} release draft/prerelease state is incorrect`);
+}
 
 const directory = mkdtempSync(join(tmpdir(), "adrouter-draft-"));
 try {
@@ -61,7 +68,7 @@ try {
 	}
 	const sbom = JSON.parse(readFileSync(join(directory, "adrouterCLI.cdx.json"), "utf8"));
 	if (sbom.bomFormat !== "CycloneDX") throw new Error("Release SBOM is not CycloneDX");
-	console.log(`Verified draft release ${tag}.`);
+	console.log(`Verified ${draft.isDraft ? "draft" : "published"} release ${tag}.`);
 } finally {
 	rmSync(directory, { recursive: true, force: true });
 }

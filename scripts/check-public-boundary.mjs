@@ -54,7 +54,7 @@ for (const file of files) {
 	if (
 		/@earendil-works(?:\\?\/|\\\/)pi-/.test(text) &&
 		!historicalAttribution(file) &&
-		file !== "scripts/check-beta-release-readiness.mjs"
+		file !== "scripts/check-release-readiness.mjs"
 	) {
 		failures.push(`${file}: legacy package scope outside explicit attribution`);
 	}

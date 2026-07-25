@@ -8,7 +8,7 @@ import {
 	publicationChannel,
 } from "./release-policy.mjs";
 
-const version = "0.81.0-beta.3";
+const version = "0.81.0-beta.4";
 const integrity = "sha512-local";
 const channel = publicationChannel(version);
 
@@ -20,7 +20,7 @@ function state(status, overrides = {}) {
 			name: "@adrouter/cli",
 			registryIntegrity: status === "missing" ? undefined : integrity,
 			status,
-			tags: status === "published" ? { beta: version, latest: version } : {},
+			tags: status === "published" ? { candidate: version } : {},
 			version,
 			...overrides,
 		},
@@ -33,23 +33,30 @@ test("maps beta SemVer to beta and rejects unsupported prerelease channels", () 
 	assert.throws(() => publicationChannel("not-semver"), /Invalid SemVer/);
 });
 
-test("permits a missing package or the exact verified recovery publication", () => {
+test("permits a missing package or an exact candidate/final publication", () => {
 	assert.doesNotThrow(() => assertResumablePublication(state("missing"), version, channel));
 	assert.doesNotThrow(() => assertResumablePublication(state("published"), version, channel));
+	assert.doesNotThrow(() =>
+		assertResumablePublication(
+			state("published", { tags: { beta: version, latest: version } }),
+			version,
+			channel,
+		),
+	);
 });
 
-test("rejects integrity, beta tag, and recovery latest mismatches", () => {
+test("rejects integrity, conflicting candidate, and untagged publication states", () => {
 	assert.throws(
 		() => assertResumablePublication(state("published", { registryIntegrity: "sha512-other" }), version, channel),
 		/integrity differs/,
 	);
 	assert.throws(
-		() => assertResumablePublication(state("published", { tags: { beta: "0.80.0", latest: version } }), version, channel),
-		/incorrect beta dist-tag/,
+		() => assertResumablePublication(state("published", { tags: { candidate: "0.80.0" } }), version, channel),
+		/conflicting candidate/,
 	);
 	assert.throws(
-		() => assertResumablePublication(state("published", { tags: { beta: version, latest: "0.80.0" } }), version, channel),
-		/must also be latest/,
+		() => assertResumablePublication(state("published", { tags: { latest: "0.81.0-beta.3" } }), version, channel),
+		/neither staged as candidate nor promoted to beta/,
 	);
 });
 
@@ -71,7 +78,7 @@ test("release workflows are bound to the canonical repository and registry insta
 	]) {
 		assert.match(workflow, /test "\$\{ACTUAL_REPOSITORY\}" = "adrouter\/adrouterCLI"/, `${name} identity guard`);
 	}
-	assert.match(releaseTag, /tags: \["v\*-beta\.\*"\]/);
+	assert.match(releaseTag, /tags: \["v\*"\]/);
 	for (const platform of [
 		"linux-x64",
 		"linux-arm64",
@@ -82,19 +89,34 @@ test("release workflows are bound to the canonical repository and registry insta
 	]) {
 		assert.match(promote, new RegExp(`platform: ${platform}`));
 	}
-	assert.match(promote, /needs:\s*\n\s*- promote\s*\n\s*- registry-install/);
+	assert.match(promote, /- publish-candidate/);
+	assert.match(promote, /- finalize-release/);
+	assert.match(promote, /NODE_AUTH_TOKEN: \$\{\{ secrets\.NPM_TOKEN \}\}/);
+	assert.match(promote, /node scripts\/publish\.mjs --publish/);
+	assert.match(promote, /--tarball release-assets\/adrouter-cli-\*\.tgz/);
+	assert.match(promote, /node scripts\/verify-npm-release\.mjs --state resumable/);
+	assert.match(promote, /finalize-npm:/);
+	assert.match(promote, /node scripts\/promote-npm-tags\.mjs/);
 	assert.match(promote, /gh release download "\$\{\{ inputs\.tag \}\}"/);
 	assert.match(promote, /subject-path: release-assets\/adrouter-cli-\*\.tgz/);
 	assert.match(promote, /path: registry-verifier-source/);
 	assert.match(promote, /node registry-verifier-source\/scripts\/verify-registry-install\.mjs/);
 	assert.ok(
-		promote.indexOf("node scripts/verify-npm-release.mjs") <
+		promote.indexOf("node scripts/verify-npm-release.mjs --state resumable") <
 			promote.indexOf("subject-path: release-assets/adrouter-cli-*.tgz"),
 		"the recorded npm artifact must match the registry before it is re-attested",
 	);
 	assert.ok(
-		promote.indexOf("node scripts/verify-registry-install.mjs") <
-			promote.indexOf("gh release edit"),
-		"GitHub publication must follow registry installation",
+		promote.indexOf("node registry-verifier-source/scripts/verify-registry-install.mjs") <
+			promote.indexOf("node scripts/promote-npm-tags.mjs"),
+		"npm dist-tags must follow registry installation",
 	);
+	assert.ok(
+		promote.indexOf("node scripts/promote-npm-tags.mjs") <
+			promote.indexOf("gh release edit"),
+		"GitHub publication must follow npm promotion",
+	);
+	const publishSource = readFileSync("scripts/publish.mjs", "utf8");
+	assert.match(publishSource, /"--provenance"/);
+	assert.doesNotMatch(publishSource, /"access", "list", "packages"/);
 });
