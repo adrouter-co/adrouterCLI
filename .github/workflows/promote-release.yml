@@ -112,6 +112,7 @@ jobs:
           - platform: darwin-arm64
             os: macos-15
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
     permissions:
       contents: read
     steps:
@@ -139,7 +140,7 @@ jobs:
             scripts/verify-installed-runtime.mjs
             scripts/verify-registry-install.mjs
           persist-credentials: false
-      - name: Install and verify the exact candidate anonymously in a clean global prefix
+      - name: Verify the exact candidate anonymously with platform-safe package checks
         run: node registry-verifier-source/scripts/verify-registry-install.mjs
 
   finalize-npm:

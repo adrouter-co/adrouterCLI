@@ -1,26 +1,24 @@
 #!/usr/bin/env node
 
-import { spawn, spawnSync } from "node:child_process";
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
+import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { delimiter, dirname, join } from "node:path";
+import { delimiter, join } from "node:path";
 import { verifyInstalledRuntime } from "./verify-installed-runtime.mjs";
 
+const PACKAGE_NAME = "@adrouter/cli";
+const REGISTRY_URL = "https://registry.npmjs.org/";
 const expectedVersion = JSON.parse(readFileSync("package.json", "utf8")).version;
 const root = mkdtempSync(join(tmpdir(), "adrouter-registry-install-"));
 const prefix = join(root, "prefix");
 const isolatedHome = join(root, "home");
 const userConfig = join(root, "anonymous.npmrc");
-writeFileSync(userConfig, "registry=https://registry.npmjs.org/\nalways-auth=false\n", { mode: 0o600 });
+writeFileSync(userConfig, `registry=${REGISTRY_URL}\n`, { mode: 0o600 });
 
 const isWindows = process.platform === "win32";
-const npm =
-	isWindows
-		? {
-				command: process.execPath,
-				args: [join(dirname(process.execPath), "node_modules", "npm", "bin", "npm-cli.js")],
-			}
-		: { command: "npm", args: [] };
+const tarballOnly = isWindows || process.argv.includes("--tarball-only");
+const npm = { command: "npm", args: [] };
 const binDirectory = isWindows ? prefix : join(prefix, "bin");
 const packageRoot = isWindows
 	? join(prefix, "node_modules", "@adrouter", "cli")
@@ -45,11 +43,12 @@ function executable(name) {
 	return isWindows ? join(prefix, `${name}.cmd`) : join(prefix, "bin", name);
 }
 
-function run(command, args, timeout = 45_000) {
+function run(command, args, timeout = 45_000, stdio = "pipe") {
 	const result = spawnSync(command, args, {
 		cwd: root,
 		encoding: "utf8",
 		env,
+		stdio,
 		timeout,
 	});
 	if (result.status !== 0) {
@@ -62,74 +61,145 @@ function run(command, args, timeout = 45_000) {
 	return result.stdout ?? "";
 }
 
-function runNpm(args, timeout) {
-	return run(npm.command, [...npm.args, ...args], timeout);
+function runNpm(args, timeout, stdio) {
+	return run(npm.command, [...npm.args, ...args], timeout, stdio);
 }
 
-function windowsInstallReady() {
-	for (const path of [
-		executable("adrouter"),
-		executable("adrouter-profile"),
-		join(packageRoot, "package.json"),
-		join(packageRoot, "dist", "cli.js"),
-		join(packageRoot, "dist", "profile-cli.js"),
-		join(packageRoot, "node_modules", "@adrouter", "ai", "dist", "index.js"),
-		join(packageRoot, "node_modules", "@adrouter", "tui", "dist", "index.js"),
-		join(packageRoot, "node_modules", "@adrouter", "agent-core", "dist", "index.js"),
-	]) {
-		if (!existsSync(path)) return false;
+function verifyIntegrity(bytes, integrity) {
+	for (const candidate of integrity.trim().split(/\s+/)) {
+		const separator = candidate.indexOf("-");
+		if (separator < 1) continue;
+		const algorithm = candidate.slice(0, separator);
+		const expected = candidate.slice(separator + 1);
+		if (!["sha1", "sha256", "sha384", "sha512"].includes(algorithm)) continue;
+		if (createHash(algorithm).update(bytes).digest("base64") === expected) return;
 	}
+	throw new Error(`Registry tarball did not match its published integrity for ${PACKAGE_NAME}@${expectedVersion}`);
+}
+
+async function downloadRegistryTarball() {
+	console.log(`Resolving ${PACKAGE_NAME}@${expectedVersion} anonymously from ${REGISTRY_URL}`);
+	const metadataResponse = await fetch(`${REGISTRY_URL}${encodeURIComponent(PACKAGE_NAME)}`, {
+		headers: { accept: "application/json" },
+		signal: AbortSignal.timeout(120_000),
+	});
+	if (!metadataResponse.ok) {
+		throw new Error(`Registry metadata request failed: ${metadataResponse.status} ${metadataResponse.statusText}`);
+	}
+	const metadata = await metadataResponse.json();
+	const release = metadata.versions?.[expectedVersion];
+	if (!release) throw new Error(`Registry metadata is missing ${PACKAGE_NAME}@${expectedVersion}`);
+	const tarballUrl = release.dist?.tarball;
+	const integrity = release.dist?.integrity;
+	if (typeof tarballUrl !== "string" || !tarballUrl.startsWith(REGISTRY_URL)) {
+		throw new Error(`Registry metadata has an invalid tarball URL for ${PACKAGE_NAME}@${expectedVersion}`);
+	}
+	if (typeof integrity !== "string" || integrity.trim() === "") {
+		throw new Error(`Registry metadata is missing integrity for ${PACKAGE_NAME}@${expectedVersion}`);
+	}
+
+	console.log(`Downloading the published tarball for ${PACKAGE_NAME}@${expectedVersion}`);
+	const tarballResponse = await fetch(tarballUrl, { signal: AbortSignal.timeout(180_000) });
+	if (!tarballResponse.ok) {
+		throw new Error(`Registry tarball request failed: ${tarballResponse.status} ${tarballResponse.statusText}`);
+	}
+	const bytes = Buffer.from(await tarballResponse.arrayBuffer());
+	verifyIntegrity(bytes, integrity);
+	if (typeof release.dist.shasum === "string") {
+		const actualShasum = createHash("sha1").update(bytes).digest("hex");
+		if (actualShasum !== release.dist.shasum) {
+			throw new Error(`Registry tarball did not match its published shasum for ${PACKAGE_NAME}@${expectedVersion}`);
+		}
+	}
+	const tarballPath = join(root, `adrouter-cli-${expectedVersion}.tgz`);
+	writeFileSync(tarballPath, bytes, { mode: 0o600 });
+	console.log(`Verified registry integrity for ${PACKAGE_NAME}@${expectedVersion}`);
+	return tarballPath;
+}
+
+async function withTimeout(promise, label, timeout) {
+	let timer;
 	try {
-		return JSON.parse(readFileSync(join(packageRoot, "package.json"), "utf8")).version === expectedVersion;
-	} catch {
+		return await Promise.race([
+			promise,
+			new Promise((_, reject) => {
+				timer = setTimeout(() => reject(new Error(`${label} timed out after ${timeout}ms`)), timeout);
+			}),
+		]);
+	} finally {
+		clearTimeout(timer);
+	}
+}
+
+function verifyDownloadedTarball(tarballPath) {
+	const extractRoot = join(root, "registry-tarball");
+	mkdirSync(extractRoot, { recursive: true });
+	run("tar", ["-xzf", tarballPath, "-C", extractRoot], 120_000);
+	const extractedPackageRoot = join(extractRoot, "package");
+	const manifest = JSON.parse(readFileSync(join(extractedPackageRoot, "package.json"), "utf8"));
+	if (manifest.version !== expectedVersion) {
+		throw new Error(`Registry tarball metadata is ${manifest.version}, expected ${expectedVersion}`);
+	}
+	if (manifest.bin?.adrouter !== "dist/cli.js" || manifest.bin?.["adrouter-profile"] !== "dist/profile-cli.js") {
+		throw new Error(`Registry tarball is missing the expected command entries for ${PACKAGE_NAME}@${expectedVersion}`);
+	}
+
+	for (const resource of [
+		"BUNDLED_SOURCES.json",
+		"THIRD_PARTY_NOTICES.md",
+		join("dist", "cli.js"),
+		join("dist", "profile-cli.js"),
+		join("dist", "bundled", "pi-subagents-0.30.0", "src", "extension", "index.ts"),
+		join("dist", "bundled", "pi-cache-optimizer-2.6.16", "index.ts"),
+		join("dist", "bundled", "pi-opencode-bridge-0.2.1", "index.ts"),
+		join("dist", "bundled", "btw-23017e9", "index.ts"),
+		join("dist", "bundled", "pi-web-access-0.13.0", "dist", "index.js"),
+	]) {
+		const path = join(extractedPackageRoot, resource);
+		if (!existsSync(path)) throw new Error(`Registry tarball resource is missing: ${path}`);
+	}
+
+	for (const name of ["@adrouter/ai", "@adrouter/tui", "@adrouter/agent-core"]) {
+		const dependencyRoot = join(extractedPackageRoot, "node_modules", ...name.split("/"));
+		const stat = lstatSync(dependencyRoot);
+		if (!stat.isDirectory() || stat.isSymbolicLink()) {
+			throw new Error(`${name} must be a real nested package directory in the registry tarball`);
+		}
+		const dependencyManifest = JSON.parse(readFileSync(join(dependencyRoot, "package.json"), "utf8"));
+		if (dependencyManifest.version !== expectedVersion) {
+			throw new Error(`${name}@${dependencyManifest.version} does not match ${expectedVersion}`);
+		}
+	}
+
+	console.log(
+		`Anonymous registry tarball verified ${PACKAGE_NAME}@${expectedVersion}, both command entries, all bundled extensions, and private dependencies.`,
+	);
+}
+
+async function installCandidate() {
+	const target = await downloadRegistryTarball();
+	if (tarballOnly) {
+		verifyDownloadedTarball(target);
 		return false;
 	}
-}
-
-async function installWithNpm(args, timeout) {
-	if (!isWindows) {
-		runNpm(args, timeout);
-		return;
-	}
-
-	await new Promise((resolve, reject) => {
-		const child = spawn(npm.command, [...npm.args, ...args], {
-			cwd: root,
-			env,
-			stdio: "ignore",
-			windowsHide: true,
-		});
-		child.unref();
-		let settled = false;
-		let readyChecks = 0;
-		let readiness;
-		let timer;
-		const finish = (error) => {
-			if (settled) return;
-			settled = true;
-			clearInterval(readiness);
-			clearTimeout(timer);
-			if (error) reject(error);
-			else resolve();
-		};
-		readiness = setInterval(() => {
-			readyChecks = windowsInstallReady() ? readyChecks + 1 : 0;
-			if (readyChecks < 2) return;
-			child.kill();
-			finish();
-		}, 1_000);
-		timer = setTimeout(() => {
-			child.kill();
-			finish(new Error(`npm install timed out after ${timeout}ms`));
-		}, timeout);
-		child.once("error", (error) => {
-			finish(error);
-		});
-		child.once("exit", (code, signal) => {
-			if (code === 0) finish();
-			else finish(new Error(`npm install failed (status ${code}, signal ${signal ?? "none"})`));
-		});
-	});
+	console.log(`Installing ${PACKAGE_NAME}@${expectedVersion} into an isolated global prefix`);
+	runNpm(
+		[
+			"install",
+			"--global",
+			"--ignore-scripts",
+			"--no-audit",
+			"--no-fund",
+			"--registry",
+			REGISTRY_URL,
+			"--min-release-age=0",
+			target,
+		],
+		600_000,
+		"inherit",
+	);
+	console.log(`Installed ${PACKAGE_NAME}@${expectedVersion}; verifying packaged runtime`);
+	return true;
 }
 
 function runInstalled(name, entrypoint, args) {
@@ -138,22 +208,7 @@ function runInstalled(name, entrypoint, args) {
 		: run(executable(name), args);
 }
 
-try {
-	await installWithNpm(
-		[
-			"install",
-			"--global",
-			"--ignore-scripts",
-			"--no-audit",
-			"--no-fund",
-			"--registry",
-			"https://registry.npmjs.org/",
-			"--min-release-age=0",
-			`@adrouter/cli@${expectedVersion}`,
-		],
-		600_000,
-	);
-
+async function verifyInstalledCandidate() {
 	const adrouter = executable("adrouter");
 	const profile = executable("adrouter-profile");
 	for (const path of [adrouter, profile]) {
@@ -218,18 +273,28 @@ try {
 		]);
 		runInstalled("adrouter-profile", join("dist", "profile-cli.js"), ["restore", "--cwd", root]);
 	}
-	await verifyInstalledRuntime({
-		packageRoot,
-		project: root,
-		agentDir: join(root, "state"),
-		expectedVersion,
-	});
+	await withTimeout(
+		verifyInstalledRuntime({
+			packageRoot,
+			project: root,
+			agentDir: join(root, "state"),
+			expectedVersion,
+		}),
+		"Installed runtime verification",
+		300_000,
+	);
 
 	console.log(
-		`Anonymous registry install verified bundled @adrouter/cli@${expectedVersion} and both ${
-			isWindows ? "Windows command shims" : "commands"
-		}.`,
+		`Anonymous registry install verified bundled ${PACKAGE_NAME}@${expectedVersion} and both commands.`,
 	);
+}
+
+let failure;
+try {
+	if (await installCandidate()) await verifyInstalledCandidate();
+} catch (error) {
+	failure = error;
+	console.error(error instanceof Error ? (error.stack ?? error.message) : error);
 } finally {
 	try {
 		rmSync(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 250 });
@@ -239,6 +304,5 @@ try {
 }
 
 // Imported packaged modules can retain Windows event-loop handles after every
-// verification has passed. Exit explicitly only on the successful path; thrown
-// verification errors bypass this statement and retain their nonzero exit.
-process.exit(0);
+// verification has passed or timed out. Exit explicitly on both paths.
+process.exit(failure ? 1 : 0);
