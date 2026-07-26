@@ -8,7 +8,7 @@ import {
 	publicationChannel,
 } from "./release-policy.mjs";
 
-const version = "0.81.0-beta.5";
+const version = "0.81.0-beta.6";
 const integrity = "sha512-local";
 const channel = publicationChannel(version);
 
@@ -69,6 +69,7 @@ test("allows only the public CLI package", () => {
 });
 
 test("release workflows are bound to the canonical repository and registry install gate", () => {
+	const ci = readFileSync(".github/workflows/ci.yml", "utf8");
 	const releaseTag = readFileSync(".github/workflows/release-tag.yml", "utf8");
 	const promote = readFileSync(".github/workflows/promote-release.yml", "utf8");
 
@@ -102,6 +103,8 @@ test("release workflows are bound to the canonical repository and registry insta
 	assert.match(promote, /subject-path: release-assets\/adrouter-cli-\*\.tgz/);
 	assert.match(promote, /path: registry-verifier-source/);
 	assert.match(promote, /node registry-verifier-source\/scripts\/verify-registry-install\.mjs/);
+	assert.match(ci, /node scripts\/verify-registry-install\.mjs --if-published/);
+	assert.doesNotMatch(promote, /verify-registry-install\.mjs --if-published/);
 	assert.ok(
 		promote.indexOf("node scripts/verify-npm-release.mjs --state resumable") <
 			promote.indexOf("subject-path: release-assets/adrouter-cli-*.tgz"),

@@ -1,8 +1,10 @@
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { TUI, visibleWidth } from "@adrouter/tui";
 import { beforeAll, describe, expect, it } from "vitest";
 import { KeybindingsManager } from "../src/core/keybindings.ts";
 import { CustomEditor } from "../src/modes/interactive/components/custom-editor.ts";
-import { getEditorTheme, initTheme } from "../src/modes/interactive/theme/theme.ts";
+import { getEditorTheme, initTheme, loadThemeFromPath } from "../src/modes/interactive/theme/theme.ts";
 import { stripAnsi } from "../src/utils/ansi.ts";
 
 function createTui(): TUI {
@@ -44,5 +46,29 @@ describe("CustomEditor OpenCode panel", () => {
 		}));
 
 		expect(editor.render(24).every((line) => visibleWidth(line) <= 24)).toBe(true);
+	});
+
+	it("uses the approved dark grayscale progression as the input panel background", () => {
+		const currentDir = dirname(fileURLToPath(import.meta.url));
+		const darkTheme = loadThemeFromPath(join(currentDir, "../src/modes/interactive/theme/dark.json"), "truecolor");
+		const expected = {
+			off: "35;35;35",
+			minimal: "35;35;35",
+			low: "35;35;35",
+			medium: "52;52;52",
+			high: "70;70;70",
+			xhigh: "87;87;87",
+			max: "87;87;87",
+		} as const;
+
+		for (const [level, rgb] of Object.entries(expected)) {
+			const editorTheme = {
+				...getEditorTheme(),
+				borderColor: darkTheme.getThinkingBorderColor(level as keyof typeof expected),
+			};
+			const editor = new CustomEditor(createTui(), editorTheme, KeybindingsManager.create());
+			const rendered = editor.render(40).join("\n");
+			expect(rendered).toContain(`\x1b[48;2;${rgb}m`);
+		}
 	});
 });

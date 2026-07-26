@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+## [0.81.0-beta.6] - 2026-07-27
+
+### Changed
+
+- Repacked the private AI runtime in the beta.6 CLI artifact.
+
 ## [0.81.0-beta.5] - 2026-07-25
 
 ### Changed
