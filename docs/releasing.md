@@ -35,6 +35,11 @@ git tag v0.81.0-beta.6
 git push origin v0.81.0-beta.6
 ```
 
+Routine CI runs the anonymous Windows registry check only when the exact source version has already
+been published. This lets a new release pull request pass before its candidate exists. The protected
+promotion workflow does not use that allowance: after candidate publication, a missing or mismatched
+registry version remains a hard failure before any final dist-tag moves.
+
 The tag workflow builds and attests one staged npm tarball, its manifest, SBOM,
 checksums, bundled-source inventory, and a draft GitHub prerelease.
 

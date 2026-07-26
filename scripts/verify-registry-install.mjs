@@ -9,6 +9,11 @@ import { verifyInstalledRuntime } from "./verify-installed-runtime.mjs";
 
 const PACKAGE_NAME = "@adrouter/cli";
 const REGISTRY_URL = "https://registry.npmjs.org/";
+const supportedArguments = new Set(["--if-published", "--tarball-only"]);
+for (const argument of process.argv.slice(2)) {
+	if (!supportedArguments.has(argument)) throw new Error(`Unsupported argument: ${argument}`);
+}
+const ifPublished = process.argv.includes("--if-published");
 const expectedVersion = JSON.parse(readFileSync("package.json", "utf8")).version;
 const root = mkdtempSync(join(tmpdir(), "adrouter-registry-install-"));
 const prefix = join(root, "prefix");
@@ -88,7 +93,13 @@ async function downloadRegistryTarball() {
 	}
 	const metadata = await metadataResponse.json();
 	const release = metadata.versions?.[expectedVersion];
-	if (!release) throw new Error(`Registry metadata is missing ${PACKAGE_NAME}@${expectedVersion}`);
+	if (!release) {
+		if (ifPublished) {
+			console.log(`${PACKAGE_NAME}@${expectedVersion} is not published yet; skipping the optional CI registry check.`);
+			return undefined;
+		}
+		throw new Error(`Registry metadata is missing ${PACKAGE_NAME}@${expectedVersion}`);
+	}
 	const tarballUrl = release.dist?.tarball;
 	const integrity = release.dist?.integrity;
 	if (typeof tarballUrl !== "string" || !tarballUrl.startsWith(REGISTRY_URL)) {
@@ -178,6 +189,7 @@ function verifyDownloadedTarball(tarballPath) {
 
 async function installCandidate() {
 	const target = await downloadRegistryTarball();
+	if (!target) return false;
 	if (tarballOnly) {
 		verifyDownloadedTarball(target);
 		return false;

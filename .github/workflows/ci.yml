@@ -83,5 +83,5 @@ jobs:
 
       - name: Verify the exact anonymous npm candidate on Windows
         if: runner.os == 'Windows'
-        run: node scripts/verify-registry-install.mjs
+        run: node scripts/verify-registry-install.mjs --if-published
         timeout-minutes: 25

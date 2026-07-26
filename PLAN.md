@@ -372,6 +372,8 @@ git diff --check
 
 - Exact Node.js 22.19 and all six platform/runtime combinations remain protected GitHub Actions
   gates even when local verification passes.
+- Pre-release CI treats an absent exact npm version as not-yet-published and skips only that optional
+  registry check. Protected promotion remains strict after candidate publication.
 - A live 140-column alternate-screen TTY smoke reproduced the reference monochrome composition and
   input panel. Automated tests cover widths 18, 31, 32, 60, 95, and 140 in monochrome, 256-color,
   and truecolor modes.
