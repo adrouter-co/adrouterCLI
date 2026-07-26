@@ -2,6 +2,22 @@
 
 ## [Unreleased]
 
+## [0.81.0-beta.6] - 2026-07-27
+
+### Added
+
+- Added the responsive custom AdRouter startup banner with exact bead-sprite, prompt-mark, metadata,
+  narrow-terminal, and color-mode rendering parity.
+
+### Changed
+
+- Changed the built-in dark input panel to progress from dark gray to light gray with the selected
+  thinking level.
+
+### Fixed
+
+- Updated the production `brace-expansion` override to the patched 5.0.8 release.
+
 ## [0.81.0-beta.5] - 2026-07-25
 
 ### Added

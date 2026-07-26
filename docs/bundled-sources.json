@@ -102,9 +102,11 @@
         "evidence": "https://github.com/adrouter/adrouterCLI/blob/v0.81.0-beta.3/LICENSE"
       },
       "local_modifications": [
-        "Ported the reviewed alternate-screen, fixed viewport/editor/footer, selection/copy, PageUp/PageDown, profile header, and panel-color behavior into the AdRouterCLI TypeScript source instead of loading the runtime patch."
+        "Ported the reviewed alternate-screen, fixed viewport/editor/footer, selection/copy, PageUp/PageDown, profile header, and panel-color behavior into the AdRouterCLI TypeScript source instead of loading the runtime patch.",
+        "Ported the user-authored responsive startup banner overlay from the reviewed 0.1.14 working snapshot into AdRouterCLI source; snapshot SHA-256 3dd3581bd366cd5f25bc2e914d99482c14cd1b2de59c636bc07dc9c03d4141fb, focused test SHA-256 9e50e774003168f877ecef5692a70e05b28c5d26023269a94fcbe10a365a696b, and embedded bead sprite SHA-256 28ee5aae83e8dc930510073c389b5e9c22553fbac4b038fb75d2f99d4c7a149a.",
+        "Applied the reviewed custom-dark input-panel grayscale progression from theme SHA-256 db9f057405ca49e9435db243a4a4784dcd23497c10578ca07bd6bdd8417aa8f3 to the built-in dark theme."
       ],
-      "update_procedure": "Fetch the exact tag-relative source tree and recorded source tarball, verify source_tarball_sha256 against commit e687e69b84556cd894304ff2f2320afb4ee45c4e, port the reviewed behavior, then run the focused TUI tests and clean-HOME width smokes.",
+      "update_procedure": "Fetch the exact tag-relative source tree and recorded source tarball, verify source_tarball_sha256 against commit e687e69b84556cd894304ff2f2320afb4ee45c4e, verify the recorded working-overlay, focused-test, bead-sprite, and theme hashes, port the reviewed behavior, then run the focused TUI tests and clean-HOME width smokes.",
       "status": "integrated-source-overlay"
     }
   ]

@@ -125,6 +125,7 @@ import {
 	formatAuthSelectorProviderType,
 	OAuthSelectorComponent,
 } from "./components/oauth-selector.ts";
+import { ResponsiveStartupHeader } from "./components/responsive-startup-header.ts";
 import { ScopedModelsSelectorComponent } from "./components/scoped-models-selector.ts";
 import { SessionSelectorComponent } from "./components/session-selector.ts";
 import { SettingsSelectorComponent } from "./components/settings-selector.ts";
@@ -754,8 +755,6 @@ export class InteractiveMode {
 
 		// Add header with keybindings from config (unless silenced)
 		if (this.options.verbose || !this.settingsManager.getQuietStartup()) {
-			const logo = theme.bold(theme.fg("accent", APP_NAME)) + theme.fg("dim", ` v${this.version}`);
-
 			// Build startup instructions using keybinding hint helpers
 			const hint = (keybinding: AppKeybinding, description: string) => keyHint(keybinding, description);
 
@@ -795,13 +794,24 @@ export class InteractiveMode {
 				"dim",
 				`AdRouterCLI can explain its own features and look up its docs. Ask it how to use or extend AdRouterCLI.`,
 			);
-			this.builtInHeader = new ExpandableText(
-				() => `${logo}\n${compactInstructions}\n${compactOnboarding}\n\n${onboarding}`,
-				() => `${logo}\n${expandedInstructions}\n\n${onboarding}`,
-				this.getStartupExpansionState(),
-				1,
-				0,
-			);
+			this.builtInHeader = new ResponsiveStartupHeader({
+				version: this.version,
+				expanded: this.getStartupExpansionState(),
+				compactInstructions,
+				expandedInstructions,
+				compactOnboarding,
+				onboarding,
+				getModelLabel: () => {
+					const model = this.session.state.model;
+					if (!model) return undefined;
+					const thinking =
+						model.reasoning && this.session.state.thinkingLevel !== "off"
+							? ` · ${this.session.state.thinkingLevel}`
+							: "";
+					return `${model.id}${thinking}`;
+				},
+				getCwdLabel: () => this.formatDisplayPath(this.sessionManager.getCwd()),
+			});
 
 			// Setup UI layout
 			this.headerContainer.addChild(new Spacer(1));

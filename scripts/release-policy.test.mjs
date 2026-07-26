@@ -8,7 +8,7 @@ import {
 	publicationChannel,
 } from "./release-policy.mjs";
 
-const version = "0.81.0-beta.5";
+const version = "0.81.0-beta.6";
 const integrity = "sha512-local";
 const channel = publicationChannel(version);
 

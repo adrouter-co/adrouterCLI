@@ -7,7 +7,7 @@ For deployments, `installation.deployable` must be `true`. If doctor reports
 exact packaged version:
 
 ```sh
-npm install --global --ignore-scripts @adrouter/cli@0.81.0-beta.5
+npm install --global --ignore-scripts @adrouter/cli@0.81.0-beta.6
 ```
 
 Use `ADROUTER_BUNDLED_FEATURES=off` only as an explicit core-only recovery
