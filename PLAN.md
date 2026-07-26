@@ -30,8 +30,10 @@ pause only when authentication, interactive 2FA, or protected environment approv
   snapshot and test hashes are recorded in the implementation step for provenance.
 - The current editor implementation already derives a solid panel background from the thinking
   color, avoiding a new rendering abstraction or dependency.
-- `minimatch@10.2.5` accepts `brace-expansion@^5.0.5`; pinning the patched 5.0.8 release can address
-  the audit advisory without changing the direct dependency graph.
+- `minimatch@10.2.5` accepts `brace-expansion@^5.0.5`; pinning the patched 5.0.8 release addresses
+  the production audit advisory without changing the direct dependency graph. A later full-tree
+  audit identified development-only `postcss@8.5.15`; a root-only 8.5.23 override addresses it
+  without changing the published tarball.
 - The repository's protected release process stages one exact tarball under `candidate`, validates
   anonymous installed runtimes on six OS/architecture targets, then moves `beta` and `latest` and
   publishes the matching GitHub prerelease.
@@ -59,7 +61,8 @@ pause only when authentication, interactive 2FA, or protected environment approv
 - Changing model/router contracts, authentication behavior, sponsor data flow, commands, profiles,
   or persisted formats.
 - Publishing the private workspaces or any standalone native archive.
-- Stable `0.81.0` promotion, unrelated dependency upgrades, or opportunistic cleanup.
+- Stable `0.81.0` promotion, dependency upgrades unrelated to audit remediation, or opportunistic
+  cleanup.
 
 ## Reversibility
 
@@ -219,8 +222,9 @@ audit finding without unrelated dependency drift.
   docs, and release-policy fixtures as `0.81.0-beta.6`.
 - [x] Set `candidate` as the temporary npm tag, `beta` and `latest` as final beta.6 tags, GitHub as a
   prerelease, and beta.5 as the superseded version.
-- [x] Pin `brace-expansion` to 5.0.8 and regenerate the root lockfile and coding-agent shrinkwrap
-  through documented scripts with no unrelated dependency updates.
+- [x] Pin `brace-expansion` to 5.0.8 and development-only `postcss` to 8.5.23, then regenerate the
+  root lockfile and coding-agent shrinkwrap through documented scripts with no unrelated dependency
+  updates.
 - [x] Update both bundled-source inventories with matching banner/theme overlay notes and hashes
   while retaining the immutable 0.1.6/e687e69 baseline provenance.
 - [x] Update release documentation and user-facing exact-version examples for beta.6.
@@ -248,7 +252,7 @@ audit finding without unrelated dependency drift.
 
 - Native artifact status or platform matrix
 - Public package boundary, internal package visibility, release workflow ordering, or stable policy
-- Any other dependency version
+- Any dependency version unrelated to the identified audit advisories
 
 ### Commands
 
@@ -265,7 +269,8 @@ npm audit signatures --omit=dev
 
 - [x] Every authoritative version and exact internal dependency is beta.6.
 - [x] The final npm tags and GitHub prerelease metadata match the documented beta policy.
-- [x] Lockfile and shrinkwrap contain `brace-expansion@5.0.8` and no unintended update drift.
+- [x] Lockfile and shrinkwrap contain `brace-expansion@5.0.8`, the root lockfile contains
+  `postcss@8.5.23`, and there is no unintended update drift.
 - [x] Both bundled-source inventories are byte-for-byte equivalent and preserve attribution.
 - [x] Metadata, shrinkwrap, and audit gates pass.
 
@@ -275,13 +280,16 @@ npm audit signatures --omit=dev
 - `npm run shrinkwrap:coding-agent`: passed; generated 159 packages and 10 platform-specific entries
 - `npm run check:shrinkwrap`: passed
 - `npm run check:release-metadata`: passed (15 tests)
+- `npm audit --audit-level=moderate`: passed after the post-push audit refresh; 0 vulnerabilities
 - `npm audit --omit=dev --audit-level=moderate`: passed; 0 vulnerabilities
+- `npm audit signatures`: passed; 480 verified signatures and 95 attestations
 - `npm audit signatures --omit=dev`: passed; 170 verified signatures and 22 attestations
 
 ### Findings / Notes
 
-- `brace-expansion@5.0.7` is the only currently identified production audit blocker; 5.0.8 is the
-  patched compatible release.
+- `brace-expansion@5.0.7` was the production audit blocker; 5.0.8 is the patched compatible release.
+- A full-tree audit after the first branch push identified development-only `postcss@8.5.15`;
+  root-only 8.5.23 remediation was added before the pull request.
 
 ---
 
@@ -354,7 +362,9 @@ git diff --check
 - `npm run check:release-readiness`: passed
 - `node scripts/ci-package-smoke.mjs`: passed outside the filesystem sandbox against the exact staged
   beta.6 tarball and isolated global prefix
+- `npm audit --audit-level=moderate`: passed; 0 vulnerabilities across production and development
 - `npm audit --omit=dev --audit-level=moderate`: passed; 0 vulnerabilities
+- `npm audit signatures`: passed; 480 verified signatures and 95 attestations
 - `npm audit signatures --omit=dev`: passed
 - `git diff --check`: passed
 

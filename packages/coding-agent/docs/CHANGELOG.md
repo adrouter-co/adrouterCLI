@@ -17,6 +17,7 @@
 ### Fixed
 
 - Updated the production `brace-expansion` override to the patched 5.0.8 release.
+- Updated the development-only `postcss` dependency to the patched 8.5.23 release.
 
 ## [0.81.0-beta.5] - 2026-07-25
 
