@@ -184,7 +184,7 @@ describe("AgentSession auto-compaction queue resume", () => {
 			type: "compaction_end",
 			reason: "overflow",
 			errorMessage:
-				"Context overflow recovery failed after one compact-and-retry attempt. Try reducing context or switching to a larger-context model.",
+				"Context is still too large after one compact-and-retry attempt. Run /compact, then reduce or split the largest message or tool input before retrying.",
 		});
 	});
 

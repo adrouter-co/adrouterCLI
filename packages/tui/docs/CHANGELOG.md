@@ -1,5 +1,11 @@
 # Changelog
 
+## [Unreleased]
+
+### Changed
+
+- Repacked the private terminal UI runtime for the hosted context-limit recovery beta.
+
 ## [0.81.0-beta.7] - 2026-07-27
 
 ### Changed

@@ -9,6 +9,10 @@ import {
 	CLOUDFLARE_AI_GATEWAY_OPENAI_BASE_URL,
 	CLOUDFLARE_WORKERS_AI_BASE_URL,
 } from "../src/api/cloudflare.ts";
+import {
+	ADROUTER_HOSTED_CONTEXT_WINDOW_TOKENS,
+	ADROUTER_HOSTED_MAX_OUTPUT_TOKENS,
+} from "../src/adrouter-config.ts";
 import type { AnthropicMessagesCompat, Api, KnownProvider, Model, OpenAICompletionsCompat } from "../src/types.ts";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -2203,8 +2207,8 @@ async function generateModels() {
 				cacheRead: 0,
 				cacheWrite: 0,
 			},
-			contextWindow: 1000000,
-			maxTokens: 4096,
+			contextWindow: ADROUTER_HOSTED_CONTEXT_WINDOW_TOKENS,
+			maxTokens: ADROUTER_HOSTED_MAX_OUTPUT_TOKENS,
 		});
 	}
 
@@ -2270,16 +2274,23 @@ async function generateModels() {
 
 	const sortedProviderIds = Object.keys(providers).sort();
 	const providersDir = join(packageRoot, "src/providers");
+	const selectedProviderId = process.env.ADROUTER_MODEL_CATALOG_PROVIDER?.trim();
+	if (selectedProviderId && !providers[selectedProviderId]) {
+		throw new Error(`Unknown ADROUTER_MODEL_CATALOG_PROVIDER: ${selectedProviderId}`);
+	}
+	const generatedProviderIds = selectedProviderId ? [selectedProviderId] : sortedProviderIds;
 
 	// Remove stale per-provider catalogs
-	for (const entry of readdirSync(providersDir)) {
-		if (entry.endsWith(".models.ts")) {
-			rmSync(join(providersDir, entry));
+	if (!selectedProviderId) {
+		for (const entry of readdirSync(providersDir)) {
+			if (entry.endsWith(".models.ts")) {
+				rmSync(join(providersDir, entry));
+			}
 		}
 	}
 
 	// Per-provider catalogs (sorted for deterministic output)
-	for (const providerId of sortedProviderIds) {
+	for (const providerId of generatedProviderIds) {
 		const models = providers[providerId];
 		let output = generatedHeader;
 		output += `import type { Model } from "../types.ts";\n\n`;
@@ -2291,7 +2302,11 @@ async function generateModels() {
 		output += `} as const;\n`;
 		writeFileSync(join(providersDir, `${providerId}.models.ts`), output);
 	}
-	console.log(`Generated ${sortedProviderIds.length} catalogs under src/providers/`);
+	console.log(`Generated ${generatedProviderIds.length} catalogs under src/providers/`);
+	if (selectedProviderId) {
+		console.log(`Scoped generation left other provider catalogs and src/models.generated.ts unchanged.`);
+		return;
+	}
 
 	// Aggregator
 	let output = generatedHeader;

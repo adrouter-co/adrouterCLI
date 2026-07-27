@@ -1,5 +1,8 @@
 import {
+	ADROUTER_HOSTED_CONTEXT_WINDOW_TOKENS,
+	ADROUTER_HOSTED_MAX_INPUT_TOKENS,
 	ADROUTER_HOSTED_MAX_OUTPUT_TOKENS,
+	ADROUTER_HOSTED_PROACTIVE_INPUT_TOKENS,
 	AdRouterApiError,
 	adRouterApiErrorFromResponse,
 	isOfficialAdRouterApiUrl,
@@ -26,6 +29,7 @@ import type {
 	ToolCall,
 	Usage,
 } from "../types.ts";
+import { estimateContextTokens, estimateTextTokens } from "../utils/estimate.ts";
 import { AssistantMessageEventStream } from "../utils/event-stream.ts";
 import { isValidAdRouterNonce } from "./adrouter-installation-auth-types.ts";
 import { transformMessages } from "./transform-messages.ts";
@@ -51,6 +55,9 @@ interface RouterResponse {
 
 interface RouterStreamEvent {
 	type?: unknown;
+	code?: unknown;
+	status_code?: unknown;
+	details?: unknown;
 	ad?: unknown;
 	ads?: unknown;
 	injection?: unknown;
@@ -64,6 +71,8 @@ interface RouterStreamEvent {
 	assistant?: RouterAssistant;
 	message?: unknown;
 }
+
+const RESPONSE_CONTENT_EVENT_TYPES = new Set(["ad", "text", "thinking", "tool_call", "settlement", "done"]);
 
 const EMPTY_USAGE: Usage = {
 	input: 0,
@@ -87,6 +96,51 @@ function sanitizeTerminalText(value: unknown, fallback = ""): string {
 		.replace(/\x1b\[[0-?]*[ -/]*[@-~]/g, "")
 		.replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g, "")
 		.trim();
+}
+
+function sanitizeErrorCode(value: unknown): string | undefined {
+	const code = sanitizeTerminalText(value);
+	return /^[a-z0-9_]{1,64}$/.test(code) ? code : undefined;
+}
+
+function sanitizeNumericErrorDetails(value: unknown): Record<string, number> {
+	if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+	const details: Record<string, number> = {};
+	for (const [key, candidate] of Object.entries(value)) {
+		if (!/^[a-zA-Z0-9_]{1,64}$/.test(key)) continue;
+		if (typeof candidate !== "number" || !Number.isFinite(candidate)) continue;
+		details[key] = candidate;
+		if (Object.keys(details).length >= 16) break;
+	}
+	return details;
+}
+
+export function assertAdRouterHostedInputWithinLimit(context: Context): number {
+	const estimate = estimateContextTokens(context);
+	let estimatedInputTokens = estimate.tokens;
+	// Reported usage describes the prior request prefix. Count the current prefix again when
+	// usage is present because extensions may have changed the system prompt or tool schemas.
+	// The deliberate overestimate is safer than silently delaying hosted compaction.
+	if (estimate.lastUsageIndex !== null) {
+		if (context.systemPrompt) estimatedInputTokens += estimateTextTokens(context.systemPrompt);
+		if (context.tools?.length) estimatedInputTokens += estimateTextTokens(JSON.stringify(context.tools));
+	}
+	if (estimatedInputTokens <= ADROUTER_HOSTED_PROACTIVE_INPUT_TOKENS) return estimatedInputTokens;
+
+	throw new AdRouterApiError(
+		"AdRouter context exceeds the proactive compaction threshold. " +
+			"AdRouterCLI will compact once before sending; if it remains too large, run /compact or reduce or split the largest message or tool input.",
+		{
+			code: "input_limit_exceeded",
+			details: {
+				estimated_input_tokens: estimatedInputTokens,
+				proactive_input_tokens: ADROUTER_HOSTED_PROACTIVE_INPUT_TOKENS,
+				max_input_tokens: ADROUTER_HOSTED_MAX_INPUT_TOKENS,
+				context_window_tokens: ADROUTER_HOSTED_CONTEXT_WINDOW_TOKENS,
+				local_preflight: 1,
+			},
+		},
+	);
 }
 
 function modelText(value: unknown): string {
@@ -446,6 +500,11 @@ function createErrorStream(model: Model<Api>, error: unknown): AssistantMessageE
 		"error",
 		error instanceof Error ? error.message : String(error),
 	);
+	if (error instanceof AdRouterApiError) {
+		message.errorCode = error.code;
+		message.errorStatus = error.status;
+		message.errorDetails = error.details ? { ...error.details } : undefined;
+	}
 	publishAdRouterAds({
 		ads: [],
 		status: "degraded",
@@ -577,8 +636,9 @@ async function fetchRouter(
 	});
 	const adMode = resolveAdRouterAdMode(baseUrl, options?.env?.ADROUTER_AD_MODE ?? process.env.ADROUTER_AD_MODE);
 	const url = `${baseUrl}/v1/agent/turn`;
-	const body = new TextEncoder().encode(JSON.stringify(buildRouterBody(model, context, baseUrl, adMode, options)));
 	const officialHosted = isOfficialAdRouterApiUrl(baseUrl);
+	if (officialHosted) assertAdRouterHostedInputWithinLimit(context);
+	const body = new TextEncoder().encode(JSON.stringify(buildRouterBody(model, context, baseUrl, adMode, options)));
 	const callerHeaders = new Headers();
 	const protectedHeaders = new Set([
 		"authorization",
@@ -733,6 +793,7 @@ async function consumeNdjsonStream(
 	const message = beginMessage(model);
 	const textStarted = { value: false };
 	const thinkingStarted = { value: false };
+	const responseContentEvents = { value: 0 };
 	let currentUpdate: AdRouterAdUpdate | undefined;
 	output.push({ type: "start", partial: message });
 
@@ -752,9 +813,11 @@ async function consumeNdjsonStream(
 					event,
 					textStarted,
 					thinkingStarted,
+					responseContentEvents,
 					currentUpdate,
 					adMode,
 				);
+				if (RESPONSE_CONTENT_EVENT_TYPES.has(String(event.type))) responseContentEvents.value++;
 				// Let the interactive TUI paint the early ad side-channel before a
 				// fast mock response is consumed from the same network chunk.
 				if (event.type === "ad") await new Promise<void>((resolve) => setTimeout(resolve, 0));
@@ -764,15 +827,20 @@ async function consumeNdjsonStream(
 	}
 	buffer += decoder.decode();
 	if (buffer.trim()) {
+		const finalEvent = JSON.parse(buffer.trim()) as RouterStreamEvent;
 		currentUpdate = handleRouterStreamEvent(
 			output,
 			message,
-			JSON.parse(buffer.trim()) as RouterStreamEvent,
+			finalEvent,
 			textStarted,
 			thinkingStarted,
+			responseContentEvents,
 			currentUpdate,
 			adMode,
 		);
+		if (RESPONSE_CONTENT_EVENT_TYPES.has(String(finalEvent.type))) {
+			responseContentEvents.value++;
+		}
 	}
 	if (thinkingStarted.value) {
 		const contentIndex = message.content.findIndex((content) => content.type === "thinking");
@@ -803,6 +871,7 @@ function handleRouterStreamEvent(
 	event: RouterStreamEvent,
 	textStarted: { value: boolean },
 	thinkingStarted: { value: boolean },
+	responseContentEvents: { value: number },
 	priorUpdate: AdRouterAdUpdate | undefined,
 	adMode: string,
 ): AdRouterAdUpdate | undefined {
@@ -869,6 +938,15 @@ function handleRouterStreamEvent(
 		case "error": {
 			message.stopReason = "error";
 			message.errorMessage = sanitizeTerminalText(event.message, "AdRouter stream error");
+			message.errorCode = sanitizeErrorCode(event.code);
+			message.errorStatus =
+				typeof event.status_code === "number" && Number.isInteger(event.status_code)
+					? event.status_code
+					: undefined;
+			message.errorDetails = {
+				...sanitizeNumericErrorDetails(event.details),
+				response_events_consumed: responseContentEvents.value,
+			};
 			const update = { ads: [], status: "degraded" as const, error: message.errorMessage };
 			publishAdRouterAds(update);
 			output.push({ type: "error", reason: "error", error: message });

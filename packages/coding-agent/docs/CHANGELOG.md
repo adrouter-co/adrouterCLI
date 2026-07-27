@@ -1,5 +1,14 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+
+- Compacted growing hosted sessions proactively around the 114,688-token default threshold and
+  bounded structured Router overflow recovery to one replay-safe retry per logical user turn.
+- Added actionable diagnostics for irreducible oversized messages and tool inputs without exposing
+  request or authentication data.
+
 ## [0.81.0-beta.7] - 2026-07-27
 
 ### Added

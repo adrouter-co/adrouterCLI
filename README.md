@@ -60,6 +60,13 @@ adrouter --provider adrouter --model deepseek-v4-flash
 adrouter --provider adrouter --model deepseek-v4-pro
 ```
 
+Both hosted models use a 131,072-token total context contract with at most 4,096 output tokens and
+126,976 input tokens. With default settings, AdRouterCLI estimates system, message, tool-schema, and
+tool-result context and compacts proactively above about 114,688 tokens. If the Router still returns
+the structured `input_limit_exceeded` error before any response event, the CLI compacts and retries
+that logical turn once. It never replays a turn after an ad, text, thinking, tool call, settlement,
+or completion event has been consumed.
+
 ## Profiles
 
 `adrouter-profile` supports only `set`, `list`, `apply`, and `restore`.

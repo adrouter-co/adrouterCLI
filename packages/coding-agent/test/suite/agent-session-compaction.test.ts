@@ -252,8 +252,45 @@ describe("AgentSession compaction characterization", () => {
 
 		expect(runAutoCompactionSpy).toHaveBeenCalledTimes(1);
 		expect(compactionErrors).toContain(
-			"Context overflow recovery failed after one compact-and-retry attempt. Try reducing context or switching to a larger-context model.",
+			"Context is still too large after one compact-and-retry attempt. Run /compact, then reduce or split the largest message or tool input before retrying.",
 		);
+	});
+
+	it("never retries an overflow error after text or a tool call was consumed", async () => {
+		const harness = await createHarness();
+		harnesses.push(harness);
+		const adRouterModel = {
+			...harness.getModel(),
+			api: "adrouter-agent" as const,
+			provider: "adrouter" as const,
+		};
+		harness.session.agent.state.model = adRouterModel;
+		const sessionInternals = harness.session as unknown as SessionWithCompactionInternals;
+		const runAutoCompactionSpy = vi.spyOn(sessionInternals, "_runAutoCompaction").mockResolvedValue(false);
+
+		const partialText = createAssistant(harness, {
+			stopReason: "error",
+			errorMessage: "prompt is too long",
+			timestamp: Date.now(),
+		});
+		partialText.api = adRouterModel.api;
+		partialText.provider = adRouterModel.provider;
+		partialText.errorCode = "input_limit_exceeded";
+		partialText.content = [{ type: "text", text: "partial paid output" }];
+		await expect(sessionInternals._checkCompaction(partialText)).resolves.toBe(false);
+
+		const partialTool = createAssistant(harness, {
+			stopReason: "error",
+			errorMessage: "prompt is too long",
+			timestamp: Date.now() + 1,
+		});
+		partialTool.api = adRouterModel.api;
+		partialTool.provider = adRouterModel.provider;
+		partialTool.errorCode = "input_limit_exceeded";
+		partialTool.content = [{ type: "toolCall", id: "call-1", name: "read", arguments: { path: "one.txt" } }];
+		await expect(sessionInternals._checkCompaction(partialTool)).resolves.toBe(false);
+
+		expect(runAutoCompactionSpy).not.toHaveBeenCalled();
 	});
 
 	it("compacts successful overflow responses without retrying", async () => {

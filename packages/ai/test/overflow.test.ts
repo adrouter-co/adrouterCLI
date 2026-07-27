@@ -35,6 +35,67 @@ describe("isContextOverflow", () => {
 		expect(isContextOverflow(message, 32768)).toBe(true);
 	});
 
+	it("prefers AdRouter's structured input-limit code", () => {
+		const message = {
+			...createErrorMessage("sanitized error without legacy wording"),
+			api: "adrouter-agent" as const,
+			provider: "adrouter" as const,
+			model: "deepseek-v4-flash",
+			errorCode: "input_limit_exceeded",
+			errorStatus: 413,
+			errorDetails: { input_tokens: 126_977, max_input_tokens: 126_976 },
+		};
+		expect(isContextOverflow(message, 131_072)).toBe(true);
+	});
+
+	it("detects the exact legacy AdRouter input-limit wording", () => {
+		const message = {
+			...createErrorMessage("Input exceeds the platform token limit. Run /compact before retrying."),
+			api: "adrouter-agent" as const,
+			provider: "adrouter" as const,
+			model: "deepseek-v4-flash",
+		};
+		expect(isContextOverflow(message, 131_072)).toBe(true);
+	});
+
+	it("rejects AdRouter overflow recovery after any streamed response event", () => {
+		const message = {
+			...createErrorMessage("Input exceeds the platform token limit."),
+			api: "adrouter-agent" as const,
+			provider: "adrouter" as const,
+			model: "deepseek-v4-flash",
+			errorCode: "input_limit_exceeded",
+			errorStatus: 413,
+			errorDetails: { response_events_consumed: 1 },
+		};
+		expect(isContextOverflow(message, 131_072)).toBe(false);
+	});
+
+	it("does not classify generic AdRouter HTTP 413, auth, or rate-limit failures as overflow", () => {
+		for (const errorMessage of [
+			"AdRouter request failed with HTTP 413",
+			"AdRouter request failed with HTTP 401 [installation_required]",
+			"AdRouter request failed with HTTP 429 [rate_limit]: Too many requests",
+		]) {
+			const message = {
+				...createErrorMessage(errorMessage),
+				api: "adrouter-agent" as const,
+				provider: "adrouter" as const,
+				model: "deepseek-v4-flash",
+			};
+			expect(isContextOverflow(message, 131_072)).toBe(false);
+		}
+		const structuredNonOverflow = {
+			...createErrorMessage("Input exceeds the platform token limit."),
+			api: "adrouter-agent" as const,
+			provider: "adrouter" as const,
+			model: "deepseek-v4-flash",
+			errorCode: "rate_limit_exceeded",
+			errorStatus: 429,
+		};
+		expect(isContextOverflow(structuredNonOverflow, 131_072)).toBe(false);
+	});
+
 	it("detects Together AI context length errors", () => {
 		const message = createErrorMessage(
 			"400 The input (516368 tokens) is longer than the model's context length (262144 tokens).",

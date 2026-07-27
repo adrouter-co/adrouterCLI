@@ -551,7 +551,6 @@ export class AgentSession {
 		// When a user message starts, check if it's from either queue and remove it BEFORE emitting
 		// This ensures the UI sees the updated queue state
 		if (event.type === "message_start" && event.message.role === "user") {
-			this._overflowRecoveryAttempted = false;
 			const messageText = this._getUserMessageText(event.message);
 			if (messageText) {
 				// Check steering queue first
@@ -1230,6 +1229,9 @@ export class AgentSession {
 		}
 
 		preflightResult?.(true);
+		// Scope overflow recovery to this public prompt invocation. Queued steering/follow-up
+		// messages must not reset the guard between a failed request and its single retry.
+		this._overflowRecoveryAttempted = false;
 		await this._runAgentPrompt(messages);
 	}
 
@@ -1938,10 +1940,19 @@ export class AgentSession {
 		// but must not retry: the assistant answer already completed and agent.continue() cannot
 		// continue from an assistant message.
 		if (sameModel && isContextOverflow(assistantMessage, contextWindow)) {
-			const willRetry = assistantMessage.stopReason !== "stop";
+			const responseEventsConsumed = assistantMessage.errorDetails?.response_events_consumed ?? 0;
+			const hasAssistantContent = assistantMessage.content.some((content) => {
+				if (content.type === "toolCall") return true;
+				if (content.type === "text") return content.text.length > 0;
+				return content.thinking.length > 0;
+			});
+			const willRetry =
+				assistantMessage.provider === "adrouter"
+					? assistantMessage.stopReason === "error" && !hasAssistantContent && responseEventsConsumed === 0
+					: assistantMessage.stopReason !== "stop";
 
 			if (!willRetry) {
-				return await this._runAutoCompaction("overflow", false);
+				return assistantMessage.stopReason === "stop" ? await this._runAutoCompaction("overflow", false) : false;
 			}
 
 			if (this._overflowRecoveryAttempted) {
@@ -1952,18 +1963,18 @@ export class AgentSession {
 					aborted: false,
 					willRetry: false,
 					errorMessage:
-						"Context overflow recovery failed after one compact-and-retry attempt. Try reducing context or switching to a larger-context model.",
+						"Context is still too large after one compact-and-retry attempt. Run /compact, then reduce or split the largest message or tool input before retrying.",
 				});
 				return false;
 			}
 
-			this._overflowRecoveryAttempted = true;
 			// Remove the error message from agent state (it IS saved to session for history,
 			// but we don't want it in context for the retry)
 			const messages = this.agent.state.messages;
-			if (messages.length > 0 && messages[messages.length - 1].role === "assistant") {
-				this.agent.state.messages = messages.slice(0, -1);
-			}
+			const lastMessage = messages[messages.length - 1];
+			if (lastMessage && lastMessage !== assistantMessage) return false;
+			this._overflowRecoveryAttempted = true;
+			if (lastMessage === assistantMessage) this.agent.state.messages = messages.slice(0, -1);
 			return await this._runAutoCompaction("overflow", willRetry);
 		}
 
@@ -2141,8 +2152,16 @@ export class AgentSession {
 			if (willRetry) {
 				const messages = this.agent.state.messages;
 				const lastMsg = messages[messages.length - 1];
-				if (lastMsg?.role === "assistant" && (lastMsg as AssistantMessage).stopReason === "error") {
-					this.agent.state.messages = messages.slice(0, -1);
+				if (lastMsg?.role === "assistant") {
+					const lastAssistant = lastMsg as AssistantMessage;
+					const responseEventsConsumed = lastAssistant.errorDetails?.response_events_consumed ?? 0;
+					if (
+						lastAssistant.stopReason === "error" &&
+						responseEventsConsumed === 0 &&
+						isContextOverflow(lastAssistant, this.model.contextWindow)
+					) {
+						this.agent.state.messages = messages.slice(0, -1);
+					}
 				}
 				return true;
 			}
