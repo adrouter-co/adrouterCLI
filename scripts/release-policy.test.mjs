@@ -8,7 +8,7 @@ import {
 	publicationChannel,
 } from "./release-policy.mjs";
 
-const version = "0.81.0-beta.6";
+const version = "0.81.0-beta.7";
 const integrity = "sha512-local";
 const channel = publicationChannel(version);
 
@@ -151,7 +151,11 @@ test("release workflows are bound to the canonical repository and registry insta
 test("version commands defer workspace reification until private dependency pins are synchronized", () => {
 	const rootPackage = JSON.parse(readFileSync("package.json", "utf8"));
 	for (const name of ["version:patch", "version:minor", "version:major"]) {
-		assert.match(rootPackage.scripts[name], /npm version .* --workspaces-update=false/);
+		for (const workspace of ["@adrouter/ai", "@adrouter/tui", "@adrouter/agent-core", "@adrouter/cli"]) {
+			assert.match(rootPackage.scripts[name], new RegExp(`--workspace ${workspace.replace("/", "\\/")}`));
+		}
+		assert.doesNotMatch(rootPackage.scripts[name], /(?:^| )-ws(?: |$)/);
+		assert.match(rootPackage.scripts[name], /--include-workspace-root .* --workspaces-update=false/);
 		assert.ok(
 			rootPackage.scripts[name].indexOf("--workspaces-update=false") <
 				rootPackage.scripts[name].indexOf("node scripts/sync-versions.js"),
@@ -160,7 +164,10 @@ test("version commands defer workspace reification until private dependency pins
 	}
 
 	const releaseSource = readFileSync("scripts/release.mjs", "utf8");
-	assert.match(releaseSource, /npm version \$\{target\} -ws --no-git-tag-version --workspaces-update=false/);
+	assert.match(
+		releaseSource,
+		/npm version \$\{target\} --workspace @adrouter\/ai --workspace @adrouter\/tui --workspace @adrouter\/agent-core --workspace @adrouter\/cli --include-workspace-root --no-git-tag-version --workspaces-update=false/,
+	);
 	assert.ok(
 		releaseSource.indexOf("--workspaces-update=false") < releaseSource.indexOf("node scripts/sync-versions.js"),
 		"explicit releases must synchronize private workspace pins before npm reifies dependencies",

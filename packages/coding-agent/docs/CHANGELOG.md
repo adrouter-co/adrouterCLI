@@ -1,6 +1,16 @@
 # Changelog
 
-## [Unreleased]
+## [0.81.0-beta.7] - 2026-07-27
+
+### Added
+
+- Added user-approved installation enrollment, locked local key/refresh storage, coordinated refresh
+  rotation, remote revocation, and redacted installation diagnostics for hosted AdRouter access.
+
+### Changed
+
+- Restricted official hosted origins to installation-bound signed requests while retaining explicit
+  bearer compatibility only for loopback and non-official custom routers.
 
 ## [0.81.0-beta.6] - 2026-07-27
 

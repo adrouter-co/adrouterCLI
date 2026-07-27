@@ -110,7 +110,7 @@ function bumpOrSetVersion(target) {
 
 	console.log(`Setting explicit version (${target})...`);
 	run(
-		`npm version ${target} -ws --no-git-tag-version --workspaces-update=false && node scripts/sync-versions.js && npm install --package-lock-only --ignore-scripts`,
+		`npm version ${target} --workspace @adrouter/ai --workspace @adrouter/tui --workspace @adrouter/agent-core --workspace @adrouter/cli --include-workspace-root --no-git-tag-version --workspaces-update=false && node scripts/sync-versions.js && npm install --package-lock-only --ignore-scripts`,
 	);
 	return getVersion();
 }
