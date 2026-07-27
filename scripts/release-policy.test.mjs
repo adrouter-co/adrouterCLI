@@ -147,3 +147,22 @@ test("release workflows are bound to the canonical repository and registry insta
 	assert.match(installedVerifier, /platform-auth-v1\.json/);
 	assert.match(installedVerifier, /createAdRouterDpopProof/);
 });
+
+test("version commands defer workspace reification until private dependency pins are synchronized", () => {
+	const rootPackage = JSON.parse(readFileSync("package.json", "utf8"));
+	for (const name of ["version:patch", "version:minor", "version:major"]) {
+		assert.match(rootPackage.scripts[name], /npm version .* --workspaces-update=false/);
+		assert.ok(
+			rootPackage.scripts[name].indexOf("--workspaces-update=false") <
+				rootPackage.scripts[name].indexOf("node scripts/sync-versions.js"),
+			`${name} must synchronize private workspace pins before npm reifies dependencies`,
+		);
+	}
+
+	const releaseSource = readFileSync("scripts/release.mjs", "utf8");
+	assert.match(releaseSource, /npm version \$\{target\} -ws --no-git-tag-version --workspaces-update=false/);
+	assert.ok(
+		releaseSource.indexOf("--workspaces-update=false") < releaseSource.indexOf("node scripts/sync-versions.js"),
+		"explicit releases must synchronize private workspace pins before npm reifies dependencies",
+	);
+});
