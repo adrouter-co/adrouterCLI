@@ -19,5 +19,11 @@ mode; extension commands, tools, and skills are unavailable in that mode.
 - Terminal: reproduce in a current terminal with `TERM` set correctly; include dimensions and OS, not terminal history.
 - Extensions: disable project resources, then bundled or user extensions one at a time.
 - Model selection: use only `deepseek-v4-flash` or `deepseek-v4-pro` for the hosted beta.
+- Context limits: both hosted models have a 131,072-token total window, with 126,976 input and 4,096
+  output tokens. A growing session normally compacts automatically above about 114,688 estimated
+  tokens. If one compact-and-retry still reports that the context is too large, run `/compact`, then
+  reduce or split the largest message, pasted file, tool schema, or tool result. A single irreducible
+  input cannot be made sendable by summarizing older history. Do not blindly retry a partial streamed
+  response; the CLI deliberately refuses to replay it.
 
 For a bug report, include version, OS/architecture, Node version, exact safe reproduction steps, expected and actual behavior, and redacted diagnostics. Never attach credentials, raw sessions, prompts, model output, tool payloads, or personal paths.

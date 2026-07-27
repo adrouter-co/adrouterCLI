@@ -1,9 +1,17 @@
+import { Type } from "typebox";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import {
+	ADROUTER_HOSTED_CONTEXT_WINDOW_TOKENS,
+	ADROUTER_HOSTED_MAX_INPUT_TOKENS,
+	ADROUTER_HOSTED_MAX_OUTPUT_TOKENS,
+	ADROUTER_HOSTED_PROACTIVE_INPUT_TOKENS,
+} from "../src/adrouter-config.ts";
 import { getAdRouterMessageUpdate, getLatestAdRouterAds } from "../src/adrouter-events.ts";
-import { stream } from "../src/api/adrouter.ts";
+import { assertAdRouterHostedInputWithinLimit, stream } from "../src/api/adrouter.ts";
 import { getSupportedThinkingLevels } from "../src/models.ts";
 import { ADROUTER_MODELS } from "../src/providers/adrouter.models.ts";
 import type { Model } from "../src/types.ts";
+import { isContextOverflow } from "../src/utils/overflow.ts";
 
 function parseRequestBody(init: RequestInit | undefined): any {
 	return JSON.parse(new TextDecoder().decode(init?.body as Uint8Array));
@@ -18,8 +26,8 @@ const model: Model<"adrouter-agent"> = {
 	reasoning: true,
 	input: ["text"],
 	cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-	contextWindow: 1000000,
-	maxTokens: 4096,
+	contextWindow: ADROUTER_HOSTED_CONTEXT_WINDOW_TOKENS,
+	maxTokens: ADROUTER_HOSTED_MAX_OUTPUT_TOKENS,
 };
 
 function mockFetch(body: unknown): void {
@@ -57,6 +65,85 @@ describe("AdRouter provider", () => {
 		delete process.env.ADROUTER_MODEL_ROUTE;
 		delete process.env.ADROUTER_RUNTIME_MODE;
 		delete process.env.ADROUTER_MIN_AD_TIER;
+	});
+
+	it("keeps both hosted models on the shared 128K contract", () => {
+		for (const hostedModel of Object.values(ADROUTER_MODELS)) {
+			expect(hostedModel.contextWindow).toBe(ADROUTER_HOSTED_CONTEXT_WINDOW_TOKENS);
+			expect(hostedModel.maxTokens).toBe(ADROUTER_HOSTED_MAX_OUTPUT_TOKENS);
+		}
+		expect(ADROUTER_HOSTED_MAX_INPUT_TOKENS).toBe(
+			ADROUTER_HOSTED_CONTEXT_WINDOW_TOKENS - ADROUTER_HOSTED_MAX_OUTPUT_TOKENS,
+		);
+		expect(ADROUTER_HOSTED_PROACTIVE_INPUT_TOKENS).toBe(114_688);
+	});
+
+	it("allows the exact proactive threshold and rejects one estimated token above it locally", () => {
+		const atThreshold = {
+			messages: [
+				{
+					role: "user" as const,
+					content: "a".repeat(ADROUTER_HOSTED_PROACTIVE_INPUT_TOKENS * 4),
+					timestamp: Date.now(),
+				},
+			],
+		};
+		expect(assertAdRouterHostedInputWithinLimit(atThreshold)).toBe(ADROUTER_HOSTED_PROACTIVE_INPUT_TOKENS);
+
+		let error: unknown;
+		try {
+			assertAdRouterHostedInputWithinLimit({
+				...atThreshold,
+				messages: [
+					{
+						...atThreshold.messages[0],
+						content: `${atThreshold.messages[0].content}aaaa`,
+					},
+				],
+			});
+		} catch (candidate) {
+			error = candidate;
+		}
+		expect(error).toMatchObject({
+			code: "input_limit_exceeded",
+			details: {
+				estimated_input_tokens: ADROUTER_HOSTED_PROACTIVE_INPUT_TOKENS + 1,
+				max_input_tokens: ADROUTER_HOSTED_MAX_INPUT_TOKENS,
+				local_preflight: 1,
+			},
+		});
+	});
+
+	it("accounts conservatively for the current tool schema when prior usage is available", () => {
+		const priorAssistant = {
+			role: "assistant" as const,
+			content: [{ type: "text" as const, text: "done" }],
+			api: "adrouter-agent" as const,
+			provider: "adrouter" as const,
+			model: "deepseek-v4-flash",
+			usage: {
+				input: 110_000,
+				output: 0,
+				cacheRead: 0,
+				cacheWrite: 0,
+				totalTokens: 110_000,
+				cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+			},
+			stopReason: "stop" as const,
+			timestamp: Date.now(),
+		};
+		expect(() =>
+			assertAdRouterHostedInputWithinLimit({
+				messages: [priorAssistant],
+				tools: [
+					{
+						name: "large_tool",
+						description: "a".repeat(40_000),
+						parameters: Type.Object({ payload: Type.String() }),
+					},
+				],
+			}),
+		).toThrow("proactive compaction threshold");
 	});
 
 	it("wraps router assistant text and publishes live ads", async () => {
@@ -664,6 +751,52 @@ describe("AdRouter provider", () => {
 		expect(message.errorMessage).toContain("Invalid body");
 		expect(message.errorMessage).toContain("context");
 		expect(message.errorMessage).toContain("Upgrade the CLI");
+	});
+
+	it("preserves structured input-limit metadata on an HTTP 413 before stream content", async () => {
+		vi.stubGlobal(
+			"fetch",
+			vi.fn(
+				async () =>
+					new Response(
+						JSON.stringify({
+							error: "Input exceeds the platform token limit.",
+							code: "input_limit_exceeded",
+							details: { input_tokens: 126_977, max_input_tokens: 126_976, ignored: "secret" },
+						}),
+						{ status: 413, headers: { "content-type": "application/json" } },
+					),
+			),
+		);
+
+		const message = await stream(model, { messages: [] }, { apiKey: "test-key" }).result();
+
+		expect(message).toMatchObject({
+			stopReason: "error",
+			errorCode: "input_limit_exceeded",
+			errorStatus: 413,
+			errorDetails: { input_tokens: 126_977, max_input_tokens: 126_976 },
+		});
+		expect(message.errorDetails).not.toHaveProperty("ignored");
+		expect(isContextOverflow(message, model.contextWindow)).toBe(true);
+	});
+
+	it("does not classify a streamed input-limit error after an ad event as replay-safe", async () => {
+		mockNdjsonFetch([
+			{ type: "ad", status: "live", ads: [] },
+			{
+				type: "error",
+				code: "input_limit_exceeded",
+				status_code: 413,
+				message: "Input exceeds the platform token limit.",
+				details: { input_tokens: 126_977, max_input_tokens: 126_976 },
+			},
+		]);
+
+		const message = await stream(model, { messages: [] }, { apiKey: "test-key" }).result();
+
+		expect(message.errorDetails).toMatchObject({ response_events_consumed: 1 });
+		expect(isContextOverflow(message, model.contextWindow)).toBe(false);
 	});
 
 	it("parses router reasoning content as a thinking block", async () => {

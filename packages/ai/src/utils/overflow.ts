@@ -54,6 +54,7 @@ const OVERFLOW_PATTERNS = [
 	/prompt has [\d,]+ tokens?, but the configured context size is [\d,]+ tokens?/i, // DS4 server
 	/model_context_window_exceeded/i, // z.ai non-standard finish_reason surfaced as error text
 	/prompt too long; exceeded (?:max )?context length/i, // Ollama explicit overflow error
+	/input exceeds the platform token limit/i, // AdRouter legacy/sanitized fallback wording
 	/context[_ ]length[_ ]exceeded/i, // Generic fallback
 	/too many tokens/i, // Generic fallback
 	/token limit exceeded/i, // Generic fallback
@@ -127,6 +128,20 @@ const NON_OVERFLOW_PATTERNS = [
  * @returns true if the message indicates a context overflow
  */
 export function isContextOverflow(message: AssistantMessage, contextWindow?: number): boolean {
+	if (message.provider === "adrouter") {
+		const responseEventsConsumed = message.errorDetails?.response_events_consumed ?? 0;
+		if (message.errorCode !== undefined) {
+			return (
+				message.errorCode === "input_limit_exceeded" &&
+				message.stopReason === "error" &&
+				responseEventsConsumed === 0
+			);
+		}
+		// A legacy string-only stream error is recoverable only before any ad/model/tool/
+		// settlement event. This prevents replaying a partially consumed paid turn.
+		if (responseEventsConsumed > 0) return false;
+	}
+
 	// Case 1: Check error message patterns
 	if (message.stopReason === "error" && message.errorMessage) {
 		// Skip messages matching known non-overflow patterns (e.g. throttling / rate-limit)

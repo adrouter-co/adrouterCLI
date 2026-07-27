@@ -1,7 +1,8 @@
+import { Type } from "typebox";
 import { describe, expect, it } from "vitest";
 import { buildBaseOptions } from "../src/api/simple-options.ts";
 import type { AssistantMessage, Context, Model, Usage } from "../src/types.ts";
-import { estimateContextTokens } from "../src/utils/estimate.ts";
+import { estimateContextTokens, estimateTextTokens } from "../src/utils/estimate.ts";
 
 function createUsage(totalTokens: number): Usage {
 	return {
@@ -41,6 +42,29 @@ const model: Model<"openai-responses"> = {
 };
 
 describe("context token estimation", () => {
+	it("estimates ASCII by four characters and counts CJK and emoji conservatively", () => {
+		expect(estimateTextTokens("abcdefgh")).toBe(2);
+		expect(estimateTextTokens("中文測試")).toBe(4);
+		expect(estimateTextTokens("🙂🚀")).toBe(2);
+		expect(estimateTextTokens("abcd中文🙂")).toBe(4);
+	});
+
+	it("includes large tool schemas in the context estimate", () => {
+		const schemaDescription = "a".repeat(40_000);
+		const estimate = estimateContextTokens({
+			systemPrompt: "system",
+			messages: [],
+			tools: [
+				{
+					name: "large_tool",
+					description: schemaDescription,
+					parameters: Type.Object({}),
+				},
+			],
+		});
+		expect(estimate.tokens).toBeGreaterThan(10_000);
+	});
+
 	it("ignores stale assistant usage after a newer message is inserted before it", () => {
 		const context: Context = {
 			systemPrompt: "system",

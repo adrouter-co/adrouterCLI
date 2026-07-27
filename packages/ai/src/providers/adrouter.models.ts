@@ -19,7 +19,7 @@ export const ADROUTER_MODELS = {
 			cacheRead: 0,
 			cacheWrite: 0,
 		},
-		contextWindow: 1000000,
+		contextWindow: 131072,
 		maxTokens: 4096,
 	} satisfies Model<"adrouter-agent">,
 	"deepseek-v4-pro": {
@@ -37,7 +37,7 @@ export const ADROUTER_MODELS = {
 			cacheRead: 0,
 			cacheWrite: 0,
 		},
-		contextWindow: 1000000,
+		contextWindow: 131072,
 		maxTokens: 4096,
 	} satisfies Model<"adrouter-agent">,
 } as const;

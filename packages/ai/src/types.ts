@@ -396,6 +396,12 @@ export interface AssistantMessage {
 	usage: Usage;
 	stopReason: StopReason;
 	errorMessage?: string;
+	/** Stable, provider-supplied error code when one is available. */
+	errorCode?: string;
+	/** HTTP status associated with the provider error, when applicable. */
+	errorStatus?: number;
+	/** Sanitized numeric provider details used for bounded recovery decisions. */
+	errorDetails?: Record<string, number>;
 	timestamp: number; // Unix timestamp in milliseconds
 }
 

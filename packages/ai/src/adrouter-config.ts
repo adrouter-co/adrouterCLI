@@ -1,7 +1,12 @@
 export const ADROUTER_PROVIDER_ID = "adrouter";
 export const DEFAULT_ADROUTER_API_URL = "https://api-staging.adrouter.co";
 export const OFFICIAL_ADROUTER_API_ORIGINS = ["https://api-staging.adrouter.co", "https://api.adrouter.co"] as const;
+export const ADROUTER_HOSTED_CONTEXT_WINDOW_TOKENS = 131_072;
+export const ADROUTER_HOSTED_MAX_INPUT_TOKENS = 126_976;
 export const ADROUTER_HOSTED_MAX_OUTPUT_TOKENS = 4096;
+export const ADROUTER_HOSTED_COMPACTION_RESERVE_TOKENS = 16_384;
+export const ADROUTER_HOSTED_PROACTIVE_INPUT_TOKENS =
+	ADROUTER_HOSTED_CONTEXT_WINDOW_TOKENS - ADROUTER_HOSTED_COMPACTION_RESERVE_TOKENS;
 
 export interface AdRouterApiUrlSources {
 	environmentUrl?: string;
@@ -85,13 +90,30 @@ function errorGuidance(code: string | undefined, status: number): string {
 export class AdRouterApiError extends Error {
 	readonly status?: number;
 	readonly code?: string;
+	readonly details?: Readonly<Record<string, number>>;
 
-	constructor(message: string, options: { status?: number; code?: string; cause?: unknown } = {}) {
+	constructor(
+		message: string,
+		options: { status?: number; code?: string; details?: Readonly<Record<string, number>>; cause?: unknown } = {},
+	) {
 		super(message, options.cause === undefined ? undefined : { cause: options.cause });
 		this.name = "AdRouterApiError";
 		this.status = options.status;
 		this.code = options.code;
+		this.details = options.details;
 	}
+}
+
+function numericErrorDetails(value: unknown): Record<string, number> | undefined {
+	if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
+	const details: Record<string, number> = {};
+	for (const [key, candidate] of Object.entries(value)) {
+		if (!/^[a-zA-Z0-9_]{1,64}$/.test(key)) continue;
+		if (typeof candidate !== "number" || !Number.isFinite(candidate)) continue;
+		details[key] = candidate;
+		if (Object.keys(details).length >= 16) break;
+	}
+	return Object.keys(details).length > 0 ? details : undefined;
 }
 
 export function normalizeAdRouterApiUrl(value: string): string {
@@ -133,6 +155,7 @@ export function resolveAdRouterAdMode(apiUrl: string, configuredMode?: string): 
 export async function adRouterApiErrorFromResponse(response: Response): Promise<AdRouterApiError> {
 	const fallback = `AdRouter request failed with HTTP ${response.status}`;
 	let code: string | undefined;
+	let details: Record<string, number> | undefined;
 	let message = "";
 	try {
 		const contentType = response.headers.get("content-type") ?? "";
@@ -143,6 +166,7 @@ export async function adRouterApiErrorFromResponse(response: Response): Promise<
 			const record = body as Record<string, unknown>;
 			const candidateCode = sanitizeErrorText(record.code);
 			code = /^[a-z0-9_]{1,64}$/.test(candidateCode) ? candidateCode : undefined;
+			details = numericErrorDetails(record.details);
 			message = [
 				sanitizeErrorText(record.error),
 				sanitizeErrorText(record.message),
@@ -163,6 +187,7 @@ export async function adRouterApiErrorFromResponse(response: Response): Promise<
 	return new AdRouterApiError(`${fallback}${codeLabel}${detail}${suffix}`, {
 		status: response.status,
 		code,
+		details,
 	});
 }
 

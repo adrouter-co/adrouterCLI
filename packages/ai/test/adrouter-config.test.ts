@@ -80,4 +80,24 @@ describe("AdRouter hosted configuration", () => {
 		expect(error.code).toBe("invalid_api_key");
 		expect(error.message).toContain("/login adrouter");
 	});
+
+	it("retains only finite numeric structured details for recovery logic", async () => {
+		const error = await adRouterApiErrorFromResponse(
+			new Response(
+				JSON.stringify({
+					error: "Input exceeds the platform token limit.",
+					code: "input_limit_exceeded",
+					details: {
+						input_tokens: 126_977,
+						max_input_tokens: 126_976,
+						secret: "do-not-propagate",
+						not_finite: "Infinity",
+					},
+				}),
+				{ status: 413, headers: { "content-type": "application/json" } },
+			),
+		);
+
+		expect(error.details).toEqual({ input_tokens: 126_977, max_input_tokens: 126_976 });
+	});
 });

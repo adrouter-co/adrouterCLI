@@ -1,5 +1,17 @@
 # Changelog
 
+## [Unreleased]
+
+### Changed
+
+- Aligned both generated AdRouter models to the hosted 131,072-token context and 4,096-token output
+  contract, with conservative multibyte and tool-schema-aware input estimation.
+
+### Fixed
+
+- Preserved structured AdRouter input-limit metadata and restricted one-shot overflow recovery to
+  failures received before any streamed response event.
+
 ## [0.81.0-beta.7] - 2026-07-27
 
 ### Added
