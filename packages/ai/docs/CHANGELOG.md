@@ -1,6 +1,11 @@
 # Changelog
 
-## [Unreleased]
+## [0.81.0-beta.7] - 2026-07-27
+
+### Added
+
+- Added the canonical installation-auth contract, exact-byte Ed25519 DPoP signing, and hosted
+  authentication error handling for AdRouter requests.
 
 ## [0.81.0-beta.6] - 2026-07-27
 

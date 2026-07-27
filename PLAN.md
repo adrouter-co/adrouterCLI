@@ -10,13 +10,13 @@ systems against staging, and promote that beta without rebuilding.
 
 - This is the independent `adrouter/adrouterCLI` repository. Four workspaces version in lockstep;
   only `@adrouter/cli` is public.
-- Source and public baseline are `0.81.0-beta.6`. Public npm/GitHub state was last verified on
+- The release target is `0.81.0-beta.7`. The public npm/GitHub baseline was last verified on
   2026-07-27 with `beta` and `latest` on beta.6.
 - Use `0.81.0-beta.7` only if a fresh npm/Git/GitHub check shows the package version, tag,
   release, draft, and workflow identity are unused.
 - Installation storage, user-approved enrollment, exact-byte DPoP signing, refresh coordination,
   sign-out, diagnostics, protected headers, canonical fixture, acceptance schema, and
-  credential-free release workflows are implemented in the current dirty worktree.
+  credential-free release workflows are implemented on reviewed `main`.
 - Router and CLI share fixture SHA-256
   `93a8ec8d4eba38f9165179aa0cdfe3316f8134a882bd0426bd83339af55d17f8`.
 - Focused auth tests and full source tests passed on 2026-07-27. The current-worktree

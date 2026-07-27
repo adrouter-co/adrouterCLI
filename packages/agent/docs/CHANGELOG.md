@@ -1,6 +1,10 @@
 # Changelog
 
-## [Unreleased]
+## [0.81.0-beta.7] - 2026-07-27
+
+### Changed
+
+- Repacked the private agent runtime for the installation-bound authentication beta.
 
 ## [0.81.0-beta.6] - 2026-07-27
 
