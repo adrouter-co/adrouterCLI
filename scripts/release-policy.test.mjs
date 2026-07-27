@@ -96,15 +96,32 @@ test("release workflows are bound to the canonical repository and registry insta
 	assert.match(promote, /node scripts\/publish\.mjs --publish/);
 	assert.match(promote, /--tarball release-assets\/adrouter-cli-\*\.tgz/);
 	assert.match(promote, /node scripts\/verify-npm-release\.mjs --state resumable/);
+	assert.match(promote, /node scripts\/validate-authentication-acceptance\.mjs/);
+	assert.match(promote, /--pattern "authentication-acceptance\.json"/);
 	assert.match(promote, /finalize-npm:/);
 	assert.match(promote, /path: release-finalizer-source/);
 	assert.match(promote, /node release-finalizer-source\/scripts\/promote-npm-tags\.mjs/);
 	assert.match(promote, /gh release download "\$\{\{ inputs\.tag \}\}"/);
 	assert.match(promote, /subject-path: release-assets\/adrouter-cli-\*\.tgz/);
 	assert.match(promote, /path: registry-verifier-source/);
+	assert.match(promote, /packages\/ai\/test\/fixtures\/platform-auth-v1\.json/);
 	assert.match(promote, /node registry-verifier-source\/scripts\/verify-registry-install\.mjs/);
 	assert.match(ci, /node scripts\/verify-registry-install\.mjs --if-published/);
 	assert.doesNotMatch(promote, /verify-registry-install\.mjs --if-published/);
+	for (const [name, workflow] of [
+		["ci", ci],
+		["release-tag", releaseTag],
+		["promote-release", promote],
+	]) {
+		assert.doesNotMatch(workflow, /ADROUTER_(?:STAGING_)?API_KEY/, `${name} must not receive inference credentials`);
+		assert.doesNotMatch(workflow, /\/v1\/(?:agent\/turn|turn|profile)/, `${name} must not call authenticated APIs`);
+		assert.doesNotMatch(workflow, /staging-canary/, `${name} must not depend on the retired bearer canary`);
+	}
+	assert.ok(
+		promote.indexOf("node scripts/validate-authentication-acceptance.mjs") <
+			promote.indexOf("node registry-verifier-source/scripts/verify-registry-install.mjs"),
+		"authentication acceptance must be validated before installed-runtime finalization",
+	);
 	assert.ok(
 		promote.indexOf("node scripts/verify-npm-release.mjs --state resumable") <
 			promote.indexOf("subject-path: release-assets/adrouter-cli-*.tgz"),
@@ -126,4 +143,7 @@ test("release workflows are bound to the canonical repository and registry insta
 	const publishSource = readFileSync("scripts/publish.mjs", "utf8");
 	assert.match(publishSource, /"--provenance"/);
 	assert.doesNotMatch(publishSource, /"access", "list", "packages"/);
+	const installedVerifier = readFileSync("scripts/verify-installed-runtime.mjs", "utf8");
+	assert.match(installedVerifier, /platform-auth-v1\.json/);
+	assert.match(installedVerifier, /createAdRouterDpopProof/);
 });

@@ -59,6 +59,22 @@ jobs:
             --pattern "npm-artifacts.json" \
             --dir release-assets
           cp release-assets/npm-artifacts.json npm-artifacts.json
+      - name: Download exact-candidate authentication acceptance
+        if: ${{ inputs.phase == 'finalize-release' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >-
+          gh release download "${{ inputs.tag }}"
+          --pattern "authentication-acceptance.json"
+          --dir release-assets
+      - name: Validate exact-candidate authentication acceptance
+        if: ${{ inputs.phase == 'finalize-release' }}
+        run: >-
+          node scripts/validate-authentication-acceptance.mjs
+          --file release-assets/authentication-acceptance.json
+          --tag "${{ inputs.tag }}"
+          --commit "$(git rev-parse HEAD)"
+          --manifest release-assets/npm-artifacts.json
       - name: Publish the exact recorded tarball under candidate
         if: ${{ inputs.phase == 'publish-candidate' }}
         env:
@@ -137,6 +153,7 @@ jobs:
           ref: ${{ github.sha }}
           path: registry-verifier-source
           sparse-checkout: |
+            packages/ai/test/fixtures/platform-auth-v1.json
             scripts/verify-installed-runtime.mjs
             scripts/verify-registry-install.mjs
           persist-credentials: false

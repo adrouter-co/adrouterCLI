@@ -1,6 +1,7 @@
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { generateAdRouterKeyPair } from "@adrouter/ai/api/adrouter-installation-auth";
 import { registerOAuthProvider } from "@adrouter/ai/oauth";
 import lockfile from "proper-lockfile";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
@@ -665,6 +666,95 @@ describe("AuthStorage", () => {
 			expect(JSON.stringify(authStorage.getAuthStatus("anthropic"))).not.toContain("secret-api-key");
 			expect(JSON.stringify(authStorage.getAuthStatus("openai"))).not.toContain("secret-access-token");
 			expect(JSON.stringify(authStorage.getAuthStatus("openai"))).not.toContain("secret-refresh-token");
+		});
+	});
+
+	describe("AdRouter installation records", () => {
+		test("rejects unsafe verification URLs in persisted pending enrollment", () => {
+			const { privateJwk } = generateAdRouterKeyPair();
+			writeAuthJson({
+				adrouter_pending_enrollment: {
+					type: "adrouter_pending_enrollment",
+					version: 1,
+					privateJwk,
+					deviceCode: "device-secret",
+					userCode: "ABCD-EFGH",
+					verificationUri: "javascript:alert(1)",
+					intervalSeconds: 5,
+					expiresAt: Date.now() + 60_000,
+					origin: "https://api-staging.adrouter.co",
+					scopes: ["agent:turn", "profile:read"],
+					clientVersion: "0.81.0-beta.7",
+					displayName: "test CLI",
+					createdAt: Date.now(),
+				},
+			});
+
+			authStorage = AuthStorage.create(authJsonPath);
+			expect(authStorage.getAdRouterPendingEnrollment()).toBeUndefined();
+			expect(authStorage.drainErrors()[0]?.message).toContain("Invalid AdRouter enrollment record");
+		});
+
+		test("atomically transitions pending enrollment without changing unrelated credentials", async () => {
+			const { privateJwk, publicJwk } = generateAdRouterKeyPair();
+			authStorage = AuthStorage.inMemory({ anthropic: { type: "api_key", key: "keep-me" } });
+			authStorage.setAdRouterPendingEnrollment({
+				type: "adrouter_pending_enrollment",
+				version: 1,
+				privateJwk,
+				deviceCode: "device-secret",
+				userCode: "ABCD-EFGH",
+				verificationUri: "https://app-staging.adrouter.co/installations/connect",
+				intervalSeconds: 5,
+				expiresAt: Date.now() + 60_000,
+				origin: "https://api-staging.adrouter.co",
+				scopes: ["agent:turn", "profile:read"],
+				clientVersion: "0.81.0-beta.7",
+				displayName: "test CLI",
+				createdAt: Date.now(),
+			});
+
+			await authStorage.withAdRouterAuthLock(async (_state) => ({
+				result: undefined,
+				next: {
+					installation: {
+						type: "adrouter_installation",
+						version: 1,
+						privateJwk,
+						refreshCredential: "refresh-secret",
+						installationId: "installation-1",
+						origin: "https://api-staging.adrouter.co",
+						scopes: ["agent:turn", "profile:read"],
+						refreshFamilyExpiresAt: Date.now() + 60_000,
+						clientKind: "cli",
+						clientVersion: "0.81.0-beta.7",
+						storageClass: "file_protected",
+						displayName: "test CLI",
+						keyThumbprint: publicJwk.x,
+						createdAt: Date.now(),
+					},
+				},
+			}));
+
+			expect(authStorage.get("anthropic")).toEqual({ type: "api_key", key: "keep-me" });
+			expect(authStorage.getAdRouterPendingEnrollment()).toBeUndefined();
+			expect(authStorage.getAdRouterInstallation()).toMatchObject({
+				installationId: "installation-1",
+				storageClass: "file_protected",
+			});
+			expect(JSON.stringify(authStorage.getAdRouterInstallation())).not.toContain("access_token");
+		});
+
+		test.runIf(process.platform !== "win32")("enforces user-only file modes and rejects an auth symlink", () => {
+			writeAuthJson({});
+			authStorage = AuthStorage.create(authJsonPath);
+			expect(statSync(tempDir).mode & 0o777).toBe(0o700);
+			expect(statSync(authJsonPath).mode & 0o777).toBe(0o600);
+
+			const symlinkPath = join(tempDir, "linked-auth.json");
+			symlinkSync(authJsonPath, symlinkPath);
+			const linked = AuthStorage.create(symlinkPath);
+			expect(linked.drainErrors()[0]?.message).toContain("safe regular file");
 		});
 	});
 

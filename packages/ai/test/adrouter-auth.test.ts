@@ -21,21 +21,30 @@ describe("AdRouter authentication", () => {
 		delete process.env.ADROUTER_API_URL;
 	});
 
-	it("prompts for and validates the staging API key", async () => {
+	it("refuses copied API keys for the official hosted endpoint", async () => {
 		const prompt = vi.fn(async () => "adr_live_key");
+		const provider = adRouterProvider();
+		await expect(provider.auth.apiKey?.login?.({ prompt, notify: vi.fn() })).rejects.toThrow("approved installation");
+		expect(prompt).not.toHaveBeenCalled();
+		expect(fetch).not.toHaveBeenCalled();
+	});
+
+	it("keeps explicit bearer setup for a custom endpoint", async () => {
+		process.env.ADROUTER_API_URL = "https://router.example.test";
+		const prompt = vi.fn(async () => "custom-key");
 		const provider = adRouterProvider();
 		const credential = await provider.auth.apiKey?.login?.({ prompt, notify: vi.fn() });
 
 		expect(prompt).toHaveBeenCalledTimes(1);
 		expect(prompt).toHaveBeenCalledWith({
 			type: "secret",
-			message: "Paste AdRouter API key from app-staging.adrouter.co",
+			message: "Enter the bearer key for this custom AdRouter endpoint",
 		});
 		expect(fetch).toHaveBeenCalledWith(
-			`${DEFAULT_ADROUTER_API_URL}/v1/profile`,
-			expect.objectContaining({ headers: expect.objectContaining({ authorization: "Bearer adr_live_key" }) }),
+			"https://router.example.test/v1/profile",
+			expect.objectContaining({ headers: expect.objectContaining({ authorization: "Bearer custom-key" }) }),
 		);
-		expect(credential).toEqual({ type: "api_key", key: "adr_live_key" });
+		expect(credential).toEqual({ type: "api_key", key: "custom-key" });
 	});
 
 	it("uses environment URL, legacy stored URL, then the production default", async () => {

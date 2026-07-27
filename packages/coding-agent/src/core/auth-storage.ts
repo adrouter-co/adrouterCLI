@@ -6,7 +6,9 @@
  * try to refresh tokens simultaneously.
  */
 
-import { DEFAULT_ADROUTER_API_URL } from "@adrouter/ai";
+import { randomUUID } from "node:crypto";
+import { type AdRouterPrivateJwk, type AdRouterStorageClass, DEFAULT_ADROUTER_API_URL } from "@adrouter/ai";
+import { validateAdRouterPrivateJwk } from "@adrouter/ai/api/adrouter-installation-auth";
 import {
 	findEnvKeys,
 	getEnvApiKey,
@@ -15,7 +17,7 @@ import {
 	type OAuthProviderId,
 } from "@adrouter/ai/compat";
 import { getOAuthApiKey, getOAuthProvider, getOAuthProviders } from "@adrouter/ai/oauth";
-import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
+import { chmodSync, existsSync, lstatSync, mkdirSync, readFileSync, renameSync, unlinkSync, writeFileSync } from "fs";
 import { dirname, join } from "path";
 import lockfile from "proper-lockfile";
 import { getAgentDir } from "../config.ts";
@@ -34,7 +36,49 @@ export type OAuthCredential = {
 
 export type AuthCredential = ApiKeyCredential | OAuthCredential;
 
-export type AuthStorageData = Record<string, AuthCredential>;
+export type AdRouterInstallationRecord = {
+	type: "adrouter_installation";
+	version: 1;
+	privateJwk: AdRouterPrivateJwk;
+	refreshCredential: string;
+	installationId: string;
+	origin: string;
+	scopes: string[];
+	refreshFamilyExpiresAt: number;
+	clientKind: "cli";
+	clientVersion: string;
+	storageClass: AdRouterStorageClass;
+	displayName: string;
+	keyThumbprint: string;
+	createdAt: number;
+};
+
+export type AdRouterPendingEnrollmentRecord = {
+	type: "adrouter_pending_enrollment";
+	version: 1;
+	privateJwk: AdRouterPrivateJwk;
+	deviceCode: string;
+	userCode: string;
+	verificationUri: string;
+	verificationUriComplete?: string;
+	intervalSeconds: number;
+	expiresAt: number;
+	installationId?: string;
+	origin: string;
+	scopes: string[];
+	clientVersion: string;
+	displayName: string;
+	createdAt: number;
+};
+
+export type AuthStorageRecord = AuthCredential | AdRouterInstallationRecord | AdRouterPendingEnrollmentRecord;
+
+export type AdRouterAuthState = {
+	installation?: AdRouterInstallationRecord;
+	pending?: AdRouterPendingEnrollmentRecord;
+};
+
+export type AuthStorageData = Record<string, AuthStorageRecord>;
 
 export type AuthStatus = {
 	configured: boolean;
@@ -52,6 +96,35 @@ type LockResult<T> = {
 };
 
 const AUTH_FILE_WRITE_OPTIONS = { encoding: "utf-8", mode: 0o600 } as const;
+const INSTALLATION_KEY = "adrouter_installation";
+const PENDING_ENROLLMENT_KEY = "adrouter_pending_enrollment";
+
+function isProviderCredential(value: AuthStorageRecord | undefined): value is AuthCredential {
+	return value?.type === "api_key" || value?.type === "oauth";
+}
+
+function storedOrigin(value: unknown): string | undefined {
+	if (typeof value !== "string") return undefined;
+	try {
+		const url = new URL(value);
+		return (url.protocol === "https:" || url.protocol === "http:") && url.origin === value ? value : undefined;
+	} catch {
+		return undefined;
+	}
+}
+
+function isSafeStoredVerificationUrl(value: unknown, origin: string): boolean {
+	if (typeof value !== "string" || !value) return false;
+	try {
+		const url = new URL(value);
+		if (url.username || url.password) return false;
+		if (url.protocol === "https:") return true;
+		const host = new URL(origin).hostname;
+		return url.protocol === "http:" && (host === "localhost" || host === "127.0.0.1" || host === "::1");
+	} catch {
+		return false;
+	}
+}
 
 export interface AuthStorageBackend {
 	withLock<T>(fn: (current: string | undefined) => LockResult<T>): T;
@@ -70,12 +143,41 @@ export class FileAuthStorageBackend implements AuthStorageBackend {
 		if (!existsSync(dir)) {
 			mkdirSync(dir, { recursive: true, mode: 0o700 });
 		}
+		const stat = lstatSync(dir);
+		if (stat.isSymbolicLink() || !stat.isDirectory()) {
+			throw new Error("Authentication directory is not a safe directory");
+		}
+		if (process.platform !== "win32") chmodSync(dir, 0o700);
 	}
 
 	private ensureFileExists(): void {
 		if (!existsSync(this.authPath)) {
 			writeFileSync(this.authPath, "{}", AUTH_FILE_WRITE_OPTIONS);
 			chmodSync(this.authPath, 0o600);
+		}
+		const stat = lstatSync(this.authPath);
+		if (stat.isSymbolicLink() || !stat.isFile()) {
+			throw new Error("Authentication file is not a safe regular file");
+		}
+		if (process.platform !== "win32" && (stat.mode & 0o077) !== 0) {
+			chmodSync(this.authPath, 0o600);
+		}
+	}
+
+	private writeAtomically(content: string): void {
+		const temporaryPath = `${this.authPath}.${process.pid}.${randomUUID()}.tmp`;
+		try {
+			writeFileSync(temporaryPath, content, { ...AUTH_FILE_WRITE_OPTIONS, flag: "wx" });
+			if (process.platform !== "win32") chmodSync(temporaryPath, 0o600);
+			renameSync(temporaryPath, this.authPath);
+			if (process.platform !== "win32") chmodSync(this.authPath, 0o600);
+		} catch (error) {
+			try {
+				if (existsSync(temporaryPath)) unlinkSync(temporaryPath);
+			} catch {
+				// Preserve the original storage error.
+			}
+			throw error;
 		}
 	}
 
@@ -116,8 +218,7 @@ export class FileAuthStorageBackend implements AuthStorageBackend {
 			const current = existsSync(this.authPath) ? readFileSync(this.authPath, "utf-8") : undefined;
 			const { result, next } = fn(current);
 			if (next !== undefined) {
-				writeFileSync(this.authPath, next, AUTH_FILE_WRITE_OPTIONS);
-				chmodSync(this.authPath, 0o600);
+				this.writeAtomically(next);
 			}
 			return result;
 		} finally {
@@ -161,8 +262,7 @@ export class FileAuthStorageBackend implements AuthStorageBackend {
 			const { result, next } = await fn(current);
 			throwIfCompromised();
 			if (next !== undefined) {
-				writeFileSync(this.authPath, next, AUTH_FILE_WRITE_OPTIONS);
-				chmodSync(this.authPath, 0o600);
+				this.writeAtomically(next);
 			}
 			throwIfCompromised();
 			return result;
@@ -251,7 +351,86 @@ export class AuthStorage {
 		if (!content) {
 			return {};
 		}
-		return JSON.parse(content) as AuthStorageData;
+		const parsed = JSON.parse(content) as unknown;
+		if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+			throw new Error("Authentication file has an invalid top-level format");
+		}
+		const data = parsed as AuthStorageData;
+		if (data[INSTALLATION_KEY] !== undefined) {
+			data[INSTALLATION_KEY] = this.validateInstallationRecord(data[INSTALLATION_KEY]);
+		}
+		if (data[PENDING_ENROLLMENT_KEY] !== undefined) {
+			data[PENDING_ENROLLMENT_KEY] = this.validatePendingEnrollmentRecord(data[PENDING_ENROLLMENT_KEY]);
+		}
+		return data;
+	}
+
+	private validateInstallationRecord(value: unknown): AdRouterInstallationRecord {
+		if (!value || typeof value !== "object" || Array.isArray(value))
+			throw new Error("Invalid AdRouter installation record");
+		const record = value as Record<string, unknown>;
+		if (record.type !== "adrouter_installation" || record.version !== 1) {
+			throw new Error("Unsupported AdRouter installation record version; re-enrollment is required");
+		}
+		const origin = storedOrigin(record.origin);
+		if (
+			typeof record.refreshCredential !== "string" ||
+			!record.refreshCredential ||
+			typeof record.installationId !== "string" ||
+			!record.installationId ||
+			!origin ||
+			!Array.isArray(record.scopes) ||
+			!record.scopes.every((scope) => typeof scope === "string") ||
+			typeof record.refreshFamilyExpiresAt !== "number" ||
+			!Number.isFinite(record.refreshFamilyExpiresAt) ||
+			record.clientKind !== "cli" ||
+			typeof record.clientVersion !== "string" ||
+			record.storageClass !== "file_protected" ||
+			typeof record.displayName !== "string" ||
+			typeof record.keyThumbprint !== "string" ||
+			typeof record.createdAt !== "number" ||
+			!Number.isFinite(record.createdAt)
+		) {
+			throw new Error("Invalid AdRouter installation record; re-enrollment is required");
+		}
+		return { ...(record as AdRouterInstallationRecord), privateJwk: validateAdRouterPrivateJwk(record.privateJwk) };
+	}
+
+	private validatePendingEnrollmentRecord(value: unknown): AdRouterPendingEnrollmentRecord {
+		if (!value || typeof value !== "object" || Array.isArray(value))
+			throw new Error("Invalid AdRouter enrollment record");
+		const record = value as Record<string, unknown>;
+		if (record.type !== "adrouter_pending_enrollment" || record.version !== 1) {
+			throw new Error("Unsupported AdRouter enrollment record version; restart enrollment");
+		}
+		const origin = storedOrigin(record.origin);
+		if (
+			typeof record.deviceCode !== "string" ||
+			!record.deviceCode ||
+			typeof record.userCode !== "string" ||
+			!record.userCode ||
+			!origin ||
+			!isSafeStoredVerificationUrl(record.verificationUri, origin) ||
+			(record.verificationUriComplete !== undefined &&
+				!isSafeStoredVerificationUrl(record.verificationUriComplete, origin)) ||
+			typeof record.intervalSeconds !== "number" ||
+			!Number.isFinite(record.intervalSeconds) ||
+			record.intervalSeconds < 1 ||
+			typeof record.expiresAt !== "number" ||
+			!Number.isFinite(record.expiresAt) ||
+			!Array.isArray(record.scopes) ||
+			!record.scopes.every((scope) => typeof scope === "string") ||
+			typeof record.clientVersion !== "string" ||
+			typeof record.displayName !== "string" ||
+			typeof record.createdAt !== "number" ||
+			!Number.isFinite(record.createdAt)
+		) {
+			throw new Error("Invalid AdRouter enrollment record; restart enrollment");
+		}
+		return {
+			...(record as AdRouterPendingEnrollmentRecord),
+			privateJwk: validateAdRouterPrivateJwk(record.privateJwk),
+		};
 	}
 
 	/**
@@ -310,14 +489,16 @@ export class AuthStorage {
 	 * Get credential for a provider.
 	 */
 	get(provider: string): AuthCredential | undefined {
-		return this.data[provider] ?? undefined;
+		const credential = this.data[provider];
+		return isProviderCredential(credential) ? credential : undefined;
 	}
 
 	/**
 	 * Get provider-scoped environment values for an API key credential.
 	 */
 	getProviderEnv(provider: string): Record<string, string> | undefined {
-		const cred = this.data[provider];
+		const candidate = this.data[provider];
+		const cred = isProviderCredential(candidate) ? candidate : undefined;
 		const stored = cred?.type === "api_key" && cred.env ? { ...cred.env } : undefined;
 		if (provider !== "adrouter") return stored;
 		return {
@@ -344,14 +525,16 @@ export class AuthStorage {
 	 * List all providers with credentials.
 	 */
 	list(): string[] {
-		return Object.keys(this.data);
+		return Object.entries(this.data).flatMap(([provider, credential]) =>
+			isProviderCredential(credential) ? [provider] : [],
+		);
 	}
 
 	/**
 	 * Check if credentials exist for a provider in auth.json.
 	 */
 	has(provider: string): boolean {
-		return provider in this.data;
+		return isProviderCredential(this.data[provider]);
 	}
 
 	/**
@@ -360,7 +543,8 @@ export class AuthStorage {
 	 */
 	hasAuth(provider: string): boolean {
 		if (this.runtimeOverrides.has(provider)) return true;
-		if (this.data[provider]) return true;
+		if (isProviderCredential(this.data[provider])) return true;
+		if (provider === "adrouter" && this.getAdRouterInstallation()) return true;
 		if (getEnvApiKey(provider)) return true;
 		return false;
 	}
@@ -373,8 +557,12 @@ export class AuthStorage {
 			return { configured: true, source: "runtime", label: "--api-key" };
 		}
 
-		if (this.data[provider]) {
+		if (isProviderCredential(this.data[provider])) {
 			return { configured: true, source: "stored" };
+		}
+
+		if (provider === "adrouter" && this.getAdRouterInstallation()) {
+			return { configured: true, source: "stored", label: "approved installation" };
 		}
 
 		const envKeys = findEnvKeys(provider);
@@ -388,8 +576,95 @@ export class AuthStorage {
 	/**
 	 * Get all credentials (for passing to getOAuthApiKey).
 	 */
-	getAll(): AuthStorageData {
-		return { ...this.data };
+	getAll(): Record<string, AuthCredential> {
+		return Object.fromEntries(
+			Object.entries(this.data).filter((entry): entry is [string, AuthCredential] => isProviderCredential(entry[1])),
+		);
+	}
+
+	getAdRouterInstallation(): AdRouterInstallationRecord | undefined {
+		const record = this.data[INSTALLATION_KEY];
+		return record?.type === "adrouter_installation" ? { ...record, scopes: [...record.scopes] } : undefined;
+	}
+
+	getAdRouterPendingEnrollment(): AdRouterPendingEnrollmentRecord | undefined {
+		const record = this.data[PENDING_ENROLLMENT_KEY];
+		return record?.type === "adrouter_pending_enrollment" ? { ...record, scopes: [...record.scopes] } : undefined;
+	}
+
+	setAdRouterPendingEnrollment(record: AdRouterPendingEnrollmentRecord): void {
+		this.persistAdRouterState({ installation: this.getAdRouterInstallation(), pending: record });
+	}
+
+	clearAdRouterPendingEnrollment(): void {
+		this.persistAdRouterState({ installation: this.getAdRouterInstallation() });
+	}
+
+	setAdRouterInstallation(record: AdRouterInstallationRecord): void {
+		this.persistAdRouterState({ installation: record });
+	}
+
+	clearAdRouterAuth(): void {
+		this.persistAdRouterState({});
+	}
+
+	private persistAdRouterState(state: AdRouterAuthState): void {
+		try {
+			let persistedData: AuthStorageData = {};
+			this.storage.withLock((current) => {
+				const merged = { ...this.parseStorageData(current) };
+				if (state.installation) merged[INSTALLATION_KEY] = this.validateInstallationRecord(state.installation);
+				else delete merged[INSTALLATION_KEY];
+				if (state.pending) merged[PENDING_ENROLLMENT_KEY] = this.validatePendingEnrollmentRecord(state.pending);
+				else delete merged[PENDING_ENROLLMENT_KEY];
+				persistedData = merged;
+				return { result: undefined, next: JSON.stringify(merged, null, 2) };
+			});
+			this.data = persistedData;
+			this.loadError = null;
+		} catch (error) {
+			this.recordError(error);
+			throw error;
+		}
+	}
+
+	async withAdRouterAuthLock<T>(
+		fn: (state: AdRouterAuthState) => Promise<{ result: T; next?: AdRouterAuthState }>,
+	): Promise<T> {
+		try {
+			return await this.storage.withLockAsync(async (current) => {
+				const currentData = this.parseStorageData(current);
+				const installation = currentData[INSTALLATION_KEY];
+				const pending = currentData[PENDING_ENROLLMENT_KEY];
+				const state: AdRouterAuthState = {
+					installation: installation?.type === "adrouter_installation" ? installation : undefined,
+					pending: pending?.type === "adrouter_pending_enrollment" ? pending : undefined,
+				};
+				const update = await fn(state);
+				if (!update.next) {
+					this.data = currentData;
+					this.loadError = null;
+					return { result: update.result };
+				}
+				const merged = { ...currentData };
+				if (update.next.installation) {
+					merged[INSTALLATION_KEY] = this.validateInstallationRecord(update.next.installation);
+				} else {
+					delete merged[INSTALLATION_KEY];
+				}
+				if (update.next.pending) {
+					merged[PENDING_ENROLLMENT_KEY] = this.validatePendingEnrollmentRecord(update.next.pending);
+				} else {
+					delete merged[PENDING_ENROLLMENT_KEY];
+				}
+				this.data = merged;
+				this.loadError = null;
+				return { result: update.result, next: JSON.stringify(merged, null, 2) };
+			});
+		} catch (error) {
+			this.recordError(error);
+			throw error;
+		}
 	}
 
 	drainErrors(): Error[] {

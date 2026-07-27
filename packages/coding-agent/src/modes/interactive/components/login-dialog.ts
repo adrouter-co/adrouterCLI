@@ -116,18 +116,20 @@ export class LoginDialogComponent extends Container implements Focusable {
 	/**
 	 * Called by onDeviceCode callback - show URL and user code.
 	 */
-	showDeviceCode(info: OAuthDeviceCodeInfo): void {
+	showDeviceCode(info: OAuthDeviceCodeInfo & { verificationUriComplete?: string; expiresAt?: number }): void {
 		this.contentContainer.clear();
 		this.contentContainer.addChild(new Spacer(1));
-		const linkedUrl = `\x1b]8;;${info.verificationUri}\x07${info.verificationUri}\x1b]8;;\x07`;
+		const browserUrl = info.verificationUriComplete ?? info.verificationUri;
+		const linkedUrl = `\x1b]8;;${browserUrl}\x07${info.verificationUri}\x1b]8;;\x07`;
 		this.contentContainer.addChild(new Text(theme.fg("accent", linkedUrl), 1, 0));
 
 		const clickHint = process.platform === "darwin" ? "Cmd+click to open" : "Ctrl+click to open";
-		const hyperlink = `\x1b]8;;${info.verificationUri}\x07${clickHint}\x1b]8;;\x07`;
+		const hyperlink = `\x1b]8;;${browserUrl}\x07${clickHint}\x1b]8;;\x07`;
 		this.contentContainer.addChild(new Text(theme.fg("dim", hyperlink), 1, 0));
 		this.contentContainer.addChild(new Spacer(1));
 		this.contentContainer.addChild(new Text(theme.fg("warning", `Enter code: ${info.userCode}`), 1, 0));
 
+		openBrowser(browserUrl);
 		this.tui.requestRender();
 	}
 

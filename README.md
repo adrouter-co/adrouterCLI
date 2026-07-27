@@ -42,13 +42,16 @@ and is never valid release or deployment evidence.
 
 ## First login, trust, and ads
 
-1. Request an individual, revocable beta key through
-   `https://app-staging.adrouter.co`.
-2. Start `adrouter` inside the intended project.
-3. Accept the trust prompt only after reviewing the project-local `.adrouter`
+1. Start `adrouter` inside the intended project.
+2. Accept the trust prompt only after reviewing the project-local `.adrouter`
    resources it may load.
-4. Run `/login adrouter` and paste the issued key.
-5. Run `/ads` to inspect sponsorship status or opt out immediately.
+3. Run `/login adrouter`, explicitly choose to connect this CLI, and compare the
+   displayed user code with the approval page opened at `https://app-staging.adrouter.co`.
+4. Approve only the installation you recognize. The CLI stores an Ed25519 private
+   key and rotating refresh credential in its mode-0600 auth file; access tokens
+   remain memory-only. This storage is `file_protected`, not OS-keychain encrypted.
+5. Run `/ads` to inspect sponsorship status or opt out immediately. Use `/logout
+   adrouter` to attempt remote revocation and always remove local installation secrets.
 
 The hosted beta routes `deepseek-v4-flash` and `deepseek-v4-pro`:
 
@@ -80,7 +83,8 @@ Global agent state is stored under `~/.adrouter/agent`, profiles under
 The main environment variables are:
 
 - `ADROUTER_API_URL`: hosted gateway URL.
-- `ADROUTER_API_KEY`: runtime key; prefer `/login` storage for interactive use.
+- `ADROUTER_API_KEY`: explicit bearer compatibility for loopback or non-official
+  custom routers only. Official hosted origins require an approved installation.
 - `ADROUTER_AD_MODE=live|mock|off`: sponsorship display mode.
 - `ADROUTER_MODEL_ROUTE`: default hosted model route.
 - `ADROUTER_CODING_AGENT_DIR`: explicit global state override.
@@ -92,8 +96,9 @@ hosted API, or persisted state.
 
 ## Diagnostics and troubleshooting
 
-The JSON doctor output reports configuration and router reachability without
-printing credentials:
+The JSON doctor output reports configuration, router reachability, and redacted
+installation/refresh/signing state without printing keys, tokens, codes, nonces,
+proofs, or full fingerprints:
 
 ```sh
 adrouter --json doctor
@@ -114,7 +119,8 @@ tar -czf adrouter-state-backup.tar.gz -C "$HOME" .adrouter
 npm uninstall --global @adrouter/cli
 ```
 
-Uninstalling the package does not delete `~/.adrouter`. Remove that directory
+The backup contains installation and provider secrets; store it as sensitive
+credential material. Uninstalling the package does not delete `~/.adrouter`. Remove that directory
 only when you also intend to delete local sessions, profiles, credentials, and
 trust decisions.
 

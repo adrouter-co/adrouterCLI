@@ -5,6 +5,10 @@ import { getSupportedThinkingLevels } from "../src/models.ts";
 import { ADROUTER_MODELS } from "../src/providers/adrouter.models.ts";
 import type { Model } from "../src/types.ts";
 
+function parseRequestBody(init: RequestInit | undefined): any {
+	return JSON.parse(new TextDecoder().decode(init?.body as Uint8Array));
+}
+
 const model: Model<"adrouter-agent"> = {
 	id: "deepseek-v4-flash",
 	name: "AdRouter DeepSeek V4 Flash",
@@ -393,7 +397,7 @@ describe("AdRouter provider", () => {
 			).result();
 
 			const request = fetchMock.mock.calls[0]?.[1];
-			const body = JSON.parse(String(request?.body));
+			const body = parseRequestBody(request);
 			expect(body.model).toBe("deepseek-v4-pro");
 			expect(body.thinking_level).toBe(expected);
 		}
@@ -412,7 +416,7 @@ describe("AdRouter provider", () => {
 		await stream(model, { messages: [] }, { apiKey: "test-key" }).result();
 
 		const request = fetchMock.mock.calls[0]?.[1];
-		const body = JSON.parse(String(request?.body));
+		const body = parseRequestBody(request);
 		expect(body.metadata.min_ad_tier).toBe("legacy-value");
 	});
 
@@ -481,7 +485,7 @@ describe("AdRouter provider", () => {
 		).result();
 
 		const request = fetchMock.mock.calls[0]?.[1];
-		const body = JSON.parse(String(request?.body));
+		const body = parseRequestBody(request);
 		expect(body.context.systemPrompt).toBe("Use tools when needed.");
 		expect(body.context.messages[1].content[0].type).toBe("thinking");
 		expect(body.context.messages[1].content[0].thinking).toBe("Need file contents.");
@@ -506,15 +510,100 @@ describe("AdRouter provider", () => {
 		);
 		vi.stubGlobal("fetch", fetchMock);
 		const hostedModel = { ...model, baseUrl: "https://api-staging.adrouter.co" };
+		const adrouterAuth = {
+			canAuthenticate: () => true,
+			getAccess: async () => ({
+				accessToken: "access-token",
+				expiresAt: Date.now() + 60_000,
+				installationId: "installation-1",
+				clientKind: "cli" as const,
+				clientVersion: "0.81.0-beta.7",
+			}),
+			signProof: async () => ({ proof: "signed-proof", contentDigest: "sha-256=:fixture=:" }),
+			rememberNonce: vi.fn(),
+		};
 
-		await stream(hostedModel, { messages: [] }, { apiKey: "test-key", maxTokens: 9000 }).result();
+		await stream(hostedModel, { messages: [] }, { adrouterAuth, apiKey: "ignored", maxTokens: 9000 }).result();
 
 		const request = fetchMock.mock.calls[0]?.[1];
-		const body = JSON.parse(String(request?.body));
+		const body = parseRequestBody(request);
 		expect(body.runtime_mode).toBeUndefined();
 		expect(body.tier_override).toBeUndefined();
 		expect(body.max_output_tokens).toBe(4096);
 		expect(body.metadata.ad_mode).toBe("live");
+		const headers = new Headers(request?.headers);
+		expect(headers.get("authorization")).toBe("DPoP access-token");
+		expect(headers.get("dpop")).toBe("signed-proof");
+		expect(headers.get("content-digest")).toMatch(/^sha-256=:/);
+	});
+
+	it("filters protected headers and retries one nonce challenge before consuming the response", async () => {
+		const fetchMock = vi
+			.fn()
+			.mockResolvedValueOnce(
+				new Response(JSON.stringify({ error: "use_dpop_nonce" }), {
+					status: 401,
+					headers: {
+						"dpop-nonce": "server_nonce_1234567890",
+					},
+				}),
+			)
+			.mockResolvedValueOnce(
+				new Response(JSON.stringify({ assistant: { content: "Done." }, ads: [] }), {
+					status: 200,
+					headers: { "content-type": "application/json" },
+				}),
+			);
+		vi.stubGlobal("fetch", fetchMock);
+		const signProof = vi.fn(async (_origin, input) => ({
+			proof: `proof:${input.nonce ?? "initial"}`,
+			contentDigest: "sha-256=:real-digest=:",
+		}));
+		const rememberNonce = vi.fn();
+		const adrouterAuth = {
+			canAuthenticate: () => true,
+			getAccess: async () => ({
+				accessToken: "real-access",
+				expiresAt: Date.now() + 60_000,
+				installationId: "installation-1",
+				clientKind: "cli" as const,
+				clientVersion: "0.81.0-beta.7",
+			}),
+			signProof,
+			rememberNonce,
+		};
+		const hostedModel = { ...model, baseUrl: "https://api-staging.adrouter.co" };
+
+		const message = await stream(
+			hostedModel,
+			{ messages: [] },
+			{
+				adrouterAuth,
+				headers: {
+					authorization: "Bearer attacker",
+					dpop: "attacker-proof",
+					"content-digest": "attacker-digest",
+					"content-type": "text/plain",
+					"x-adrouter-client-kind": "attacker",
+					"x-adrouter-client-version": "999.0.0",
+				},
+			},
+		).result();
+
+		expect(message.stopReason).toBe("stop");
+		expect(fetchMock).toHaveBeenCalledTimes(2);
+		const first = fetchMock.mock.calls[0]![1] as RequestInit;
+		const second = fetchMock.mock.calls[1]![1] as RequestInit;
+		expect(new TextDecoder().decode(first.body as Uint8Array)).toBe(
+			new TextDecoder().decode(second.body as Uint8Array),
+		);
+		const headers = new Headers(second.headers);
+		expect(headers.get("authorization")).toBe("DPoP real-access");
+		expect(headers.get("dpop")).toBe("proof:server_nonce_1234567890");
+		expect(headers.get("content-type")).toBe("application/json");
+		expect(headers.get("x-adrouter-client-kind")).toBe("cli");
+		expect(headers.get("x-adrouter-client-version")).toBe("0.81.0-beta.7");
+		expect(rememberNonce).toHaveBeenCalledWith("https://api-staging.adrouter.co", "server_nonce_1234567890");
 	});
 
 	it("preserves an explicitly configured runtime mode for local and custom routers", async () => {
@@ -531,7 +620,7 @@ describe("AdRouter provider", () => {
 		await stream(model, { messages: [] }, { apiKey: "test-key" }).result();
 
 		const request = fetchMock.mock.calls[0]?.[1];
-		const body = JSON.parse(String(request?.body));
+		const body = parseRequestBody(request);
 		expect(body.runtime_mode).toBe("live");
 	});
 

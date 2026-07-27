@@ -2,6 +2,7 @@ export type { Static, TSchema } from "typebox";
 export { Type } from "typebox";
 export * from "./adrouter-config.ts";
 export * from "./adrouter-events.ts";
+export * from "./api/adrouter-installation-auth-types.ts";
 // Core only, side-effect free: no generated catalogs, no provider factories,
 // no api-registry, no OAuth implementations, no compat. Provider factories
 // live under "@adrouter/ai/providers/*", API implementations under

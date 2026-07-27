@@ -27,6 +27,11 @@
       "windows-x64"
     ]
   },
+  "authentication": {
+    "fixture": "packages/ai/test/fixtures/platform-auth-v1.json",
+    "fixtureSha256": "93a8ec8d4eba38f9165179aa0cdfe3316f8134a882bd0426bd83339af55d17f8",
+    "acceptanceAsset": "authentication-acceptance.json"
+  },
   "nativeArtifacts": [
     { "name": "adrouter-darwin-arm64.tar.gz", "status": "blocked", "reason": "Developer ID signing and notarization unavailable" },
     { "name": "adrouter-darwin-x64.tar.gz", "status": "blocked", "reason": "Developer ID signing and notarization unavailable" },

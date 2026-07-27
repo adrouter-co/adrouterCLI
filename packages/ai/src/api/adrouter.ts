@@ -27,6 +27,7 @@ import type {
 	Usage,
 } from "../types.ts";
 import { AssistantMessageEventStream } from "../utils/event-stream.ts";
+import { isValidAdRouterNonce } from "./adrouter-installation-auth-types.ts";
 import { transformMessages } from "./transform-messages.ts";
 
 interface RouterAssistant {
@@ -575,19 +576,85 @@ async function fetchRouter(
 		modelUrl: model.baseUrl,
 	});
 	const adMode = resolveAdRouterAdMode(baseUrl, options?.env?.ADROUTER_AD_MODE ?? process.env.ADROUTER_AD_MODE);
-	const apiKey = options?.apiKey ?? options?.env?.ADROUTER_API_KEY;
-	if (!apiKey) throw new Error("ADROUTER_API_KEY is not configured");
-	const response = await fetch(`${baseUrl}/v1/agent/turn`, {
-		method: "POST",
-		headers: {
-			accept: "application/x-ndjson, application/json",
-			authorization: `Bearer ${apiKey}`,
-			"content-type": "application/json",
-			...options?.headers,
-		},
-		body: JSON.stringify(buildRouterBody(model, context, baseUrl, adMode, options)),
-		signal: options?.signal,
-	});
+	const url = `${baseUrl}/v1/agent/turn`;
+	const body = new TextEncoder().encode(JSON.stringify(buildRouterBody(model, context, baseUrl, adMode, options)));
+	const officialHosted = isOfficialAdRouterApiUrl(baseUrl);
+	const callerHeaders = new Headers();
+	const protectedHeaders = new Set([
+		"authorization",
+		"dpop",
+		"content-digest",
+		"content-type",
+		"x-adrouter-client-kind",
+		"x-adrouter-client-version",
+	]);
+	for (const [name, value] of Object.entries(options?.headers ?? {})) {
+		if (value !== null && !protectedHeaders.has(name.toLowerCase())) callerHeaders.set(name, value);
+	}
+	callerHeaders.set("accept", callerHeaders.get("accept") ?? "application/x-ndjson, application/json");
+	callerHeaders.set("content-type", "application/json");
+
+	let response: Response;
+	if (officialHosted) {
+		const auth = options?.adrouterAuth;
+		const origin = new URL(baseUrl).origin;
+		if (!auth?.canAuthenticate(origin)) {
+			throw new AdRouterApiError(
+				"This hosted AdRouter endpoint requires an approved CLI installation. Run /login adrouter.",
+				{
+					code: "installation_required",
+				},
+			);
+		}
+		const access = await auth.getAccess(origin, options?.signal);
+		const send = async (nonce?: string): Promise<Response> => {
+			const headers = new Headers(callerHeaders);
+			const signed = await auth.signProof(origin, {
+				method: "POST",
+				url,
+				body,
+				accessToken: access.accessToken,
+				nonce,
+			});
+			headers.set("authorization", `DPoP ${access.accessToken}`);
+			headers.set("content-digest", signed.contentDigest);
+			headers.set("x-adrouter-client-kind", access.clientKind);
+			headers.set("x-adrouter-client-version", access.clientVersion);
+			headers.set("dpop", signed.proof);
+			const result = await fetch(url, {
+				method: "POST",
+				headers,
+				body,
+				signal: options?.signal,
+				redirect: "error",
+			});
+			if (result.redirected)
+				throw new AdRouterApiError("Authenticated redirects are not allowed", { code: "redirect_rejected" });
+			return result;
+		};
+		response = await send();
+		let nonce = response.headers.get("dpop-nonce");
+		if (response.status === 401 && isValidAdRouterNonce(nonce)) {
+			await response.body?.cancel();
+			auth.rememberNonce(origin, nonce);
+			response = await send(nonce);
+			nonce = response.headers.get("dpop-nonce");
+		}
+		if (isValidAdRouterNonce(nonce)) auth.rememberNonce(origin, nonce);
+	} else {
+		const apiKey = options?.apiKey ?? options?.env?.ADROUTER_API_KEY;
+		if (!apiKey) throw new Error("ADROUTER_API_KEY is not configured for the custom AdRouter endpoint");
+		callerHeaders.set("authorization", `Bearer ${apiKey}`);
+		response = await fetch(url, {
+			method: "POST",
+			headers: callerHeaders,
+			body,
+			signal: options?.signal,
+			redirect: "error",
+		});
+		if (response.redirected)
+			throw new AdRouterApiError("Authenticated redirects are not allowed", { code: "redirect_rejected" });
+	}
 	if (!response.ok) {
 		throw await adRouterApiErrorFromResponse(response);
 	}

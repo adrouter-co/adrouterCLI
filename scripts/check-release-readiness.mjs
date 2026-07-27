@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import { spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join, normalize } from "node:path";
 
@@ -124,6 +125,16 @@ scanForOldScope("scripts");
 const releaseWorkflow = readFileSync(".github/workflows/release-tag.yml", "utf8");
 const releaseManifestText = readFileSync("release-manifest.json", "utf8");
 const releaseManifest = JSON.parse(releaseManifestText);
+const authenticationFixturePath = releaseManifest.authentication?.fixture;
+if (
+	authenticationFixturePath !== "packages/ai/test/fixtures/platform-auth-v1.json" ||
+	releaseManifest.authentication?.acceptanceAsset !== "authentication-acceptance.json" ||
+	!existsSync(authenticationFixturePath) ||
+	createHash("sha256").update(readFileSync(authenticationFixturePath)).digest("hex") !==
+		releaseManifest.authentication?.fixtureSha256
+) {
+	failures.push("release manifest does not pin the canonical platform-auth-v1 fixture");
+}
 const prerelease = /-beta\.\d+$/.test(targetVersion);
 if (
 	releaseManifest.schema !== 2 ||

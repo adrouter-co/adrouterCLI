@@ -37,6 +37,8 @@ try {
 		"npm-artifacts.json",
 	];
 	const actual = readdirSync(directory).sort();
+	if (actual.includes("authentication-acceptance.json")) expected.push("authentication-acceptance.json");
+	expected.sort();
 	if (JSON.stringify(actual) !== JSON.stringify(expected)) {
 		throw new Error(`Draft inventory mismatch: ${actual.join(", ")}`);
 	}

@@ -1,3 +1,4 @@
+import type { InstallationAuthProvider } from "./api/adrouter-installation-auth-types.ts";
 import type { AnthropicOptions } from "./api/anthropic-messages.ts";
 import type { AzureOpenAIResponsesOptions } from "./api/azure-openai-responses.ts";
 import type { BedrockOptions } from "./api/bedrock-converse-stream.ts";
@@ -112,6 +113,8 @@ export interface StreamOptions {
 	maxTokens?: number;
 	signal?: AbortSignal;
 	apiKey?: string;
+	/** Installation-bound signer used only by the official AdRouter transport. */
+	adrouterAuth?: InstallationAuthProvider;
 	/**
 	 * Preferred transport for providers that support multiple transports.
 	 * Providers that do not support this option ignore it.
