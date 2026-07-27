@@ -11,12 +11,12 @@ Enable secret scanning with push protection, dependency graph, Dependabot alerts
 
 Create these protected environments:
 
-- `adrouter-staging`: a required reviewer and `ADROUTER_STAGING_API_KEY`.
+- `adrouter-staging`: an optional secret-free reviewer gate for tagged artifact staging.
 - `npm-publish`: a required reviewer other than the workflow initiator for
   registry verification and final GitHub promotion.
 
-Use a unique, low-quota, revocable staging canary key. Do not store the
-short-lived credential used for the direct beta.2 bootstrap in Actions. After
-bootstrap, configure an npm trusted publisher only for `@adrouter/cli`, bound to
+No AdRouter profile or inference credential belongs in Actions. Exact-candidate
+authentication is approved and exercised manually on operator-controlled devices,
+then recorded in the validated public-safe acceptance asset. Configure an npm trusted publisher only for `@adrouter/cli`, bound to
 `adrouter/adrouterCLI`, the provenance-enabled publication workflow used by
 later releases, and the `npm-publish` environment.

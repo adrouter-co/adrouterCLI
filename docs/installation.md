@@ -13,6 +13,12 @@ This installs one public package. Its private `@adrouter/ai`, `@adrouter/tui`,
 and `@adrouter/agent-core` runtime packages are embedded in the CLI tarball and
 are not fetched as separate AdRouter registry packages.
 
+Hosted authentication is installation-bound. `/login adrouter` creates an Ed25519 key only after
+explicit confirmation, opens the user-approval page, and stores the private key plus rotating refresh
+credential with user-only file permissions. Access tokens are not persisted. This is classified as
+`file_protected`, not OS-keychain encrypted; use `/logout adrouter` before disposing of a machine and
+review remote installations in the WebUI if revocation could not be confirmed.
+
 The doctor result must report `"installation":{"kind":"packaged","deployable":true}`
 for a supported deployment. A source-linked or incomplete installation can run
 some metadata commands but is not deployment-qualified.

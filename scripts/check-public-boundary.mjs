@@ -45,6 +45,20 @@ for (const file of files) {
 	for (const [label, expression] of checks) {
 		if (expression.test(text)) failures.push(`${file}: ${label}`);
 	}
+	if (file.startsWith(".github/workflows/")) {
+		if (/ADROUTER_(?:STAGING_)?API_KEY|staging-canary/.test(text)) {
+			failures.push(`${file}: hosted inference credential dependency`);
+		}
+		if (/\/v1\/(?:agent\/turn|turn|profile)/.test(text)) {
+			failures.push(`${file}: authenticated inference/profile call`);
+		}
+	}
+	if (
+		/"privateJwk"\s*:\s*\{[\s\S]{0,500}?"d"\s*:\s*"[A-Za-z0-9_-]{32,}"/.test(text) &&
+		file !== "packages/ai/test/fixtures/platform-auth-v1.json"
+	) {
+		failures.push(`${file}: private JWK fixture outside the approved conformance vector`);
+	}
 
 	for (const match of text.matchAll(/\/(?:Users|home)\/([A-Za-z0-9._-]+)\//g)) {
 		if (!["alice", "bob", "developer", "foo", "runner", "test", "testuser", "user"].includes(match[1])) {

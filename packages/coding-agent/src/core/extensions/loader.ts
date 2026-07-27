@@ -8,6 +8,7 @@ import { createRequire } from "node:module";
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
 import * as _bundledPiAgentCore from "@adrouter/agent-core";
+import * as _bundledPiAiInstallationAuth from "@adrouter/ai/api/adrouter-installation-auth";
 import * as _bundledPiAiCompat from "@adrouter/ai/compat";
 import * as _bundledPiAiOauth from "@adrouter/ai/oauth";
 import type { KeyId } from "@adrouter/tui";
@@ -56,6 +57,7 @@ const VIRTUAL_MODULES: Record<string, unknown> = {
 	// superset of the core entrypoint): existing extensions using the old
 	// global API keep working at runtime until compat is removed.
 	"@adrouter/ai": _bundledPiAiCompat,
+	"@adrouter/ai/api/adrouter-installation-auth": _bundledPiAiInstallationAuth,
 	"@adrouter/ai/compat": _bundledPiAiCompat,
 	"@adrouter/ai/oauth": _bundledPiAiOauth,
 	"@adrouter/cli": _bundledPiCodingAgent,
@@ -101,6 +103,10 @@ function getAliases(): Record<string, string> {
 	// superset of the core entrypoint): existing extensions using the old
 	// global API keep working at runtime until compat is removed.
 	const piAiCompatEntry = resolveWorkspaceOrImport("ai/dist/compat.js", "@adrouter/ai/compat");
+	const piAiInstallationAuthEntry = resolveWorkspaceOrImport(
+		"ai/dist/api/adrouter-installation-auth.js",
+		"@adrouter/ai/api/adrouter-installation-auth",
+	);
 	const piAiOauthEntry = resolveWorkspaceOrImport("ai/dist/oauth.js", "@adrouter/ai/oauth");
 
 	_aliases = {
@@ -108,6 +114,7 @@ function getAliases(): Record<string, string> {
 		"@adrouter/agent-core": piAgentCoreEntry,
 		"@adrouter/tui": piTuiEntry,
 		"@adrouter/ai": piAiCompatEntry,
+		"@adrouter/ai/api/adrouter-installation-auth": piAiInstallationAuthEntry,
 		"@adrouter/ai/compat": piAiCompatEntry,
 		"@adrouter/ai/oauth": piAiOauthEntry,
 		"@mariozechner/pi-coding-agent": piCodingAgentEntry,

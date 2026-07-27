@@ -1,4 +1,9 @@
-import { DEFAULT_ADROUTER_API_URL, resolveAdRouterApiUrl, validateAdRouterApiKey } from "../adrouter-config.ts";
+import {
+	DEFAULT_ADROUTER_API_URL,
+	isOfficialAdRouterApiUrl,
+	resolveAdRouterApiUrl,
+	validateAdRouterApiKey,
+} from "../adrouter-config.ts";
 import { adRouterApi } from "../api/adrouter.lazy.ts";
 import type { ApiKeyAuth } from "../auth/types.ts";
 import { createProvider, type Provider } from "../models.ts";
@@ -7,15 +12,19 @@ import { ADROUTER_MODELS } from "./adrouter.models.ts";
 const adRouterAuth: ApiKeyAuth = {
 	name: "AdRouter API key",
 	login: async (callbacks) => {
+		const apiUrl = resolveAdRouterApiUrl({ environmentUrl: process.env.ADROUTER_API_URL });
+		if (isOfficialAdRouterApiUrl(apiUrl)) {
+			throw new Error("Official AdRouter login uses an approved installation. Run /login adrouter in AdRouterCLI.");
+		}
 		const key = (
 			await callbacks.prompt({
 				type: "secret",
-				message: "Paste AdRouter API key from app-staging.adrouter.co",
+				message: "Enter the bearer key for this custom AdRouter endpoint",
 			})
 		).trim();
 		await validateAdRouterApiKey({
 			apiKey: key,
-			apiUrl: resolveAdRouterApiUrl({ environmentUrl: process.env.ADROUTER_API_URL }),
+			apiUrl,
 			signal: callbacks.signal,
 		});
 		return { type: "api_key", key };
@@ -26,6 +35,13 @@ const adRouterAuth: ApiKeyAuth = {
 			environmentUrl: await ctx.env("ADROUTER_API_URL"),
 			credentialUrl: credential?.env?.ADROUTER_API_URL,
 		});
+		if (isOfficialAdRouterApiUrl(baseUrl)) {
+			return {
+				auth: { baseUrl },
+				env: { ADROUTER_API_URL: baseUrl } as Record<string, string>,
+				source: "approved installation",
+			};
+		}
 		if (!apiKey) return undefined;
 		return {
 			auth: { apiKey, baseUrl },

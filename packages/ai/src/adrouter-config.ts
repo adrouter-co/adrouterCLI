@@ -30,6 +30,9 @@ function sanitizeErrorText(value: unknown, fallback = ""): string {
 	return String(value ?? fallback)
 		.replace(/\x1b\[[0-?]*[ -/]*[@-~]/g, "")
 		.replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g, "")
+		.replace(/\b(?:Bearer|DPoP)\s+[^\s,;]+/gi, "[redacted authorization]")
+		.replace(/\badr_(?:live|test)_[A-Za-z0-9_-]+\b/g, "[redacted credential]")
+		.replace(/\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b/g, "[redacted proof]")
 		.trim()
 		.slice(0, 800);
 }
@@ -46,7 +49,14 @@ function errorDetailsText(value: unknown): string {
 function errorGuidance(code: string | undefined, status: number): string {
 	switch (code) {
 		case "invalid_api_key":
-			return "Get or rotate a live API key in app-staging.adrouter.co, then run /login adrouter.";
+			return "For a custom router, replace its bearer key. Official hosted access requires /login adrouter installation approval.";
+		case "installation_required":
+		case "invalid_installation":
+		case "refresh_family_expired":
+		case "refresh_reuse_detected":
+			return "Run /login adrouter to approve a new CLI installation.";
+		case "client_upgrade_required":
+			return "Update AdRouterCLI to the required minimum version before retrying.";
 		case "account_inactive":
 			return "Activate the account in app-staging.adrouter.co before retrying.";
 		case "model_forbidden":
@@ -65,7 +75,7 @@ function errorGuidance(code: string | undefined, status: number): string {
 		case "hosted_control_not_allowed":
 			return "This AdRouterCLI build sent a local-only control to the hosted API. Upgrade the CLI or report this compatibility error.";
 		default:
-			if (status === 401) return "Run /login adrouter with a valid live API key.";
+			if (status === 401) return "Run /login adrouter to verify or replace this CLI installation.";
 			if (status === 429) return "Wait briefly, then retry.";
 			if (status >= 500) return "API staging is temporarily unavailable. Try again later.";
 			return "";
@@ -131,7 +141,8 @@ export async function adRouterApiErrorFromResponse(response: Response): Promise<
 			message = sanitizeErrorText(body);
 		} else if (body && typeof body === "object") {
 			const record = body as Record<string, unknown>;
-			code = sanitizeErrorText(record.code) || undefined;
+			const candidateCode = sanitizeErrorText(record.code);
+			code = /^[a-z0-9_]{1,64}$/.test(candidateCode) ? candidateCode : undefined;
 			message = [
 				sanitizeErrorText(record.error),
 				sanitizeErrorText(record.message),
@@ -143,6 +154,7 @@ export async function adRouterApiErrorFromResponse(response: Response): Promise<
 	} catch {
 		// Use the status-only fallback when an error body cannot be decoded safely.
 	}
+	if (response.status === 401 || response.status === 403 || response.status === 426) message = "";
 
 	const guidance = errorGuidance(code, response.status);
 	const codeLabel = code ? ` [${code}]` : "";

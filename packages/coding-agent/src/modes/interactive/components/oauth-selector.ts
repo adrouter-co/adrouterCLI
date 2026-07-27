@@ -164,6 +164,8 @@ export class OAuthSelectorComponent extends Container implements Focusable {
 
 		const status = this.getAuthStatus(provider.id);
 		switch (status.source) {
+			case "stored":
+				return theme.fg("success", ` ✓ ${status.label ?? "stored credential"}`);
 			case "environment":
 				return theme.fg("success", ` ✓ env: ${status.label ?? "API key"}`);
 			case "runtime":

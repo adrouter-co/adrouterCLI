@@ -3,6 +3,7 @@ import { Agent, type AgentMessage, type ThinkingLevel } from "@adrouter/agent-co
 import { clampThinkingLevel, type Message, type Model, streamSimple } from "@adrouter/ai/compat";
 import { getAgentDir } from "../config.ts";
 import { resolvePath } from "../utils/paths.ts";
+import { AdRouterInstallationAuth } from "./adrouter-auth.ts";
 import { AgentSession } from "./agent-session.ts";
 import { formatNoModelsAvailableMessage } from "./auth-guidance.ts";
 import { AuthStorage } from "./auth-storage.ts";
@@ -172,7 +173,8 @@ export async function createAgentSession(options: CreateAgentSessionOptions = {}
 	// Use provided or create AuthStorage and ModelRegistry
 	const authPath = options.agentDir ? join(agentDir, "auth.json") : undefined;
 	const modelsPath = options.agentDir ? join(agentDir, "models.json") : undefined;
-	const authStorage = options.authStorage ?? AuthStorage.create(authPath);
+	const authStorage = options.authStorage ?? options.modelRegistry?.authStorage ?? AuthStorage.create(authPath);
+	const adrouterAuth = new AdRouterInstallationAuth(authStorage);
 	const modelRegistry = options.modelRegistry ?? ModelRegistry.create(authStorage, modelsPath);
 
 	const settingsManager = options.settingsManager ?? SettingsManager.create(cwd, agentDir);
@@ -329,6 +331,7 @@ export async function createAgentSession(options: CreateAgentSessionOptions = {}
 			return streamSimple(model, context, {
 				...options,
 				apiKey: auth.apiKey,
+				adrouterAuth,
 				env,
 				timeoutMs,
 				websocketConnectTimeoutMs,

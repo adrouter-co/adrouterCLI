@@ -24,7 +24,7 @@
 		"check:branding": "node scripts/check-adrouter-branding.mjs",
 		"check:docs": "node scripts/check-docs.mjs",
 		"check:public-boundary": "node scripts/check-public-boundary.mjs",
-		"check:release-metadata": "node scripts/check-release-readiness.mjs --metadata-only && node --test scripts/package-policy.test.mjs scripts/release-policy.test.mjs scripts/staging-canary.test.mjs scripts/verify-draft-release.test.mjs",
+		"check:release-metadata": "node scripts/check-release-readiness.mjs --metadata-only && node --test scripts/authentication-acceptance.test.mjs scripts/package-policy.test.mjs scripts/release-policy.test.mjs scripts/verify-draft-release.test.mjs",
 		"check:release-readiness": "node scripts/check-release-readiness.mjs",
 		"check:beta-metadata": "npm run check:release-metadata",
 		"check:beta-readiness": "npm run check:release-readiness",

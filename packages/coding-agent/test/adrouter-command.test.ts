@@ -96,7 +96,7 @@ describe("AdRouterCLI ads command", () => {
 });
 
 describe("AdRouterCLI doctor command", () => {
-	it("uses stored credentials and the staging endpoint without exposing the key", async () => {
+	it("does not send a stored legacy key to official hosted health checks", async () => {
 		const directory = mkdtempSync(join(tmpdir(), "adrouter-doctor-command-"));
 		temporaryDirectories.push(directory);
 		process.env.ADROUTER_CODING_AGENT_DIR = directory;
@@ -110,11 +110,20 @@ describe("AdRouterCLI doctor command", () => {
 
 		expect(fetchMock).toHaveBeenCalledWith(
 			"https://api-staging.adrouter.co/health",
-			expect.objectContaining({ headers: { authorization: `Bearer ${secret}` } }),
+			expect.not.objectContaining({ headers: expect.anything() }),
 		);
 		expect(result).toMatchObject({
 			router: { endpoint: "https://api-staging.adrouter.co", reachable: true },
-			auth: { available: true, source: "stored" },
+			auth: {
+				available: false,
+				source: "stored",
+				installation: {
+					state: "invalid",
+					storage: "file_protected",
+					signedRequests: false,
+					reenrollmentRequired: true,
+				},
+			},
 			ads: { mode: "live" },
 			installation: {
 				kind: "source-linked",
@@ -142,7 +151,7 @@ describe("AdRouterCLI doctor command", () => {
 
 		expect(fetchMock).toHaveBeenCalledWith(
 			"https://override.example.test/health",
-			expect.objectContaining({ headers: { authorization: "Bearer runtime-secret" } }),
+			expect.not.objectContaining({ headers: expect.anything() }),
 		);
 		expect(result).toMatchObject({ auth: { source: "runtime" } });
 		expect(JSON.stringify(result)).not.toContain("runtime-secret");

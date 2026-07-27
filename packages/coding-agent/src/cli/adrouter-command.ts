@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "no
 import { resolve } from "node:path";
 import { resolveAdRouterAdMode } from "@adrouter/ai";
 import { APP_NAME, getSettingsPath, VERSION } from "../config.ts";
-import { resolveAdRouterCredentials } from "../core/adrouter-auth.ts";
+import { AdRouterInstallationAuth, resolveAdRouterCredentials } from "../core/adrouter-auth.ts";
 import { AuthStorage } from "../core/auth-storage.ts";
 import { inspectInstallation } from "../core/installation.ts";
 
@@ -92,10 +92,9 @@ export function resolveAdRouterWorkspace(args: readonly string[]): string | unde
 	return workspace;
 }
 
-async function checkRouter(url: string, apiKey: string | undefined): Promise<JsonRecord> {
+async function checkRouter(url: string): Promise<JsonRecord> {
 	try {
 		const response = await fetch(`${url}/health`, {
-			headers: apiKey ? { authorization: `Bearer ${apiKey}` } : undefined,
 			signal: AbortSignal.timeout(10_000),
 		});
 		return { status: response.ok ? "live" : "error", reachable: response.ok, httpStatus: response.status };
@@ -111,7 +110,9 @@ async function checkRouter(url: string, apiKey: string | undefined): Promise<Jso
 async function doctor(cwd: string, authStorage: AuthStorage): Promise<void> {
 	const { apiKey, apiUrl, source } = await resolveAdRouterCredentials(authStorage);
 	const adMode = resolveAdRouterAdMode(apiUrl, process.env.ADROUTER_AD_MODE);
-	const router = await checkRouter(apiUrl, apiKey);
+	const router = await checkRouter(apiUrl);
+	const installationManager = new AdRouterInstallationAuth(authStorage);
+	const installationAuth = await installationManager.diagnosticsWithServer(AbortSignal.timeout(10_000));
 	outputJson({
 		ok: true,
 		app: APP_NAME,
@@ -122,8 +123,9 @@ async function doctor(cwd: string, authStorage: AuthStorage): Promise<void> {
 			...router,
 		},
 		auth: {
-			available: !!apiKey,
+			available: !!apiKey || installationAuth.signedRequests,
 			source,
+			installation: installationAuth,
 		},
 		ads: {
 			mode: adMode,
@@ -143,6 +145,15 @@ async function requestGet(path: string, authStorage: AuthStorage): Promise<void>
 			? path
 			: `${apiUrl}${path.startsWith("/") ? path : `/${path}`}`;
 	try {
+		if (
+			authStorage.getAdRouterInstallation() &&
+			new URL(url).origin === new URL(apiUrl).origin &&
+			new URL(url).pathname === "/v1/profile"
+		) {
+			const body = await new AdRouterInstallationAuth(authStorage).getProfile(new URL(apiUrl).origin);
+			outputJson({ ok: true, status: 200, url, body });
+			return;
+		}
 		const response = await fetch(url, {
 			headers: apiKey ? { authorization: `Bearer ${apiKey}` } : undefined,
 		});

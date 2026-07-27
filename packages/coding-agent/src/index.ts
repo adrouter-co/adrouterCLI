@@ -25,6 +25,9 @@ export {
 } from "./core/agent-session.ts";
 // Auth and model registry
 export {
+	type AdRouterAuthState,
+	type AdRouterInstallationRecord,
+	type AdRouterPendingEnrollmentRecord,
 	type ApiKeyCredential,
 	type AuthCredential,
 	type AuthStatus,

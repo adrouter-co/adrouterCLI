@@ -8,7 +8,7 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import type { AgentMessage } from "@adrouter/agent-core";
-import { publishAdRouterAds } from "@adrouter/ai";
+import { isOfficialAdRouterApiUrl, publishAdRouterAds } from "@adrouter/ai";
 import {
 	type AssistantMessage,
 	getProviders,
@@ -56,7 +56,12 @@ import {
 	getShareViewerUrl,
 	VERSION,
 } from "../../config.ts";
-import { validateAndStoreAdRouterApiKey } from "../../core/adrouter-auth.ts";
+import {
+	AdRouterInstallationAuth,
+	enrollAdRouterInstallation,
+	resolveAdRouterApiUrl,
+	validateAndStoreAdRouterApiKey,
+} from "../../core/adrouter-auth.ts";
 import { ADROUTER_SETTLEMENT_ENTRY } from "../../core/adrouter-session.ts";
 import { type AgentSession, type AgentSessionEvent, parseSkillBlock } from "../../core/agent-session.ts";
 import { type AgentSessionRuntime, SessionImportFileNotFoundError } from "../../core/agent-session-runtime.ts";
@@ -2657,9 +2662,10 @@ export class InteractiveMode {
 				await this.handleLoginCommand(providerRef);
 				return;
 			}
-			if (text === "/logout") {
-				this.showOAuthSelector("logout");
+			if (text === "/logout" || text.startsWith("/logout ")) {
+				const providerRef = text.startsWith("/logout ") ? text.slice(8).trim() : undefined;
 				this.editor.setText("");
+				await this.handleLogoutCommand(providerRef);
 				return;
 			}
 			if (text === "/new") {
@@ -4764,6 +4770,9 @@ export class InteractiveMode {
 				authType: credential.type,
 			});
 		}
+		if (authStorage.getAdRouterInstallation() && !options.some((option) => option.id === "adrouter")) {
+			options.push({ id: "adrouter", name: "AdRouter", authType: "api_key" });
+		}
 
 		return options.sort((a, b) => a.name.localeCompare(b.name));
 	}
@@ -4805,7 +4814,12 @@ export class InteractiveMode {
 	}
 
 	private async startProviderLogin(providerOption: AuthSelectorProvider): Promise<void> {
-		if (providerOption.authType === "oauth") {
+		if (
+			providerOption.id === "adrouter" &&
+			isOfficialAdRouterApiUrl(resolveAdRouterApiUrl(this.session.modelRegistry.authStorage))
+		) {
+			await this.showAdRouterInstallationLoginDialog(providerOption.name);
+		} else if (providerOption.authType === "oauth") {
 			await this.showLoginDialog(providerOption.id, providerOption.name);
 		} else if (providerOption.id === BEDROCK_PROVIDER_ID) {
 			this.showBedrockSetupDialog(providerOption.id, providerOption.name);
@@ -4941,18 +4955,7 @@ export class InteractiveMode {
 						return;
 					}
 
-					try {
-						this.session.modelRegistry.authStorage.logout(providerOption.id);
-						this.session.modelRegistry.refresh();
-						await this.updateAvailableProviderCount();
-						const message =
-							providerOption.authType === "oauth"
-								? `Logged out of ${providerOption.name}`
-								: `Removed stored API key for ${providerOption.name}. Environment variables and models.json config are unchanged.`;
-						this.showStatus(message);
-					} catch (error: unknown) {
-						this.showError(`Logout failed: ${error instanceof Error ? error.message : String(error)}`);
-					}
+					await this.logoutProvider(providerOption);
 				},
 				() => {
 					done();
@@ -4961,6 +4964,45 @@ export class InteractiveMode {
 			);
 			return { component: selector, focus: selector };
 		});
+	}
+
+	private async handleLogoutCommand(providerRef?: string): Promise<void> {
+		if (!providerRef) {
+			await this.showOAuthSelector("logout");
+			return;
+		}
+		const normalized = providerRef.toLowerCase();
+		const matches = this.getLogoutProviderOptions().filter(
+			(option) => option.id.toLowerCase() === normalized || option.name.toLowerCase() === normalized,
+		);
+		if (matches.length !== 1) {
+			this.showError(`No single stored provider matches "${providerRef}". Use /logout to select one.`);
+			return;
+		}
+		await this.logoutProvider(matches[0]!);
+	}
+
+	private async logoutProvider(providerOption: AuthSelectorProvider): Promise<void> {
+		try {
+			let message: string;
+			if (providerOption.id === "adrouter" && this.session.modelRegistry.authStorage.getAdRouterInstallation()) {
+				const result = await new AdRouterInstallationAuth(this.session.modelRegistry.authStorage).signOut();
+				message = result.remoteRevocationConfirmed
+					? "Signed out of AdRouter and revoked this installation."
+					: "Removed the local AdRouter installation. Remote revocation could not be confirmed; review installations in the WebUI.";
+			} else {
+				this.session.modelRegistry.authStorage.logout(providerOption.id);
+				message =
+					providerOption.authType === "oauth"
+						? `Logged out of ${providerOption.name}`
+						: `Removed stored API key for ${providerOption.name}. Environment variables and models.json config are unchanged.`;
+			}
+			this.session.modelRegistry.refresh();
+			await this.updateAvailableProviderCount();
+			this.showStatus(message);
+		} catch (error: unknown) {
+			this.showError(`Logout failed: ${error instanceof Error ? error.message : String(error)}`);
+		}
 	}
 
 	private async completeProviderAuthentication(
@@ -4974,9 +5016,11 @@ export class InteractiveMode {
 		const actionLabel =
 			authType === "oauth"
 				? `Logged in to ${providerName}`
-				: providerId === "adrouter"
-					? `Verified and saved API key for ${providerName}`
-					: `Saved API key for ${providerName}`;
+				: providerId === "adrouter" && this.session.modelRegistry.authStorage.getAdRouterInstallation()
+					? `Connected this CLI to ${providerName}`
+					: providerId === "adrouter"
+						? `Verified and saved custom API key for ${providerName}`
+						: `Saved API key for ${providerName}`;
 
 		let selectedModel: Model<any> | undefined;
 		let selectionError: string | undefined;
@@ -5075,7 +5119,7 @@ export class InteractiveMode {
 
 		try {
 			const prompt =
-				providerId === "adrouter" ? "Paste AdRouter API key from app-staging.adrouter.co:" : "Enter API key:";
+				providerId === "adrouter" ? "Enter the bearer key for this custom AdRouter endpoint:" : "Enter API key:";
 			const apiKey = (await dialog.showPrompt(prompt)).trim();
 			if (!apiKey) {
 				throw new Error("API key cannot be empty.");
@@ -5095,6 +5139,51 @@ export class InteractiveMode {
 			if (errorMsg !== "Login cancelled") {
 				this.showError(`Failed to save API key for ${providerName}: ${errorMsg}`);
 			}
+		}
+	}
+
+	private async showAdRouterInstallationLoginDialog(providerName: string): Promise<void> {
+		const previousModel = this.session.model;
+		const dialog = new LoginDialogComponent(
+			this.ui,
+			"adrouter",
+			() => {},
+			providerName,
+			"Connect this CLI to AdRouter",
+		);
+		this.editorContainer.clear();
+		this.editorContainer.addChild(dialog);
+		this.ui.setFocus(dialog);
+		this.ui.requestRender();
+
+		const restoreEditor = () => {
+			this.editorContainer.clear();
+			this.editorContainer.addChild(this.editor);
+			this.ui.setFocus(this.editor);
+			this.ui.requestRender();
+		};
+
+		try {
+			await enrollAdRouterInstallation(this.session.modelRegistry.authStorage, {
+				signal: dialog.signal,
+				confirm: async () => {
+					const answer = await dialog.showPrompt(
+						"Type CONNECT to create a file-protected key for this CLI installation:",
+					);
+					return answer.trim().toLowerCase() === "connect";
+				},
+				onDeviceCode: (info) => {
+					dialog.showDeviceCode(info);
+					dialog.showWaiting("Waiting for approval in AdRouter...");
+				},
+				onProgress: (message) => dialog.showProgress(message),
+			});
+			restoreEditor();
+			await this.completeProviderAuthentication("adrouter", providerName, "api_key", previousModel);
+		} catch (error: unknown) {
+			restoreEditor();
+			const message = error instanceof Error ? error.message : String(error);
+			if (message !== "Login cancelled") this.showError(`AdRouter installation login failed: ${message}`);
 		}
 	}
 
