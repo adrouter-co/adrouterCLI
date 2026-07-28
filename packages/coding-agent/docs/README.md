@@ -2,7 +2,7 @@
 
 This package provides the `adrouter` and `adrouter-profile` executables. AdRouterCLI is derived from [Pi](https://github.com/badlogic/pi-mono) by Mario Zechner and preserves Pi's original MIT license and copyright.
 
-The public `0.81.0-beta.9` source and single bundled npm package are MIT licensed. Access to the hosted gateway remains invite-only.
+The public `0.81.0-beta.10` source and single bundled npm package are MIT licensed. Access to the hosted gateway remains invite-only.
 
 ```sh
 npm install --global --ignore-scripts @adrouter/cli@beta

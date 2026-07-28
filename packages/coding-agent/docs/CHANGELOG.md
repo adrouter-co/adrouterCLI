@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [0.81.0-beta.10] - 2026-07-28
 
 ### Changed
 
@@ -8,6 +8,7 @@
   cache status alongside the existing colored cost, subsidy, and effective-cost equation.
 - Expanded sponsored footer placements to three highlighted rows for sponsor identity, message, and
   call-to-action links, with a dark-blue sponsored background and grey Tier NONE treatment.
+- Refreshed the provider and image-model catalogs bundled with the public CLI package.
 
 ## [0.81.0-beta.9] - 2026-07-28
 
