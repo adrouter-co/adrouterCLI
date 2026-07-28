@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.81.0-beta.10] - 2026-07-28
+
+### Changed
+
+- Refreshed the generated provider and image-model catalogs from their live upstream sources.
+- Repacked the private AI runtime for the compact footer-layout beta.
+
 ## [0.81.0-beta.9] - 2026-07-28
 
 ### Changed

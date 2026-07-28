@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.81.0-beta.10] - 2026-07-28
+
+### Changed
+
+- Repacked the private agent runtime for the compact footer-layout beta.
+
 ## [0.81.0-beta.9] - 2026-07-28
 
 ### Changed
