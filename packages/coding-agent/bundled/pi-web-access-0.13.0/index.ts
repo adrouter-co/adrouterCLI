@@ -161,12 +161,13 @@ function normalizeCuratorTimeoutSeconds(value: unknown): number | undefined {
 	return Math.min(normalized, MAX_CURATOR_TIMEOUT_SECONDS);
 }
 
-function resolveWorkflow(input: unknown, hasUI: boolean): WebSearchWorkflow {
+export function resolveWorkflow(input: unknown, _hasUI = true): WebSearchWorkflow {
 	const normalized = typeof input === "string" ? input.trim().toLowerCase() : "";
-	if (normalized === "auto-summary") return "auto-summary";
-	if (!hasUI) return "none";
 	if (normalized === "none") return "none";
-	return "summary-review";
+	// summary-review, curator/on, and missing legacy settings all normalize to
+	// the browserless workflow. The explicit legacy value remains accepted by
+	// the tool schema so existing prompts and config files keep working.
+	return "auto-summary";
 }
 
 function normalizeQueryList(queryList: unknown[]): string[] {
@@ -1192,21 +1193,6 @@ export default function (pi: ExtensionAPI) {
 		}
 	}
 
-	pi.registerShortcut(curateKey, {
-		description: "Review search results",
-		handler: async (ctx) => {
-			const entries = [...pendingCurates.entries()];
-			if (entries.length === 0) return;
-			const [callId, pc] = entries[entries.length - 1];
-
-			if (pc.phase === "searching") {
-				pc.browserPromise = openCuratorBrowser(callId, pc, false);
-				ctx.ui.notify("Opening curator — remaining searches will stream in", "info");
-				return;
-			}
-		},
-	});
-
 	pi.registerShortcut(activityKey, {
 		description: "Toggle web search activity",
 		handler: async (ctx) => {
@@ -1242,7 +1228,7 @@ export default function (pi: ExtensionAPI) {
 		name: "web_search",
 		label: "Web Search",
 		description:
-			`Search the web using OpenAI, Brave, Parallel, Tavily, Exa, Perplexity, or Gemini. Returns an AI-synthesized answer with source citations. OpenAI web_search uses a Codex subscription or OpenAI API key. For comprehensive research, prefer queries (plural) with 2-4 varied angles over a single query — each query gets its own synthesized answer, so varying phrasing and scope gives much broader coverage. When includeContent is true, full page content is fetched in the background. Searches auto-open the interactive browser curator and stream results live; set workflow to "none" to skip curation or "auto-summary" for a model-generated summary without the browser curator. Provider auto-selects: OpenAI when suitable and available, then Exa, Brave, Parallel, Tavily, Perplexity, Gemini API, then Gemini Web.`,
+			`Search the web using OpenAI, Brave, Parallel, Tavily, Exa, Perplexity, or Gemini. Returns an in-CLI AI-synthesized answer with source citations and never opens a curator page. OpenAI web_search uses a Codex subscription or OpenAI API key. For comprehensive research, prefer queries (plural) with 2-4 varied angles over a single query — each query gets its own synthesized answer, so varying phrasing and scope gives much broader coverage. When includeContent is true, full page content is fetched in the background. Set workflow to "none" only when raw results are required. Legacy "summary-review" values are accepted as browserless auto-summary. Provider auto-selects: OpenAI when suitable and available, then Exa, Brave, Parallel, Tavily, Perplexity, Gemini API, then Gemini Web.`,
 		promptSnippet:
 			"Use for web research questions. Prefer {queries:[...]} with 2-4 varied angles over a single query for broader coverage.",
 		parameters: Type.Object({
@@ -1259,7 +1245,7 @@ export default function (pi: ExtensionAPI) {
 			),
 			workflow: Type.Optional(
 				StringEnum(["none", "summary-review", "auto-summary"], {
-					description: "Search workflow mode: none = no curator, summary-review = open curator with auto summary draft (default), auto-summary = generate summary without opening curator",
+					description: "Search workflow mode: none = raw results; auto-summary = in-CLI summary (default); legacy summary-review is an alias for auto-summary",
 				}),
 			),
 		}),
@@ -1600,6 +1586,9 @@ export default function (pi: ExtensionAPI) {
 			};
 
 			if (isPartial) {
+				if (details?.phase === "generating-summary") {
+					return new Text(theme.fg("accent", "generating in-CLI summary..."), 0, 0);
+				}
 				if (details?.phase === "curator-fallback") {
 					const lines = [theme.fg("warning", "Open the search curator manually:")];
 					if (details?.curatorUrl) lines.push(theme.fg("muted", `  ${details.curatorUrl}`));
@@ -1609,10 +1598,8 @@ export default function (pi: ExtensionAPI) {
 					lines.push(theme.fg("dim", timeout ? `  auto-submits after ${timeout}s idle; ${shortcut} reopens` : `  ${shortcut} reopens`));
 					return new Text(lines.join("\n"), 0, 0);
 				}
-				if (details?.phase === "curating" || details?.phase === "waiting-for-approval" || details?.phase === "generating-summary") {
-					const phaseText = details?.phase === "generating-summary"
-						? "generating summary draft..."
-						: details?.phase === "waiting-for-approval"
+				if (details?.phase === "curating" || details?.phase === "waiting-for-approval") {
+					const phaseText = details?.phase === "waiting-for-approval"
 							? "summary draft ready; approve in browser..."
 							: "waiting for summary approval in browser...";
 					const lines = [theme.fg("accent", phaseText)];
@@ -2201,9 +2188,98 @@ export default function (pi: ExtensionAPI) {
 		},
 	});
 
+	async function runBrowserlessWebSearchCommand(args: string, ctx: ExtensionContext): Promise<boolean> {
+		try {
+			if (initConfig.webSearch?.enabled === false) {
+				ctx.ui.notify("Web search is disabled in web-search.json.", "error");
+				return true;
+			}
+
+			const supplied = args.trim();
+			const input = supplied || (await ctx.ui.input("Web search", "Search the web..."))?.trim() || "";
+			const queryList = normalizeQueryList(input.split(","));
+			if (queryList.length === 0) return true;
+
+			ctx.ui.notify(
+				`Searching ${queryList.length === 1 ? `for “${queryList[0]}”` : `${queryList.length} queries`}...`,
+				"info",
+			);
+			const searchResults: QueryResultData[] = [];
+			const allUrls: string[] = [];
+			const provider = normalizeProviderInput(loadConfigForExtensionInit().provider);
+			for (const query of queryList) {
+				try {
+					const result = await search(query, {
+						provider,
+						extensionContext: ctx,
+					});
+					searchResults.push({
+						query,
+						answer: result.answer,
+						results: result.results,
+						error: null,
+						provider: result.provider,
+					});
+					for (const source of result.results) {
+						if (!allUrls.includes(source.url)) allUrls.push(source.url);
+					}
+				} catch (err) {
+					searchResults.push({
+						query,
+						answer: "",
+						results: [],
+						error: err instanceof Error ? err.message : String(err),
+						provider: provider && provider !== "auto" ? provider : undefined,
+					});
+				}
+			}
+
+			ctx.ui.notify("Generating in-CLI summary...", "info");
+			const summaryContext: SummaryGenerationContext = {
+				model: ctx.model,
+				modelRegistry: ctx.modelRegistry,
+				cwd: ctx.cwd,
+				isProjectTrusted: () => ctx.isProjectTrusted(),
+			};
+			const choices = await loadSummaryModelChoices(summaryContext);
+			const generated = await generateSummaryDraft(
+				searchResults,
+				summaryContext,
+				undefined,
+				choices.defaultSummaryModel ?? undefined,
+			);
+			const payload = buildSearchReturn({
+				queryList,
+				results: searchResults,
+				urls: allUrls,
+				includeContent: false,
+				workflow: "auto-summary",
+				approvedSummary: generated.summary,
+				summaryMeta: generated.meta,
+			});
+			pi.sendMessage(
+				{
+					customType: "web-search-results",
+					content: payload.content,
+					display: true,
+					details: payload.details,
+				},
+				{ triggerTurn: false, deliverAs: "followUp" },
+			);
+			ctx.ui.notify("Web search complete.", "info");
+		} catch (err) {
+			const message = err instanceof Error ? err.message : String(err);
+			ctx.ui.notify(`Web search failed: ${message}`, "error");
+		}
+		return true;
+	}
+
 	pi.registerCommand("websearch", {
-		description: "Open web search curator",
+		description: "Search the web and summarize results in the CLI",
 		handler: async (args, ctx) => {
+			const handledInCli = await runBrowserlessWebSearchCommand(args, ctx);
+			if (handledInCli) return;
+
 			const sessionToken = randomUUID();
 			const commandCallId = `cmd:${sessionToken}`;
 			closeCurator(commandCallId);
@@ -2451,20 +2527,22 @@ export default function (pi: ExtensionAPI) {
 	});
 
 	pi.registerCommand("curator", {
-		description: "Toggle or configure the search curator workflow",
+		description: "Toggle or configure browserless web-search summaries",
 		handler: async (args, ctx) => {
 			const arg = args.trim().toLowerCase();
 
 			let newWorkflow: WebSearchWorkflow;
 			if (arg.length === 0) {
 				const current = resolveWorkflow(loadConfigForExtensionInit().workflow, true);
-				newWorkflow = current === "none" ? "summary-review" : "none";
+				newWorkflow = current === "none" ? "auto-summary" : "none";
 			} else if (arg === "on") {
-				newWorkflow = "summary-review";
+				newWorkflow = "auto-summary";
 			} else if (arg === "off") {
 				newWorkflow = "none";
-			} else if (arg === "none" || arg === "summary-review" || arg === "auto-summary") {
-				newWorkflow = arg;
+			} else if (arg === "none") {
+				newWorkflow = "none";
+			} else if (arg === "summary-review" || arg === "auto-summary") {
+				newWorkflow = "auto-summary";
 			} else {
 				ctx.ui.notify(`Unknown option: ${arg}. Use on, off, summary-review, or auto-summary.`, "error");
 				return;
@@ -2479,10 +2557,8 @@ export default function (pi: ExtensionAPI) {
 			}
 
 			const label = newWorkflow === "none"
-				? "Curator disabled — web_search will return raw results"
-				: newWorkflow === "auto-summary"
-					? "Auto-summary enabled — web_search will generate a summary without opening the curator"
-					: "Curator enabled — web_search will open curator and auto-generate a summary draft";
+				? "Auto-summary disabled — web_search will return raw results"
+				: "Auto-summary enabled — web_search will summarize entirely in the CLI";
 			pi.sendMessage({
 				customType: "curator-config",
 				content: [{ type: "text", text: label }],

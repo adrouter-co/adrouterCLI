@@ -1,5 +1,11 @@
 # Changelog
 
+## [Unreleased]
+
+### Changed
+
+- Repacked the private AI runtime for the browserless web and terminal-interaction beta.
+
 ## [0.81.0-beta.8] - 2026-07-27
 
 ### Changed

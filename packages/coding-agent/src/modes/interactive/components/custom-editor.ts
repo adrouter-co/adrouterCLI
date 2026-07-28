@@ -3,21 +3,37 @@ import {
 	Editor,
 	type EditorOptions,
 	type EditorTheme,
+	type TranscriptSelectionYieldContext,
 	type TUI,
 	truncateToWidth,
 	visibleWidth,
 } from "@adrouter/tui";
+import chalk from "chalk";
+import { formatAdRouterSubsidy } from "../../../core/adrouter-session.ts";
 import type { AppKeybinding, KeybindingsManager } from "../../../core/keybindings.ts";
-import { theme as uiTheme } from "../theme/theme.ts";
+import { type ThemeColor, theme as uiTheme } from "../theme/theme.ts";
+import { formatTokens } from "./footer.ts";
+
+function panelColor(color: ThemeColor, text: string): string {
+	return chalk.level === 0 || process.env.NO_COLOR ? text : uiTheme.fg(color, text);
+}
 
 export interface EditorMetadata {
 	cwd?: string;
+	gitBranch?: string;
 	sessionName?: string;
 	profileName?: string;
 	modeLabel?: string;
 	modelLabel?: string;
 	providerLabel?: string;
 	thinkingLabel?: string;
+	contextTokens?: number | null;
+	contextWindow?: number;
+	cacheHitRate?: number;
+	totalCost?: number;
+	totalSubsidy?: number;
+	effectiveCost?: number;
+	autoCompactEnabled?: boolean;
 	rightLabel?: string;
 }
 
@@ -56,8 +72,9 @@ export class CustomEditor extends Editor {
 		if (width <= 0) return [];
 		const meta = this.metadataProvider?.() ?? {};
 		const panelWidth = Math.max(1, width);
-		const padX = Math.min(2, Math.max(0, Math.floor((panelWidth - 1) / 2)));
-		const layoutWidth = Math.max(1, panelWidth - padX * 2);
+		const promptGutter = panelWidth >= 3 ? 2 : 0;
+		const rightPadding = panelWidth - promptGutter >= 2 ? 1 : 0;
+		const layoutWidth = Math.max(1, panelWidth - promptGutter - rightPadding);
 		this.lastWidth = layoutWidth;
 		const layoutLines = this.layoutText(layoutWidth);
 		const maxVisibleLines = Math.max(5, Math.floor(this.tui.terminal.rows * 0.3));
@@ -72,11 +89,15 @@ export class CustomEditor extends Editor {
 		const visibleLines = layoutLines.slice(this.scrollOffset, this.scrollOffset + maxVisibleLines);
 		const result: string[] = [];
 
-		const left = [meta.cwd, meta.sessionName].filter(Boolean).join(" · ");
-		const right = meta.profileName || "no profile loaded";
-		result.push(this.renderSplitLine(left, right, width));
+		const directory = [meta.cwd, meta.gitBranch ? `(${meta.gitBranch})` : undefined].filter(Boolean).join(" ");
+		const profile = meta.profileName ? `${meta.profileName} loaded` : "no profile loaded";
+		const sessionName = meta.sessionName || "no session name";
+		result.push(this.renderFramedSplitLine("", panelColor("dim", directory || "~"), width));
+		result.push(
+			this.renderFramedSplitLine(panelColor("dim", profile), panelColor("dim", sessionName), width, "left"),
+		);
 
-		const foregroundSample = this.borderColor("");
+		const foregroundSample = chalk.level === 0 || process.env.NO_COLOR ? "" : this.borderColor("");
 		const foreground = foregroundSample.match(/\x1b\[38[^m]*m/)?.[0];
 		const panelBackground = foreground?.replace("38", "48") ?? "";
 		const restorePanelBackground = (text: string): string =>
@@ -88,15 +109,16 @@ export class CustomEditor extends Editor {
 		};
 
 		if (this.scrollOffset > 0) {
-			result.push(makePanelLine(uiTheme.fg("dim", ` ↑ ${this.scrollOffset} more`)));
+			result.push(makePanelLine(panelColor("dim", ` ↑ ${this.scrollOffset} more`)));
 		}
 		this.lastVisibleLayoutLines = visibleLines;
-		this.lastPaddingX = padX;
+		this.lastPaddingX = promptGutter;
 		this.lastTextRowStart = result.length;
 		const hasSelection = this.getOrderedSelection() !== undefined;
 		const isEmpty = this.getText().length === 0;
 		const placeholder = meta.modeLabel === "Shell" ? "Run a command..." : "Ask anything...";
-		for (const layoutLine of visibleLines) {
+		for (let visibleIndex = 0; visibleIndex < visibleLines.length; visibleIndex++) {
+			const layoutLine = visibleLines[visibleIndex]!;
 			let displayText = this.styleSelectionInLayoutLine(
 				layoutLine.text,
 				layoutLine.logicalLine,
@@ -108,7 +130,7 @@ export class CustomEditor extends Editor {
 			let lineWidth = visibleWidth(layoutLine.text);
 			if (isEmpty && layoutLine.hasCursor) {
 				const marker = this.focused ? CURSOR_MARKER : "";
-				displayText = `${marker}\x1b[7m \x1b[27m${uiTheme.fg("dim", placeholder)}`;
+				displayText = `${marker}\x1b[7m \x1b[27m${panelColor("dim", placeholder)}`;
 				lineWidth = 1 + visibleWidth(placeholder);
 			} else if (!hasSelection && layoutLine.hasCursor && layoutLine.cursorPos !== undefined) {
 				const before = layoutLine.text.slice(0, layoutLine.cursorPos);
@@ -123,33 +145,114 @@ export class CustomEditor extends Editor {
 				}
 			}
 			const padding = " ".repeat(Math.max(0, layoutWidth - lineWidth));
-			result.push(makePanelLine(`${" ".repeat(padX)}${displayText}${padding}${" ".repeat(padX)}`));
+			const prompt =
+				promptGutter === 0 ? "" : visibleIndex === 0 ? panelColor("border", "❯ ") : " ".repeat(promptGutter);
+			result.push(makePanelLine(`${prompt}${displayText}${padding}${" ".repeat(rightPadding)}`));
 		}
 
 		const linesBelow = layoutLines.length - (this.scrollOffset + visibleLines.length);
 		if (linesBelow > 0) {
-			result.push(makePanelLine(uiTheme.fg("dim", ` ↓ ${linesBelow} more`)));
+			result.push(makePanelLine(panelColor("dim", ` ↓ ${linesBelow} more`)));
 		}
 		if (this.autocompleteState && this.autocompleteList) {
 			for (const line of this.autocompleteList.render(layoutWidth)) {
 				const padding = " ".repeat(Math.max(0, layoutWidth - visibleWidth(line)));
-				result.push(makePanelLine(`${" ".repeat(padX)}${line}${padding}${" ".repeat(padX)}`));
+				result.push(makePanelLine(`${" ".repeat(promptGutter)}${line}${padding}${" ".repeat(rightPadding)}`));
 			}
 		}
 
-		const statusLeft = [meta.modeLabel, meta.modelLabel, meta.providerLabel, meta.thinkingLabel]
-			.filter(Boolean)
-			.join(" · ");
-		result.push(this.renderSplitLine(statusLeft, meta.rightLabel || "models  / commands", width));
+		const modelStatus = [
+			meta.providerLabel || "no-provider",
+			meta.modelLabel || "no-model",
+			`thinking ${meta.thinkingLabel || "off"}`,
+		].join(" · ");
+		result.push(
+			this.renderFramedSplitLine(
+				panelColor("dim", this.renderContextStatus(meta, width)),
+				panelColor("dim", modelStatus),
+				width,
+				"left",
+			),
+		);
+		result.push(
+			this.renderFramedSplitLine(this.renderCostStatus(meta, width), this.renderCacheStatus(meta, width), width),
+		);
 		return result;
 	}
 
-	private renderSplitLine(left: string, right: string, width: number): string {
-		const rightText = truncateToWidth(right, width, "…");
-		const availableLeft = Math.max(0, width - visibleWidth(rightText) - 2);
-		const leftText = truncateToWidth(left, availableLeft, "…");
-		const gap = Math.max(0, width - visibleWidth(leftText) - visibleWidth(rightText));
-		return uiTheme.fg("dim", leftText) + " ".repeat(gap) + uiTheme.fg("dim", rightText);
+	private renderContextStatus(meta: EditorMetadata, width: number): string {
+		const contextWindow = Math.max(0, meta.contextWindow ?? 0);
+		const contextMax = contextWindow > 0 ? formatTokens(contextWindow) : "?";
+		const contextCurrent = meta.contextTokens == null ? "?" : formatTokens(Math.max(0, meta.contextTokens));
+		const auto = meta.autoCompactEnabled ? " auto" : "";
+		return `${width < 96 ? "ctx" : "context"} ${contextCurrent}/${contextMax}${auto}`;
+	}
+
+	private renderCacheStatus(meta: EditorMetadata, width: number): string {
+		const hitRate = Math.max(0, Math.min(100, meta.cacheHitRate ?? 0));
+		return `${width < 96 ? "CH" : "cache "}${hitRate.toFixed(1)}%`;
+	}
+
+	private renderCostStatus(meta: EditorMetadata, width: number): string {
+		const totalCost = Math.max(0, meta.totalCost ?? 0);
+		const totalSubsidy = Math.max(0, meta.totalSubsidy ?? 0);
+		const effectiveCost = Math.max(0, meta.effectiveCost ?? totalCost - totalSubsidy);
+		const parts =
+			width < 96
+				? [
+						panelColor("muted", `Σ$${totalCost.toFixed(3)}`),
+						panelColor("subsidy", `+$${formatAdRouterSubsidy(totalSubsidy)}`),
+						panelColor("success", `=$${formatAdRouterSubsidy(effectiveCost)}`),
+					]
+				: [
+						panelColor("muted", `cost $${totalCost.toFixed(3)}`),
+						panelColor("subsidy", `subsidy $${formatAdRouterSubsidy(totalSubsidy)}`),
+						panelColor("success", `effective $${formatAdRouterSubsidy(effectiveCost)}`),
+					];
+		return parts.join(" · ");
+	}
+
+	private renderFramedSplitLine(
+		left: string,
+		right: string,
+		width: number,
+		priority: "left" | "right" = "right",
+	): string {
+		if (width <= 4) return panelColor("border", "─".repeat(Math.max(0, width)));
+		const bodyWidth = width - 4;
+		let leftText: string;
+		let rightText: string;
+		if (priority === "left") {
+			leftText = truncateToWidth(left, bodyWidth, "…");
+			const separatorWidth = leftText && right ? 3 : 0;
+			const availableRight = Math.max(0, bodyWidth - visibleWidth(leftText) - separatorWidth);
+			rightText = truncateToWidth(right, availableRight, "…");
+		} else {
+			rightText = truncateToWidth(right, bodyWidth, "…");
+			const separatorWidth = left && rightText ? 3 : 0;
+			const availableLeft = Math.max(0, bodyWidth - visibleWidth(rightText) - separatorWidth);
+			leftText = truncateToWidth(left, availableLeft, "…");
+		}
+		const rightWidth = visibleWidth(rightText);
+		const leftWidth = visibleWidth(leftText);
+		const gap = Math.max(0, bodyWidth - leftWidth - rightWidth - (leftText && rightText ? 2 : 0));
+		const middle =
+			leftText && rightText
+				? `${leftText} ${panelColor("border", "─".repeat(gap))} ${rightText}`
+				: leftText
+					? `${leftText}${panelColor("border", "─".repeat(gap))}`
+					: `${panelColor("border", "─".repeat(gap))}${rightText}`;
+		return `${panelColor("border", "─ ")}${middle}${panelColor("border", " ─")}`;
+	}
+
+	yieldInputToTranscriptSelection(data: string, context: TranscriptSelectionYieldContext): boolean {
+		const selectUp = this.keybindings.matches(data, "tui.editor.selectUp");
+		const selectDown = this.keybindings.matches(data, "tui.editor.selectDown");
+		const selectLeft = this.keybindings.matches(data, "tui.editor.selectLeft");
+		const selectRight = this.keybindings.matches(data, "tui.editor.selectRight");
+		if (!selectUp && !selectDown && !selectLeft && !selectRight) return false;
+		if (context.historyScrolled) return true;
+		return this.getText().length === 0 && (selectUp || selectLeft);
 	}
 
 	handleInput(data: string): void {

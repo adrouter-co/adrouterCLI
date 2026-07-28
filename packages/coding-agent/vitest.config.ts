@@ -1,5 +1,12 @@
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { defineConfig } from "vitest/config";
+
+const isolatedAgentDir = mkdtempSync(join(tmpdir(), "adrouter-vitest-state-"));
+process.env.ADROUTER_CODING_AGENT_DIR = isolatedAgentDir;
+process.once("exit", () => rmSync(isolatedAgentDir, { recursive: true, force: true }));
 
 const aiSrcIndex = fileURLToPath(new URL("../ai/src/index.ts", import.meta.url));
 const aiSrcCompat = fileURLToPath(new URL("../ai/src/compat.ts", import.meta.url));
@@ -10,6 +17,7 @@ const reporters = process.env.GITHUB_ACTIONS ? (["dot", "github-actions"] as con
 
 export default defineConfig({
 	test: {
+		env: { ADROUTER_CODING_AGENT_DIR: isolatedAgentDir },
 		projects: [
 			{
 				test: {

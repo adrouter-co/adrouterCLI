@@ -55,7 +55,7 @@ export const BUNDLED_EXTENSION_CONTRACTS: BundledExtensionContract[] = [
 		commands: ["curator", "google-account", "search", "websearch"],
 		tools: ["fetch_content", "get_search_content", "web_search"],
 		handlers: ["session_shutdown", "session_start", "session_tree"],
-		shortcuts: ["ctrl+shift+s", "ctrl+shift+w"],
+		shortcuts: ["ctrl+shift+w"],
 	},
 ];
 

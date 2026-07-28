@@ -501,7 +501,6 @@ export class InteractiveMode {
 			autocompleteMaxVisible,
 		});
 		this.defaultEditor.setMetadataProvider(() => {
-			const state = this.session.state;
 			const cwd = this.sessionManager.getCwd();
 			if (this.profileNameCache.cwd !== cwd) {
 				this.profileNameCache = { cwd, profileName: undefined };
@@ -518,20 +517,13 @@ export class InteractiveMode {
 					// Profiles are optional and may be changed outside the agent.
 				}
 			}
-			const model = state.model;
 			const text = this.defaultEditor.getText().trimStart();
 			const shellMode = text.startsWith("!");
+			const footerMetrics = this.footer.getMetrics();
 			return {
-				cwd,
-				sessionName: this.sessionManager.getSessionName() || "no session name",
+				...footerMetrics,
 				profileName: this.profileNameCache.profileName,
 				modeLabel: shellMode ? "Shell" : APP_NAME,
-				modelLabel: shellMode ? undefined : model?.id,
-				providerLabel: shellMode ? undefined : model?.provider,
-				thinkingLabel: model?.reasoning && state.thinkingLevel !== "off" ? state.thinkingLevel : undefined,
-				rightLabel: this.session.isStreaming
-					? `${keyText("app.interrupt")} interrupt`
-					: `${keyText("app.model.select")} models  / commands`,
 			};
 		});
 		this.editor = this.defaultEditor;
@@ -1437,7 +1429,7 @@ export class InteractiveMode {
 					contextFiles.map((contextFile) => this.formatContextPath(contextFile.path)),
 					{ sort: false },
 				);
-				addLoadedSection("Context", contextCompactList, contextList);
+				addLoadedSection("Context", contextCompactList, contextList, "mdLink");
 			}
 
 			const skills = skillsResult.skills;
@@ -1450,7 +1442,7 @@ export class InteractiveMode {
 					formatPackagePath: (item) => this.getShortPath(item.path, item.sourceInfo),
 				});
 				const skillCompactList = formatCompactList(skills.map((skill) => skill.name));
-				addLoadedSection("Skills", skillCompactList, skillList);
+				addLoadedSection("Skills", skillCompactList, skillList, "mdLink");
 			}
 
 			const templates = this.session.promptTemplates;
@@ -1481,7 +1473,7 @@ export class InteractiveMode {
 						this.formatExtensionDisplayPath(this.getShortPath(item.path, item.sourceInfo)),
 				});
 				const extensionCompactList = formatCompactList(this.getCompactExtensionLabels(extensions));
-				addLoadedSection("Extensions", extensionCompactList, extList, "mdHeading");
+				addLoadedSection("Extensions", extensionCompactList, extList, "mdLink");
 			}
 
 			// Show loaded themes (excluding built-in)

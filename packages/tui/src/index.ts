@@ -108,6 +108,7 @@ export {
 	type OverlayOptions,
 	type OverlayUnfocusOptions,
 	type SizeValue,
+	type TranscriptSelectionYieldContext,
 	TUI,
 } from "./tui.ts";
 // Utilities

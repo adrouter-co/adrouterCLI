@@ -2,7 +2,11 @@ import { visibleWidth } from "@adrouter/tui";
 import { beforeAll, describe, expect, it } from "vitest";
 import type { AgentSession } from "../src/core/agent-session.ts";
 import type { ReadonlyFooterDataProvider } from "../src/core/footer-data-provider.ts";
-import { FooterComponent, formatCwdForFooter } from "../src/modes/interactive/components/footer.ts";
+import {
+	collectFooterMetrics,
+	FooterComponent,
+	formatCwdForFooter,
+} from "../src/modes/interactive/components/footer.ts";
 import { initTheme } from "../src/modes/interactive/theme/theme.ts";
 import { stripAnsi } from "../src/utils/ansi.ts";
 
@@ -14,64 +18,73 @@ type AssistantUsage = {
 	cost: { total: number };
 };
 
-function createSession(options: {
-	sessionName: string;
-	modelId?: string;
-	provider?: string;
-	reasoning?: boolean;
-	thinkingLevel?: string;
-	usage?: AssistantUsage;
-}): AgentSession {
-	const usage = options.usage;
-	const entries =
-		usage === undefined
-			? []
-			: [
-					{
-						type: "message",
-						message: {
-							role: "assistant",
-							usage,
-						},
-					},
-				];
+function createSession(
+	options: {
+		sessionName?: string;
+		modelId?: string;
+		provider?: string;
+		reasoning?: boolean;
+		thinkingLevel?: string;
+		usage?: AssistantUsage | AssistantUsage[];
+		contextTokens?: number | null;
+		contextWindow?: number;
+		subsidy?: number;
+	} = {},
+): AgentSession {
+	const usages = options.usage === undefined ? [] : Array.isArray(options.usage) ? options.usage : [options.usage];
+	const entries: Array<Record<string, unknown>> = usages.map((usage) => ({
+		type: "message",
+		message: { role: "assistant", usage },
+	}));
+	if (options.subsidy !== undefined) {
+		entries.push({
+			type: "custom",
+			customType: "adrouter.settlement",
+			data: {
+				turnId: "turn-1",
+				ad: { tier: "A" },
+				settlement: { ad_subsidy: options.subsidy },
+			},
+		});
+	}
 
+	const contextWindow = options.contextWindow ?? 200_000;
+	const contextTokens = options.contextTokens === undefined ? 24_600 : options.contextTokens;
 	const session = {
 		state: {
 			model: {
 				id: options.modelId ?? "test-model",
 				provider: options.provider ?? "test",
-				contextWindow: 200_000,
+				contextWindow,
 				reasoning: options.reasoning ?? false,
 			},
 			thinkingLevel: options.thinkingLevel ?? "off",
 		},
 		sessionManager: {
 			getEntries: () => entries,
-			getSessionName: () => options.sessionName,
+			getSessionName: () => options.sessionName ?? "demo",
 			getCwd: () => "/tmp/project",
 		},
-		getContextUsage: () => ({ contextWindow: 200_000, percent: 12.3 }),
-		modelRegistry: {
-			isUsingOAuth: () => false,
-		},
+		getContextUsage: () => ({
+			tokens: contextTokens,
+			contextWindow,
+			percent: contextTokens === null ? null : (contextTokens / contextWindow) * 100,
+		}),
 	};
 
 	return session as unknown as AgentSession;
 }
 
-function createFooterData(providerCount: number): ReadonlyFooterDataProvider {
-	const provider = {
+function createFooterData(statuses = new Map<string, string>()): ReadonlyFooterDataProvider {
+	return {
 		getGitBranch: () => "main",
-		getExtensionStatuses: () => new Map<string, string>(),
-		getAvailableProviderCount: () => providerCount,
+		getExtensionStatuses: () => statuses,
+		getAvailableProviderCount: () => 1,
 		onBranchChange: (callback: () => void) => {
 			void callback;
 			return () => {};
 		},
 	};
-
-	return provider;
 }
 
 describe("formatCwdForFooter", () => {
@@ -85,60 +98,62 @@ describe("formatCwdForFooter", () => {
 	});
 });
 
-describe("FooterComponent width handling", () => {
-	beforeAll(() => {
-		initTheme(undefined, false);
-	});
-
-	it("keeps all lines within width for wide session names", () => {
-		const width = 93;
-		const session = createSession({ sessionName: "한글".repeat(30) });
-		const footer = new FooterComponent(session, createFooterData(1));
-
-		const lines = footer.render(width);
-		for (const line of lines) {
-			expect(visibleWidth(line)).toBeLessThanOrEqual(width);
-		}
-	});
-
-	it("keeps stats line within width for wide model and provider names", () => {
-		const width = 60;
+describe("footer session metrics", () => {
+	it("calculates aggregate cache hit rate across every prompt", () => {
 		const session = createSession({
-			sessionName: "",
-			modelId: "模".repeat(30),
-			provider: "공급자",
-			reasoning: true,
-			thinkingLevel: "high",
-			usage: {
-				input: 12_345,
-				output: 6_789,
-				cacheRead: 0,
-				cacheWrite: 0,
-				cost: { total: 1.234 },
-			},
+			usage: [
+				{ input: 100, output: 10, cacheRead: 50, cacheWrite: 50, cost: { total: 0.1 } },
+				{ input: 100, output: 20, cacheRead: 100, cacheWrite: 0, cost: { total: 0.2 } },
+			],
 		});
-		const footer = new FooterComponent(session, createFooterData(2));
+		const metrics = collectFooterMetrics(session, createFooterData());
 
-		const lines = footer.render(width);
-		for (const line of lines) {
-			expect(visibleWidth(line)).toBeLessThanOrEqual(width);
-		}
+		expect(metrics.cacheHitRate).toBeCloseTo(37.5);
+		expect(metrics.totalCost).toBeCloseTo(0.3);
 	});
 
-	it("shows the latest cache hit rate when cache usage is present", () => {
-		const session = createSession({
-			sessionName: "",
-			usage: {
-				input: 100,
-				output: 10,
-				cacheRead: 50,
-				cacheWrite: 50,
-				cost: { total: 0.001 },
-			},
-		});
-		const footer = new FooterComponent(session, createFooterData(1));
+	it("reports unknown context and zero usage explicitly", () => {
+		const metrics = collectFooterMetrics(
+			createSession({ contextTokens: null, usage: undefined }),
+			createFooterData(),
+		);
+		expect(metrics.contextTokens).toBeNull();
+		expect(metrics.contextWindow).toBe(200_000);
+		expect(metrics.cacheHitRate).toBe(0);
+		expect(metrics.totalCost).toBe(0);
+	});
 
-		const statsLine = stripAnsi(footer.render(120)[0]!);
-		expect(statsLine).toContain("CH25.0%");
+	it("clamps effective cost when subsidy exceeds total cost", () => {
+		const metrics = collectFooterMetrics(
+			createSession({
+				usage: { input: 1, output: 1, cacheRead: 0, cacheWrite: 0, cost: { total: 0.01 } },
+				subsidy: 0.2,
+			}),
+			createFooterData(),
+		);
+		expect(metrics.totalSubsidy).toBeCloseTo(0.2);
+		expect(metrics.effectiveCost).toBe(0);
+	});
+});
+
+describe("FooterComponent status continuation", () => {
+	beforeAll(() => initTheme(undefined, false));
+
+	it("renders extension statuses in deterministic order and within width", () => {
+		const statuses = new Map([
+			["z", "second\nstatus"],
+			["a", "first status"],
+		]);
+		const footer = new FooterComponent(createSession(), createFooterData(statuses));
+		const lines = footer.render(24);
+
+		expect(lines).toHaveLength(1);
+		expect(stripAnsi(lines[0]!)).toMatch(/^first status {2}second/);
+		expect(visibleWidth(lines[0]!)).toBeLessThanOrEqual(24);
+	});
+
+	it("does not reserve a row when no extension status exists", () => {
+		const footer = new FooterComponent(createSession(), createFooterData());
+		expect(footer.render(80)).toEqual([]);
 	});
 });

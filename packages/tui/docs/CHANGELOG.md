@@ -1,5 +1,12 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+
+- Added an optional editor boundary handoff for Shift+Arrow transcript selection, including
+  multiline keyboard movement, viewport autoscroll, copy, and Escape cancellation.
+
 ## [0.81.0-beta.8] - 2026-07-27
 
 ### Changed

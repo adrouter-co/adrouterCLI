@@ -13,7 +13,7 @@ const originalNoColor = process.env.NO_COLOR;
 
 function createHeader(): ResponsiveStartupHeader {
 	return new ResponsiveStartupHeader({
-		version: "0.81.0-beta.6",
+		version: "0.81.0-beta.8",
 		expanded: false,
 		compactInstructions: "esc interrupt · / commands",
 		expandedInstructions: "esc to interrupt\n/ for commands",
@@ -121,7 +121,7 @@ describe.sequential("ResponsiveStartupHeader", () => {
 			expect(lines.every((line) => visibleWidth(line) <= width)).toBe(true);
 			const rendered = lines.join("\n");
 			expect(rendered.includes("> adrouterCLI")).toBe(width < 32);
-			expect(rendered.includes("> adrouterCLI v0.81.0-beta.6")).toBe(width === 31);
+			expect(rendered.includes("> adrouterCLI v0.81.0-beta.8")).toBe(width === 31);
 			expect(rendered.includes("adrouterCLI")).toBe(width < 32 || width >= 60);
 		}
 
@@ -129,13 +129,27 @@ describe.sequential("ResponsiveStartupHeader", () => {
 		const wideBanner = header.render(140).slice(0, 16).map(stripAnsi);
 		expect(referenceBanner.map((line) => line.slice(1, 31))).toEqual(expectedLogo);
 		expect(wideBanner.map((line) => line.slice(1, 31))).toEqual(expectedLogo);
-		expect(referenceBanner.map((line) => line.slice(34, 44))).toEqual(expectedPrompt);
-		expect(wideBanner.map((line) => line.slice(34, 44))).toEqual(expectedPrompt);
+		expect(referenceBanner.map((line) => line.slice(32, 42))).toEqual(expectedPrompt);
+		expect(wideBanner.map((line) => line.slice(32, 42))).toEqual(expectedPrompt);
 		expect(referenceBanner.map((line) => line.slice(1, 90))).toEqual(wideBanner.map((line) => line.slice(1, 90)));
-		expect(referenceBanner[6]?.slice(47).trimEnd()).toBe("adrouterCLI");
-		expect(referenceBanner[7]?.slice(47).trimEnd()).toBe("v0.81.0-beta.6");
-		expect(referenceBanner[8]?.slice(47).trimEnd()).toBe("deepseek-v4-pro · high");
-		expect(referenceBanner[9]?.slice(47).trimEnd()).toBe("~/antigravity/a/very/long/project/path");
+		const bubbleRows = [3, 4, 11, 12];
+		const countBubbles = (lines: string[]): number =>
+			bubbleRows
+				.map((row) => lines[row]?.slice(43) ?? "")
+				.join("")
+				.match(/[°○.∘o]/g)?.length ?? 0;
+		expect(countBubbles(referenceBanner)).toBeGreaterThan(32);
+		expect(countBubbles(wideBanner)).toBeGreaterThan(countBubbles(referenceBanner));
+		expect(wideBanner[3]!.slice(43).trimEnd().length).toBeGreaterThan(
+			referenceBanner[3]!.slice(43).trimEnd().length + 30,
+		);
+
+		expect(referenceBanner[3]?.slice(43)).toMatch(/^° {5}○ {3}\. {6}∘/);
+		expect(referenceBanner[4]?.slice(43)).toMatch(/^ {2}\. {3}° {5}o {2}°/);
+		expect(referenceBanner[6]?.slice(43).trimEnd()).toBe("adrouterCLI");
+		expect(referenceBanner[7]?.slice(43).trimEnd()).toBe("v0.81.0-beta.8");
+		expect(referenceBanner[8]?.slice(43).trimEnd()).toBe("deepseek-v4-pro · high");
+		expect(referenceBanner[9]?.slice(43).trimEnd()).toBe("~/antigravity/a/very/long/project/path");
 	});
 
 	it("renders deterministic 256-color and truecolor palettes with a monochrome fallback", () => {

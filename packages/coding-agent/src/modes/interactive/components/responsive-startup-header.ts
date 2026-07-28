@@ -142,6 +142,65 @@ function brandText(text: string, color: JellyfishColor = "B"): string {
 	return `${startupColorCode(color, false, theme.getColorMode())}${text}\x1b[39m`;
 }
 
+const STARTUP_BUBBLE_ROWS: ReadonlyArray<ReadonlyArray<readonly [string, JellyfishColor]>> = [
+	[
+		["°", "C"],
+		["○", "B"],
+		[".", "6"],
+		["∘", "5"],
+	],
+	[
+		[".", "5"],
+		["°", "C"],
+		["o", "6"],
+		["°", "B"],
+	],
+	[
+		["∘", "B"],
+		[".", "5"],
+		["°", "C"],
+		["○", "B"],
+	],
+	[
+		["o", "6"],
+		["°", "C"],
+		[".", "5"],
+		["∘", "B"],
+	],
+];
+
+const STARTUP_BUBBLE_GAPS = [
+	[5, 3, 6, 4],
+	[3, 5, 2, 5],
+	[3, 4, 3, 5],
+	[4, 6, 2, 5],
+] as const;
+
+const STARTUP_BUBBLE_LEADING = [0, 2, 4, 0] as const;
+
+function renderBubbleField(width: number, row: number): string {
+	if (width <= 0) return "";
+	const gaps = STARTUP_BUBBLE_GAPS[row % STARTUP_BUBBLE_GAPS.length]!;
+	const bubbles = STARTUP_BUBBLE_ROWS[row % STARTUP_BUBBLE_ROWS.length]!;
+	const leading = Math.min(width, STARTUP_BUBBLE_LEADING[row % STARTUP_BUBBLE_LEADING.length] ?? 0);
+	let line = " ".repeat(leading);
+	let used = leading;
+	let index = 0;
+
+	while (used < width) {
+		const [symbol, color] = bubbles[index % bubbles.length]!;
+		line += brandText(symbol, color);
+		used += 1;
+		const gap = gaps[index % gaps.length] ?? 1;
+		if (used + gap + 1 > width) break;
+		line += " ".repeat(gap);
+		used += gap;
+		index += 1;
+	}
+
+	return padStartupLine(line, width);
+}
+
 function padStartupLine(
 	line: string,
 	width: number,
@@ -206,7 +265,7 @@ export class ResponsiveStartupHeader implements Component {
 	render(width: number): string[] {
 		if (width <= 0) return [];
 		const innerWidth = Math.max(1, width - 2);
-		const banner = width >= STARTUP_ART_MIN_WIDTH ? this.renderWide() : this.renderNarrow(innerWidth);
+		const banner = width >= STARTUP_ART_MIN_WIDTH ? this.renderWide(innerWidth) : this.renderNarrow(innerWidth);
 		const help = this.expanded
 			? this.options.expandedInstructions.split("\n")
 			: [this.options.compactInstructions, this.options.compactOnboarding];
@@ -216,7 +275,7 @@ export class ResponsiveStartupHeader implements Component {
 		);
 	}
 
-	private renderWide(): string[] {
+	private renderWide(width: number): string[] {
 		const model = this.options.getModelLabel() || "No model selected";
 		const cwd = this.options.getCwdLabel() || "~";
 		const jellyfish = renderJellyfish(JELLYFISH_PIXELS);
@@ -224,16 +283,27 @@ export class ResponsiveStartupHeader implements Component {
 			PROMPT_WORDMARK.map((line, index) => brandText(line, index < 4 ? "B" : index < 8 ? "6" : "5")),
 			jellyfish.length,
 		);
+		const fixedColumnsWidth =
+			Math.max(...jellyfish.map((line) => visibleWidth(line))) +
+			Math.max(...wordmark.map((line) => visibleWidth(line))) +
+			2;
+		const detailsWidth = Math.max(1, width - fixedColumnsWidth);
 		const details = centerStartupLines(
 			[
+				renderBubbleField(detailsWidth, 0),
+				renderBubbleField(detailsWidth, 1),
+				"",
 				theme.bold(brandText("adrouterCLI", "B")),
 				theme.fg("dim", `v${this.options.version}`),
 				theme.fg("muted", model),
 				theme.fg("dim", cwd),
+				"",
+				renderBubbleField(detailsWidth, 2),
+				renderBubbleField(detailsWidth, 3),
 			],
 			jellyfish.length,
 		);
-		return combineStartupColumns([jellyfish, wordmark, details]);
+		return combineStartupColumns([jellyfish, wordmark, details], 1);
 	}
 
 	private renderNarrow(width: number): string[] {

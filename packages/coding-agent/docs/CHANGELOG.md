@@ -1,5 +1,21 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+
+- Added a bubble-framed, width-aware startup identity and a four-row input status panel with
+  profile, session, provider, context, cache, subsidy, and effective-cost details.
+- Added keyboard transcript selection with Shift+Arrow navigation, history autoscroll, OSC-52
+  copying, ANSI stripping, and wide-character-aware movement.
+
+### Changed
+
+- Changed bundled web access to summarize searches entirely in the CLI, including legacy curator
+  modes and `/websearch`, without opening a browser review page.
+- Highlighted Context, Skills, and Extensions headings with the theme link color and isolated test
+  state so disposable Jiti cache artifacts cannot appear as discovered extensions.
+
 ## [0.81.0-beta.8] - 2026-07-27
 
 ### Fixed
