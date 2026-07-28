@@ -66,7 +66,7 @@ describe("DefaultResourceLoader", () => {
 				"search",
 				"websearch",
 			]);
-			expect([...webExtension!.shortcuts.keys()].sort()).toEqual(["ctrl+shift+s", "ctrl+shift+w"]);
+			expect([...webExtension!.shortcuts.keys()].sort()).toEqual(["ctrl+shift+w"]);
 			const { skills, diagnostics } = loader.getSkills();
 			expect(diagnostics).toEqual([]);
 			expect(skills.map((skill) => skill.name).sort()).toEqual(["adroutercli", "librarian", "pi-subagents"]);

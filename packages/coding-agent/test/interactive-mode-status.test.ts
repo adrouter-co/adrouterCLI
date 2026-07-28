@@ -1,5 +1,6 @@
 import * as path from "node:path";
-import { type AutocompleteProvider, CombinedAutocompleteProvider } from "@adrouter/tui";
+import { type AutocompleteProvider, CombinedAutocompleteProvider, setCapabilities } from "@adrouter/tui";
+import chalk from "chalk";
 import { beforeAll, describe, expect, test, vi } from "vitest";
 import { type Component, Container, type Focusable, TUI } from "../../tui/src/tui.ts";
 import { VirtualTerminal } from "../../tui/test/virtual-terminal.ts";
@@ -7,7 +8,7 @@ import type { AutocompleteProviderFactory } from "../src/core/extensions/types.t
 import type { SourceInfo } from "../src/core/source-info.ts";
 import type { AuthSelectorProvider } from "../src/modes/interactive/components/oauth-selector.ts";
 import { InteractiveMode } from "../src/modes/interactive/interactive-mode.ts";
-import { initTheme } from "../src/modes/interactive/theme/theme.ts";
+import { initTheme, theme } from "../src/modes/interactive/theme/theme.ts";
 
 function renderLastLine(container: Container, width = 120): string {
 	const last = container.children[container.children.length - 1];
@@ -1068,6 +1069,37 @@ describe("InteractiveMode.showLoadedResources", () => {
 		expect(output).toContain("[Context]");
 		expect(output).toContain(`${externalRoot.replace(/\\/g, "/")}/.adrouter/agent/AGENTS.md, AGENTS.md`);
 		expect(output).not.toContain(`${cwd.replace(/\\/g, "/")}/AGENTS.md`);
+	});
+
+	test("renders Context and Skills with the light-blue link color", () => {
+		const originalColorLevel = chalk.level;
+		const originalNoColor = process.env.NO_COLOR;
+		try {
+			chalk.level = 3;
+			delete process.env.NO_COLOR;
+			setCapabilities({ images: null, trueColor: true, hyperlinks: false });
+			initTheme("dark", false);
+			const fakeThis = createShowLoadedResourcesThis({
+				quietStartup: false,
+				contextFiles: [{ path: "/tmp/project/AGENTS.md" }],
+				skills: [{ filePath: "/tmp/skill/SKILL.md", name: "commit" }],
+			});
+
+			(InteractiveMode as any).prototype.showLoadedResources.call(fakeThis, {
+				force: false,
+			});
+
+			const output = renderAll(fakeThis.loadedResourcesContainer);
+			expect(output).toContain(theme.fg("mdLink", "[Context]"));
+			expect(output).toContain(theme.fg("mdLink", "[Skills]"));
+			expect(output).not.toContain(theme.fg("mdHeading", "[Context]"));
+		} finally {
+			chalk.level = originalColorLevel;
+			if (originalNoColor === undefined) delete process.env.NO_COLOR;
+			else process.env.NO_COLOR = originalNoColor;
+			setCapabilities({ images: null, trueColor: false, hyperlinks: false });
+			initTheme("dark", false);
+		}
 	});
 
 	test("shows full context paths when expanded", () => {

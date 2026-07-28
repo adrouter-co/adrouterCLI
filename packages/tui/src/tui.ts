@@ -17,13 +17,25 @@ import {
 	type TerminalColorScheme,
 } from "./terminal-colors.ts";
 import { deleteKittyImage, getCapabilities, isImageLine, setCellDimensions } from "./terminal-image.ts";
-import { extractSegments, normalizeTerminalOutput, sliceByColumn, sliceWithWidth, visibleWidth } from "./utils.ts";
+import {
+	extractSegments,
+	getGraphemeSegmenter,
+	normalizeTerminalOutput,
+	sliceByColumn,
+	sliceWithWidth,
+	visibleWidth,
+} from "./utils.ts";
 
 const KITTY_SEQUENCE_PREFIX = "\x1b_G";
 
 interface KittyImageHeader {
 	ids: number[];
 	rows: number;
+}
+
+export interface TranscriptSelectionYieldContext {
+	/** True after the transcript has been scrolled away from its newest position. */
+	historyScrolled: boolean;
 }
 
 function parseKittyImageHeader(line: string): KittyImageHeader | undefined {
@@ -92,6 +104,13 @@ export interface Component {
 	updateMouseSelection?(row: number, col: number): boolean;
 	endMouseSelection?(row: number, col: number): boolean;
 	clearSelection?(): boolean;
+
+	/**
+	 * Allow a focused input component to yield a Shift+Arrow key to the
+	 * transcript selector. Components that omit this hook keep existing input
+	 * routing unchanged.
+	 */
+	yieldInputToTranscriptSelection?(data: string, context: TranscriptSelectionYieldContext): boolean;
 }
 
 type InputListenerResult = { consume?: boolean; data?: string } | undefined;
@@ -343,7 +362,12 @@ export class TUI extends Container {
 	private transcriptSelectionAutoscrollTimer: NodeJS.Timeout | undefined;
 	private transcriptSelectionAutoscrollDirection: -1 | 0 | 1 = 0;
 	private transcriptSelection:
-		| { anchor: { line: number; col: number }; focus: { line: number; col: number }; dragging: boolean }
+		| {
+				anchor: { line: number; col: number };
+				focus: { line: number; col: number };
+				dragging: boolean;
+				goalCol?: number;
+		  }
 		| undefined;
 	private fullRedrawCount = 0;
 	private stopped = false;
@@ -505,6 +529,144 @@ export class TUI extends Container {
 		const line = this.transcriptVisibleStartLine + clampedRow;
 		if (line < 0 || line >= this.transcriptTopLineCount) return undefined;
 		return { line, col: Math.max(0, Math.min(this.terminal.columns, col)) };
+	}
+
+	private transcriptContentWidth(lineIndex: number): number {
+		const plain = this.stripAnsi(this.transcriptAllLines[lineIndex] ?? "").replace(/\s+$/u, "");
+		return Math.min(this.terminal.columns, visibleWidth(plain));
+	}
+
+	private transcriptColumnAtOrBefore(lineIndex: number, requestedCol: number): number {
+		const plain = this.stripAnsi(this.transcriptAllLines[lineIndex] ?? "").replace(/\s+$/u, "");
+		const limit = Math.max(0, Math.min(this.terminal.columns, requestedCol));
+		let column = 0;
+		for (const { segment } of getGraphemeSegmenter().segment(plain)) {
+			const next = column + visibleWidth(segment);
+			if (next > limit || next > this.terminal.columns) break;
+			column = next;
+		}
+		return column;
+	}
+
+	private previousTranscriptColumn(lineIndex: number, currentCol: number): number {
+		const plain = this.stripAnsi(this.transcriptAllLines[lineIndex] ?? "").replace(/\s+$/u, "");
+		let column = 0;
+		let previous = 0;
+		for (const { segment } of getGraphemeSegmenter().segment(plain)) {
+			const next = column + visibleWidth(segment);
+			if (next >= currentCol || next > this.terminal.columns) return previous;
+			previous = next;
+			column = next;
+		}
+		return previous;
+	}
+
+	private nextTranscriptColumn(lineIndex: number, currentCol: number): number {
+		const plain = this.stripAnsi(this.transcriptAllLines[lineIndex] ?? "").replace(/\s+$/u, "");
+		let column = 0;
+		for (const { segment } of getGraphemeSegmenter().segment(plain)) {
+			column += visibleWidth(segment);
+			if (column > currentCol) return Math.min(column, this.terminal.columns);
+			if (column >= this.terminal.columns) break;
+		}
+		return this.transcriptContentWidth(lineIndex);
+	}
+
+	private latestVisibleTranscriptPoint(): { line: number; col: number } | undefined {
+		if (this.transcriptViewportHeight <= 0 || this.transcriptTopLineCount <= 0) return undefined;
+		const lastVisibleLine = Math.min(
+			this.transcriptTopLineCount - 1,
+			this.transcriptVisibleStartLine + this.transcriptViewportHeight - 1,
+		);
+		if (lastVisibleLine < this.transcriptVisibleStartLine) return undefined;
+		return { line: lastVisibleLine, col: this.transcriptContentWidth(lastVisibleLine) };
+	}
+
+	private revealTranscriptSelectionFocus(): void {
+		const focus = this.transcriptSelection?.focus;
+		if (!focus || this.transcriptViewportHeight <= 0) return;
+		const start = Math.max(
+			0,
+			this.transcriptTopLineCount - this.transcriptViewportHeight - this.transcriptScrollOffset,
+		);
+		const end = start + this.transcriptViewportHeight - 1;
+		if (focus.line < start) {
+			this.scrollTranscript(start - focus.line);
+		} else if (focus.line > end) {
+			this.scrollTranscript(-(focus.line - end));
+		}
+	}
+
+	private transcriptSelectionDirection(data: string): "up" | "down" | "left" | "right" | undefined {
+		const keybindings = getKeybindings();
+		if (keybindings.matches(data, "tui.editor.selectUp")) return "up";
+		if (keybindings.matches(data, "tui.editor.selectDown")) return "down";
+		if (keybindings.matches(data, "tui.editor.selectLeft")) return "left";
+		if (keybindings.matches(data, "tui.editor.selectRight")) return "right";
+		return undefined;
+	}
+
+	private moveTranscriptSelection(direction: "up" | "down" | "left" | "right"): void {
+		const selection = this.transcriptSelection;
+		if (!selection) return;
+		const focus = { ...selection.focus };
+
+		if (direction === "left") {
+			selection.goalCol = undefined;
+			if (focus.col > 0) {
+				focus.col = this.previousTranscriptColumn(focus.line, focus.col);
+			} else if (focus.line > 0) {
+				focus.line -= 1;
+				focus.col = this.transcriptContentWidth(focus.line);
+			}
+		} else if (direction === "right") {
+			selection.goalCol = undefined;
+			const lineWidth = this.transcriptContentWidth(focus.line);
+			if (focus.col < lineWidth) {
+				focus.col = this.nextTranscriptColumn(focus.line, focus.col);
+			} else if (focus.line < this.transcriptTopLineCount - 1) {
+				focus.line += 1;
+				focus.col = 0;
+			}
+		} else {
+			const delta = direction === "up" ? -1 : 1;
+			const nextLine = Math.max(0, Math.min(this.transcriptTopLineCount - 1, focus.line + delta));
+			selection.goalCol ??= focus.col;
+			focus.line = nextLine;
+			focus.col = this.transcriptColumnAtOrBefore(nextLine, selection.goalCol);
+		}
+
+		selection.focus = focus;
+		this.revealTranscriptSelectionFocus();
+		this.requestRender();
+	}
+
+	private consumeTranscriptKeyboardSelectionInput(data: string): boolean {
+		if (!this.bottomAnchorStartComponent || this.hasOverlay()) return false;
+		const direction = this.transcriptSelectionDirection(data);
+		if (!direction) return false;
+
+		if (this.selectionAttention === "transcript" && this.transcriptSelection) {
+			this.moveTranscriptSelection(direction);
+			return true;
+		}
+
+		const shouldYield = this.focusedComponent?.yieldInputToTranscriptSelection?.(data, {
+			historyScrolled: this.transcriptScrollOffset > 0,
+		});
+		if (!shouldYield) return false;
+		const start = this.latestVisibleTranscriptPoint();
+		if (!start) return false;
+
+		this.setSelectionAttention("transcript");
+		this.transcriptSelection = {
+			anchor: start,
+			focus: start,
+			dragging: false,
+			goalCol: direction === "up" || direction === "down" ? start.col : undefined,
+		};
+		this.moveTranscriptSelection(direction);
+		return true;
 	}
 
 	private orderedTranscriptSelection():
@@ -1214,6 +1376,9 @@ export class TUI extends Container {
 			data = current;
 		}
 		if (this.consumeTranscriptSelectionInput(data)) {
+			return;
+		}
+		if (this.consumeTranscriptKeyboardSelectionInput(data)) {
 			return;
 		}
 		if (this.consumeTranscriptScrollInput(data)) {
