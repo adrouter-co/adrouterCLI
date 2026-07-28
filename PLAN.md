@@ -41,9 +41,9 @@ the next immutable beta when all staging and release gates pass.
 - The CLI is the active client focus. Desktop remains in the server contract but is not changed by
   this plan. OpenCode is unsupported on the current installation/legacy system and is not changed or
   released here.
-- The next intended release identity is `0.81.0-beta.8`, but it may be used only if npm, Git refs,
-  GitHub releases/drafts, and workflow state all show it is unused immediately before release. If it
-  is occupied, select the lowest unused higher beta and record that decision.
+- The selected release identity is `0.81.0-beta.9`. Beta.8 became an immutable npm candidate
+  before the terminal-experience changes were added, so the required fix-forward rule selected the
+  lowest unused higher beta.
 
 ### Operator setup and authentication
 
@@ -529,21 +529,21 @@ systems against staging, and promote it to public beta channels without rebuildi
 
 ```bash
 npm view @adrouter/cli version versions dist-tags --json
-git ls-remote --tags origin refs/tags/v0.81.0-beta.8
-gh release view v0.81.0-beta.8 --repo adrouter/adrouterCLI
+git ls-remote --tags origin refs/tags/v0.81.0-beta.9
+gh release view v0.81.0-beta.9 --repo adrouter/adrouterCLI
 gh run list --repo adrouter/adrouterCLI --limit 20
 gh secret set NPM_TOKEN --repo adrouter/adrouterCLI --env npm-publish
 
 cd "$CLI_RELEASE_CHECKOUT"
 git status --short
-ADROUTER_CHANGELOG_AUDITED=1 node scripts/release.mjs 0.81.0-beta.8
+ADROUTER_CHANGELOG_AUDITED=1 node scripts/release.mjs 0.81.0-beta.9
 
-gh release view v0.81.0-beta.8 --repo adrouter/adrouterCLI --json isDraft,isPrerelease,tagName,targetCommitish,assets
-gh workflow run promote-release.yml --repo adrouter/adrouterCLI --ref v0.81.0-beta.8 -f tag=v0.81.0-beta.8 -f phase=publish-candidate
-npm view @adrouter/cli@0.81.0-beta.8 version dist.integrity repository --json
+gh release view v0.81.0-beta.9 --repo adrouter/adrouterCLI --json isDraft,isPrerelease,tagName,targetCommitish,assets
+gh workflow run promote-release.yml --repo adrouter/adrouterCLI --ref v0.81.0-beta.9 -f tag=v0.81.0-beta.9 -f phase=publish-candidate
+npm view @adrouter/cli@0.81.0-beta.9 version dist.integrity repository --json
 npm view @adrouter/cli dist-tags --json
 
-gh workflow run promote-release.yml --repo adrouter/adrouterCLI --ref v0.81.0-beta.8 -f tag=v0.81.0-beta.8 -f phase=finalize-release
+gh workflow run promote-release.yml --repo adrouter/adrouterCLI --ref v0.81.0-beta.9 -f tag=v0.81.0-beta.9 -f phase=finalize-release
 npm view @adrouter/cli version dist-tags --json
 gh secret delete NPM_TOKEN --repo adrouter/adrouterCLI --env npm-publish
 ```
@@ -562,8 +562,9 @@ gh secret delete NPM_TOKEN --repo adrouter/adrouterCLI --env npm-publish
 
 ### Validation Results
 
-- Release identity vacancy: beta.8 confirmed unused across npm, Git tags, GitHub releases/drafts,
-  and Actions immediately after implementation merge `4d93db93999aa9cd0c7add570b2d7e32daedfa5f`.
+- Release identity vacancy: beta.8 was already published under `candidate`, so beta.9 was selected
+  and confirmed unused across npm, Git tags, GitHub releases/drafts, and Actions after implementation
+  merge `d676991b3b9c5ba133f12bff249ece8dbdfc9726`.
 - Tag/draft workflow: not run.
 - Candidate publication: not run.
 - Two-cohort acceptance: not run.
@@ -572,7 +573,7 @@ gh secret delete NPM_TOKEN --repo adrouter/adrouterCLI --env npm-publish
 
 ### Findings / Notes
 
-- If beta.8 is no longer vacant, replace every example identity consistently with the lowest unused
+- If beta.9 is no longer vacant, replace every example identity consistently with the lowest unused
   higher beta before running any release command.
 - `scripts/release.mjs` commits, tags, and pushes; it is not a dry-run version preview.
 
@@ -646,7 +647,7 @@ git diff --check
 git status --short
 
 npm view @adrouter/cli version dist-tags dist.integrity --json
-gh release view v0.81.0-beta.8 --repo adrouter/adrouterCLI --json tagName,targetCommitish,isDraft,isPrerelease,assets,url
+gh release view v0.81.0-beta.9 --repo adrouter/adrouterCLI --json tagName,targetCommitish,isDraft,isPrerelease,assets,url
 ```
 
 ### Acceptance Criteria
