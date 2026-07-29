@@ -1200,6 +1200,9 @@ export class DefaultPackageManager implements PackageManager {
 		if (gitParsed) {
 			return gitParsed;
 		}
+		if (source.trim().startsWith("git:") || /^(https?|ssh|git):\/\//i.test(source.trim())) {
+			throw new Error(`Invalid Git source: ${source}`);
+		}
 
 		return { type: "local", path: source };
 	}
@@ -1436,7 +1439,7 @@ export class DefaultPackageManager implements PackageManager {
 		const targetDir = this.getGitInstallPath(source, scope);
 		if (existsSync(targetDir)) {
 			if (source.ref) {
-				await this.ensureGitRef(targetDir, ["fetch", "origin", source.ref], "FETCH_HEAD");
+				await this.ensureGitRef(targetDir, ["fetch", "--no-tags", "origin", "--", source.ref], "FETCH_HEAD");
 				return;
 			}
 			const target = await this.getLocalGitUpdateTarget(targetDir);
@@ -1449,9 +1452,9 @@ export class DefaultPackageManager implements PackageManager {
 		}
 		mkdirSync(dirname(targetDir), { recursive: true });
 
-		await this.runCommand("git", ["clone", source.repo, targetDir]);
+		await this.runCommand("git", ["clone", "--", source.repo, targetDir]);
 		if (source.ref) {
-			await this.runCommand("git", ["checkout", source.ref], { cwd: targetDir });
+			await this.ensureGitRef(targetDir, ["fetch", "--no-tags", "origin", "--", source.ref], "FETCH_HEAD", false);
 		}
 		const packageJsonPath = join(targetDir, "package.json");
 		if (existsSync(packageJsonPath)) {
@@ -1467,7 +1470,7 @@ export class DefaultPackageManager implements PackageManager {
 		}
 
 		if (source.ref) {
-			await this.ensureGitRef(targetDir, ["fetch", "origin", source.ref], "FETCH_HEAD");
+			await this.ensureGitRef(targetDir, ["fetch", "--no-tags", "origin", "--", source.ref], "FETCH_HEAD");
 			return;
 		}
 
@@ -1475,7 +1478,12 @@ export class DefaultPackageManager implements PackageManager {
 		await this.ensureGitRef(targetDir, target.fetchArgs, target.ref);
 	}
 
-	private async ensureGitRef(targetDir: string, fetchArgs: string[], ref: string): Promise<void> {
+	private async ensureGitRef(
+		targetDir: string,
+		fetchArgs: string[],
+		ref: string,
+		installDependencies = true,
+	): Promise<void> {
 		// Fetch only the ref we will reset to, avoiding unrelated branch/tag noise.
 		await this.runCommand("git", fetchArgs, { cwd: targetDir });
 
@@ -1488,17 +1496,21 @@ export class DefaultPackageManager implements PackageManager {
 			cwd: targetDir,
 			timeoutMs: NETWORK_TIMEOUT_MS,
 		});
-		if (localHead.trim() === targetHead.trim()) {
+		const verifiedTargetHead = targetHead.trim();
+		if (!/^[0-9a-f]{40,64}$/i.test(verifiedTargetHead)) {
+			throw new Error("Git ref did not resolve to a valid commit ID");
+		}
+		if (localHead.trim() === verifiedTargetHead) {
 			return;
 		}
 
-		await this.runCommand("git", ["reset", "--hard", commitRef], { cwd: targetDir });
+		await this.runCommand("git", ["reset", "--hard", verifiedTargetHead], { cwd: targetDir });
 
 		// Clean untracked files (extensions should be pristine)
 		await this.runCommand("git", ["clean", "-fdx"], { cwd: targetDir });
 
 		const packageJsonPath = join(targetDir, "package.json");
-		if (existsSync(packageJsonPath)) {
+		if (installDependencies && existsSync(packageJsonPath)) {
 			await this.runNpmCommand(this.getGitDependencyInstallArgs(), { cwd: targetDir });
 		}
 	}

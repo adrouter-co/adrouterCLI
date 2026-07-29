@@ -34,22 +34,21 @@ function splitRef(url: string): { repo: string; ref?: string } {
 	}
 
 	if (url.includes("://")) {
-		try {
-			const parsed = new URL(url);
-			const pathWithMaybeRef = parsed.pathname.replace(/^\/+/, "");
-			const refSeparator = pathWithMaybeRef.indexOf("@");
-			if (refSeparator < 0) return { repo: url };
-			const repoPath = pathWithMaybeRef.slice(0, refSeparator);
-			const ref = pathWithMaybeRef.slice(refSeparator + 1);
-			if (!repoPath || !ref) return { repo: url };
-			parsed.pathname = `/${repoPath}`;
-			return {
-				repo: parsed.toString().replace(/\/$/, ""),
-				ref,
-			};
-		} catch {
-			return { repo: url };
-		}
+		const authorityEnd = url.indexOf("/", url.indexOf("://") + 3);
+		if (authorityEnd < 0) return { repo: url };
+		const queryStart = url.indexOf("?", authorityEnd);
+		const hashStart = url.indexOf("#", authorityEnd);
+		const pathEnd = Math.min(queryStart < 0 ? url.length : queryStart, hashStart < 0 ? url.length : hashStart);
+		const pathWithMaybeRef = url.slice(authorityEnd + 1, pathEnd);
+		const refSeparator = pathWithMaybeRef.indexOf("@");
+		if (refSeparator < 0) return { repo: url };
+		const repoPath = pathWithMaybeRef.slice(0, refSeparator);
+		const ref = pathWithMaybeRef.slice(refSeparator + 1);
+		if (!repoPath || !ref) return { repo: url };
+		return {
+			repo: `${url.slice(0, authorityEnd + 1)}${repoPath}${url.slice(pathEnd)}`,
+			ref,
+		};
 	}
 
 	const slashIndex = url.indexOf("/");
@@ -101,6 +100,35 @@ function hasUnsafeGitInstallPart(value: string, allowSlash: boolean): boolean {
 	return false;
 }
 
+/**
+ * Validate a user-supplied Git branch, tag, or commit before it reaches Git.
+ * This mirrors Git's ref-format restrictions while allowing abbreviated and
+ * full SHA-1/SHA-256 commit IDs.
+ */
+export function isSafeGitRef(value: string): boolean {
+	const decoded = decodeForValidation(value);
+	if (decoded === null) return false;
+
+	for (const candidate of new Set([value, decoded])) {
+		if (!candidate || candidate.length > 1024) return false;
+		if (/^[0-9a-f]{7,64}$/i.test(candidate)) continue;
+		if (candidate.startsWith("-") || candidate.startsWith(".") || candidate.endsWith(".")) return false;
+		if (candidate === "@" || candidate.includes("..") || candidate.includes("@{")) return false;
+		if (candidate.startsWith("/") || candidate.endsWith("/") || candidate.includes("//")) return false;
+		for (const character of candidate) {
+			const codePoint = character.codePointAt(0) ?? 0;
+			if (codePoint <= 0x20 || codePoint === 0x7f || "~^:?*[]\\".includes(character)) return false;
+		}
+
+		const components = candidate.split("/");
+		if (components.some((component) => !component || component.startsWith(".") || component.endsWith(".lock"))) {
+			return false;
+		}
+	}
+
+	return true;
+}
+
 function buildGitSource(args: { repo: string; host: string; path: string; ref?: string }): GitSource | null {
 	if (args.path.startsWith("/")) {
 		return null;
@@ -110,6 +138,9 @@ function buildGitSource(args: { repo: string; host: string; path: string; ref?: 
 		return null;
 	}
 	if (hasUnsafeGitInstallPart(args.host, false) || hasUnsafeGitInstallPart(normalizedPath, true)) {
+		return null;
+	}
+	if (args.ref !== undefined && !isSafeGitRef(args.ref)) {
 		return null;
 	}
 
