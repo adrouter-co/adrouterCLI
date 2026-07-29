@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.81.0-beta.12] - 2026-07-29
+
+### Fixed
+
+- Replaced ambiguous path and prompt-template regular expressions with deterministic scanners to
+  keep skill discovery and argument substitution linear on adversarial input.
+- Kept inserted prompt arguments and defaults literal instead of recursively expanding placeholder
+  text.
+
 ## [0.81.0-beta.11] - 2026-07-29
 
 ### Changed

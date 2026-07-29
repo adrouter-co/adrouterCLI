@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.81.0-beta.12] - 2026-07-29
+
+### Fixed
+
+- Rejected unsafe Git branch, tag, and commit refs before invocation, separated Git options from
+  operands, and reset installed packages only to verified commit IDs.
+- Replaced polynomial package-spec, prompt-template, skill-block, path, and diff-line regular
+  expressions with deterministic parsing and adversarial regression coverage.
+- Updated the sandbox and Gondolin example locks to `shell-quote` 1.10.0 and `undici` 6.27.0.
+
 ## [0.81.0-beta.11] - 2026-07-29
 
 ### Changed
