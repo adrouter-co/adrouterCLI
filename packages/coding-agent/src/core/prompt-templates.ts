@@ -68,36 +68,97 @@ export function parseCommandArgs(argsString: string): string[] {
  */
 export function substituteArgs(content: string, args: string[]): string {
 	const allArgs = args.join(" ");
+	let result = "";
+	let index = 0;
 
-	return content.replace(
-		/\$\{(\d+):-([^}]*)\}|\$\{@:(\d+)(?::(\d+))?\}|\$(ARGUMENTS|@|\d+)/g,
-		(_match, defaultNum, defaultValue, sliceStart, sliceLength, simple) => {
-			if (defaultNum) {
-				const index = parseInt(defaultNum, 10) - 1;
-				const value = args[index];
-				return value ? value : defaultValue;
-			}
+	while (index < content.length) {
+		if (content[index] !== "$") {
+			result += content[index];
+			index++;
+			continue;
+		}
+		if (content.startsWith("$ARGUMENTS", index)) {
+			result += allArgs;
+			index += "$ARGUMENTS".length;
+			continue;
+		}
+		if (content.startsWith("$@", index)) {
+			result += allArgs;
+			index += 2;
+			continue;
+		}
 
-			if (sliceStart) {
-				let start = parseInt(sliceStart, 10) - 1; // Convert to 0-indexed (user provides 1-indexed)
-				// Treat 0 as 1 (bash convention: args start at 1)
-				if (start < 0) start = 0;
-
-				if (sliceLength) {
-					const length = parseInt(sliceLength, 10);
-					return args.slice(start, start + length).join(" ");
+		if (content.startsWith("${", index)) {
+			let cursor = index + 2;
+			if (content[cursor] === "@" && content[cursor + 1] === ":") {
+				cursor += 2;
+				const startBegin = cursor;
+				while (cursor < content.length && content.charCodeAt(cursor) >= 48 && content.charCodeAt(cursor) <= 57) {
+					cursor++;
 				}
-				return args.slice(start).join(" ");
+				if (cursor > startBegin) {
+					const startText = content.slice(startBegin, cursor);
+					let lengthText: string | undefined;
+					if (content[cursor] === ":") {
+						const lengthBegin = ++cursor;
+						while (
+							cursor < content.length &&
+							content.charCodeAt(cursor) >= 48 &&
+							content.charCodeAt(cursor) <= 57
+						) {
+							cursor++;
+						}
+						if (cursor === lengthBegin) {
+							result += "$";
+							index++;
+							continue;
+						}
+						lengthText = content.slice(lengthBegin, cursor);
+					}
+					if (content[cursor] === "}") {
+						let start = Number.parseInt(startText, 10) - 1;
+						if (start < 0) start = 0;
+						const selected =
+							lengthText === undefined
+								? args.slice(start)
+								: args.slice(start, start + Number.parseInt(lengthText, 10));
+						result += selected.join(" ");
+						index = cursor + 1;
+						continue;
+					}
+				}
+			} else {
+				const numberBegin = cursor;
+				while (cursor < content.length && content.charCodeAt(cursor) >= 48 && content.charCodeAt(cursor) <= 57) {
+					cursor++;
+				}
+				if (cursor > numberBegin && content.startsWith(":-", cursor)) {
+					const defaultEnd = content.indexOf("}", cursor + 2);
+					if (defaultEnd >= 0) {
+						const argumentIndex = Number.parseInt(content.slice(numberBegin, cursor), 10) - 1;
+						result += args[argumentIndex] || content.slice(cursor + 2, defaultEnd);
+						index = defaultEnd + 1;
+						continue;
+					}
+				}
 			}
+		}
 
-			if (simple === "ARGUMENTS" || simple === "@") {
-				return allArgs;
-			}
+		let digitEnd = index + 1;
+		while (digitEnd < content.length && content.charCodeAt(digitEnd) >= 48 && content.charCodeAt(digitEnd) <= 57) {
+			digitEnd++;
+		}
+		if (digitEnd > index + 1) {
+			result += args[Number.parseInt(content.slice(index + 1, digitEnd), 10) - 1] ?? "";
+			index = digitEnd;
+			continue;
+		}
 
-			const index = parseInt(simple, 10) - 1;
-			return args[index] ?? "";
-		},
-	);
+		result += "$";
+		index++;
+	}
+
+	return result;
 }
 
 function loadTemplateFromFile(filePath: string, sourceInfo: SourceInfo): PromptTemplate | null {

@@ -6,6 +6,7 @@ import {
 	formatPromptTemplateInvocation,
 	loadPromptTemplates,
 	loadSourcedPromptTemplates,
+	substituteArgs,
 } from "../../src/harness/prompt-templates.ts";
 import { createTempDir } from "./session-test-utils.ts";
 
@@ -86,5 +87,16 @@ describe("formatPromptTemplateInvocation", () => {
 		expect(formatPromptTemplateInvocation({ name: "one", content }, ["hello world", "test"])).toBe(
 			"hello world test hello world test",
 		);
+	});
+
+	it("supports defaults without recursively expanding inserted values", () => {
+		expect(substituteArgs(`\${1:-fallback} $ARGUMENTS`, [])).toBe("fallback ");
+		expect(substituteArgs("$1 $ARGUMENTS", ["$ARGUMENTS"])).toBe("$ARGUMENTS $ARGUMENTS");
+	});
+
+	it("scans adversarial placeholder text in deterministic order", () => {
+		const repeated = "$".repeat(100_000);
+		expect(substituteArgs(repeated, ["value"])).toBe(repeated);
+		expect(substituteArgs(`${"${1:-".repeat(20_000)}tail`, [])).toBe(`${"${1:-".repeat(20_000)}tail`);
 	});
 });

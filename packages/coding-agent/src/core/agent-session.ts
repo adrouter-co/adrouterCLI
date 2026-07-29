@@ -115,13 +115,27 @@ export interface ParsedSkillBlock {
  * Returns null if the text doesn't contain a skill block.
  */
 export function parseSkillBlock(text: string): ParsedSkillBlock | null {
-	const match = text.match(/^<skill name="([^"]+)" location="([^"]+)">\n([\s\S]*?)\n<\/skill>(?:\n\n([\s\S]+))?$/);
-	if (!match) return null;
+	const prefix = '<skill name="';
+	const locationSeparator = '" location="';
+	const contentSeparator = '">\n';
+	const closingTag = "\n</skill>";
+	if (!text.startsWith(prefix)) return null;
+	const nameEnd = text.indexOf(locationSeparator, prefix.length);
+	if (nameEnd <= prefix.length) return null;
+	const locationStart = nameEnd + locationSeparator.length;
+	const locationEnd = text.indexOf(contentSeparator, locationStart);
+	if (locationEnd <= locationStart) return null;
+	const contentStart = locationEnd + contentSeparator.length;
+	const contentEnd = text.indexOf(closingTag, contentStart);
+	if (contentEnd < 0) return null;
+	const suffix = text.slice(contentEnd + closingTag.length);
+	if (suffix && !suffix.startsWith("\n\n")) return null;
+	const userMessage = suffix ? suffix.slice(2) : "";
 	return {
-		name: match[1],
-		location: match[2],
-		content: match[3],
-		userMessage: match[4]?.trim() || undefined,
+		name: text.slice(prefix.length, nameEnd),
+		location: text.slice(locationStart, locationEnd),
+		content: text.slice(contentStart, contentEnd),
+		userMessage: userMessage.trim() || undefined,
 	};
 }
 

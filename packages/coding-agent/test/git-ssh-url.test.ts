@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseGitUrl } from "../src/utils/git.ts";
+import { isSafeGitRef, parseGitUrl } from "../src/utils/git.ts";
 
 describe("Git URL Parsing", () => {
 	describe("protocol URLs (accepted without git: prefix)", () => {
@@ -72,6 +72,30 @@ describe("Git URL Parsing", () => {
 			"git:git@evil.example:user/repo\0name",
 		]) {
 			expect(parseGitUrl(source)).toBeNull();
+		}
+	});
+
+	it("should accept normal branch, tag, and commit refs", () => {
+		for (const ref of ["main", "v1.2.3", "feature/security/fix", "0123456", "a".repeat(40)]) {
+			expect(isSafeGitRef(ref)).toBe(true);
+		}
+	});
+
+	it("should reject refs that Git could interpret as options or invalid refnames", () => {
+		for (const ref of [
+			"--upload-pack=/bin/echo",
+			"%2D%2Dupload-pack%3D%2Fbin%2Fecho",
+			"feature/../main",
+			"feature//main",
+			"feature/@{main",
+			"feature/.hidden",
+			"feature/main.lock",
+			"feature main",
+			"feature\\main",
+			"a".repeat(1025),
+		]) {
+			expect(isSafeGitRef(ref)).toBe(false);
+			expect(parseGitUrl(`https://github.com/user/repo@${ref}`)).toBeNull();
 		}
 	});
 

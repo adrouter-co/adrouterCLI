@@ -25,6 +25,12 @@ import {
 // ============================================================================
 
 describe("substituteArgs", () => {
+	test("should scan adversarial placeholder text in deterministic order", () => {
+		const repeated = "$".repeat(100_000);
+		expect(substituteArgs(repeated, ["value"])).toBe(repeated);
+		expect(substituteArgs(`${"${1:-".repeat(20_000)}tail`, [])).toBe(`${"${1:-".repeat(20_000)}tail`);
+	});
+
 	test("should replace $ARGUMENTS with all args joined", () => {
 		expect(substituteArgs("Test: $ARGUMENTS", ["a", "b", "c"])).toBe("Test: a b c");
 	});

@@ -245,19 +245,96 @@ export function parseCommandArgs(argsString: string): string[] {
 	return args;
 }
 
-/** Substitute prompt template placeholders (`$1`, `$@`, `$ARGUMENTS`, `${@:N}`, `${@:N:L}`) with command arguments. */
+/** Substitute prompt template placeholders without recursively expanding inserted argument or default text. */
 export function substituteArgs(content: string, args: string[]): string {
-	let result = content;
-	result = result.replace(/\$(\d+)/g, (_, num: string) => args[parseInt(num, 10) - 1] ?? "");
-	result = result.replace(/\$\{@:(\d+)(?::(\d+))?\}/g, (_, startStr: string, lengthStr?: string) => {
-		let start = parseInt(startStr, 10) - 1;
-		if (start < 0) start = 0;
-		if (lengthStr) return args.slice(start, start + parseInt(lengthStr, 10)).join(" ");
-		return args.slice(start).join(" ");
-	});
 	const allArgs = args.join(" ");
-	result = result.replace(/\$ARGUMENTS/g, allArgs);
-	result = result.replace(/\$@/g, allArgs);
+	let result = "";
+	let index = 0;
+
+	while (index < content.length) {
+		if (content[index] !== "$") {
+			result += content[index];
+			index++;
+			continue;
+		}
+		if (content.startsWith("$ARGUMENTS", index)) {
+			result += allArgs;
+			index += "$ARGUMENTS".length;
+			continue;
+		}
+		if (content.startsWith("$@", index)) {
+			result += allArgs;
+			index += 2;
+			continue;
+		}
+		if (content.startsWith("${", index)) {
+			let cursor = index + 2;
+			if (content[cursor] === "@" && content[cursor + 1] === ":") {
+				cursor += 2;
+				const startBegin = cursor;
+				while (cursor < content.length && content.charCodeAt(cursor) >= 48 && content.charCodeAt(cursor) <= 57) {
+					cursor++;
+				}
+				if (cursor > startBegin) {
+					const startText = content.slice(startBegin, cursor);
+					let lengthText: string | undefined;
+					if (content[cursor] === ":") {
+						const lengthBegin = ++cursor;
+						while (
+							cursor < content.length &&
+							content.charCodeAt(cursor) >= 48 &&
+							content.charCodeAt(cursor) <= 57
+						) {
+							cursor++;
+						}
+						if (cursor === lengthBegin) {
+							result += "$";
+							index++;
+							continue;
+						}
+						lengthText = content.slice(lengthBegin, cursor);
+					}
+					if (content[cursor] === "}") {
+						let start = Number.parseInt(startText, 10) - 1;
+						if (start < 0) start = 0;
+						const selected =
+							lengthText === undefined
+								? args.slice(start)
+								: args.slice(start, start + Number.parseInt(lengthText, 10));
+						result += selected.join(" ");
+						index = cursor + 1;
+						continue;
+					}
+				}
+			} else {
+				const numberBegin = cursor;
+				while (cursor < content.length && content.charCodeAt(cursor) >= 48 && content.charCodeAt(cursor) <= 57) {
+					cursor++;
+				}
+				if (cursor > numberBegin && content.startsWith(":-", cursor)) {
+					const defaultEnd = content.indexOf("}", cursor + 2);
+					if (defaultEnd >= 0) {
+						const argumentIndex = Number.parseInt(content.slice(numberBegin, cursor), 10) - 1;
+						result += args[argumentIndex] || content.slice(cursor + 2, defaultEnd);
+						index = defaultEnd + 1;
+						continue;
+					}
+				}
+			}
+		}
+		let digitEnd = index + 1;
+		while (digitEnd < content.length && content.charCodeAt(digitEnd) >= 48 && content.charCodeAt(digitEnd) <= 57) {
+			digitEnd++;
+		}
+		if (digitEnd > index + 1) {
+			result += args[Number.parseInt(content.slice(index + 1, digitEnd), 10) - 1] ?? "";
+			index = digitEnd;
+			continue;
+		}
+		result += "$";
+		index++;
+	}
+
 	return result;
 }
 

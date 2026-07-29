@@ -764,6 +764,7 @@ Content`,
 		it("should reconcile an existing git checkout to a pinned ref during install", async () => {
 			const source = "git:github.com/user/repo@v2";
 			const targetDir = join(agentDir, "git", "github.com", "user", "repo");
+			const targetHead = "b".repeat(40);
 			mkdirSync(targetDir, { recursive: true });
 			writeFileSync(join(targetDir, "package.json"), JSON.stringify({ name: "repo", version: "1.0.0" }));
 
@@ -773,7 +774,7 @@ Content`,
 					return "old-head";
 				}
 				if (args[0] === "rev-parse" && args[1] === "FETCH_HEAD^{commit}") {
-					return "new-head";
+					return targetHead;
 				}
 				throw new Error(`Unexpected runCommandCapture args: ${args.join(" ")}`);
 			});
@@ -781,8 +782,10 @@ Content`,
 
 			await packageManager.install(source);
 
-			expect(runCommandSpy).toHaveBeenCalledWith("git", ["fetch", "origin", "v2"], { cwd: targetDir });
-			expect(runCommandSpy).toHaveBeenCalledWith("git", ["reset", "--hard", "FETCH_HEAD^{commit}"], {
+			expect(runCommandSpy).toHaveBeenCalledWith("git", ["fetch", "--no-tags", "origin", "--", "v2"], {
+				cwd: targetDir,
+			});
+			expect(runCommandSpy).toHaveBeenCalledWith("git", ["reset", "--hard", targetHead], {
 				cwd: targetDir,
 			});
 			expect(runCommandSpy).toHaveBeenCalledWith("git", ["clean", "-fdx"], { cwd: targetDir });
@@ -793,12 +796,13 @@ Content`,
 			const source = "git:github.com/user/repo";
 			const targetDir = join(agentDir, "git", "github.com", "user", "repo");
 			const fetchArgs = ["fetch", "--prune", "--no-tags", "origin", "+refs/heads/main:refs/remotes/origin/main"];
+			const targetHead = "c".repeat(40);
 			mkdirSync(targetDir, { recursive: true });
 
 			const managerWithInternals = packageManager as unknown as PackageManagerInternals;
 			vi.spyOn(managerWithInternals, "getLocalGitUpdateTarget").mockResolvedValue({
 				ref: "origin/HEAD",
-				head: "new-head",
+				head: targetHead,
 				fetchArgs,
 			});
 			vi.spyOn(managerWithInternals, "runCommandCapture").mockImplementation(async (_command, args) => {
@@ -806,7 +810,7 @@ Content`,
 					return "old-head";
 				}
 				if (args[0] === "rev-parse" && args[1] === "origin/HEAD^{commit}") {
-					return "new-head";
+					return targetHead;
 				}
 				throw new Error(`Unexpected runCommandCapture args: ${args.join(" ")}`);
 			});
@@ -815,7 +819,7 @@ Content`,
 			await packageManager.install(source);
 
 			expect(runCommandSpy).toHaveBeenCalledWith("git", fetchArgs, { cwd: targetDir });
-			expect(runCommandSpy).toHaveBeenCalledWith("git", ["reset", "--hard", "origin/HEAD^{commit}"], {
+			expect(runCommandSpy).toHaveBeenCalledWith("git", ["reset", "--hard", targetHead], {
 				cwd: targetDir,
 			});
 			expect(runCommandSpy).toHaveBeenCalledWith("git", ["clean", "-fdx"], { cwd: targetDir });
@@ -1083,6 +1087,15 @@ Content`,
 			expect((packageManager as any).parseSource("/absolute/path/to/package").type).toBe("local");
 			expect((packageManager as any).parseSource("./relative/path/to/package").type).toBe("local");
 			expect((packageManager as any).parseSource("../relative/path/to/package").type).toBe("local");
+		});
+
+		it("should reject malformed Git-like sources instead of treating them as local paths", () => {
+			for (const source of [
+				"https://github.com/user/repo@--upload-pack=/bin/echo",
+				"git:github.com/user/repo@feature/../main",
+			]) {
+				expect(() => (packageManager as any).parseSource(source)).toThrow("Invalid Git source");
+			}
 		});
 
 		it("should never parse dot-relative paths as git", () => {

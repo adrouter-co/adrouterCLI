@@ -5,10 +5,25 @@ import { theme } from "../theme/theme.ts";
  * Parse diff line to extract prefix, line number, and content.
  * Format: "+123 content" or "-123 content" or " 123 content" or "     ..."
  */
-function parseDiffLine(line: string): { prefix: string; lineNum: string; content: string } | null {
-	const match = line.match(/^([+-\s])(\s*\d*)\s(.*)$/);
-	if (!match) return null;
-	return { prefix: match[1], lineNum: match[2], content: match[3] };
+export function parseDiffLine(line: string): { prefix: string; lineNum: string; content: string } | null {
+	const prefix = line[0];
+	if (prefix !== "+" && prefix !== "-" && !isWhitespace(prefix)) return null;
+
+	let cursor = 1;
+	while (cursor < line.length && isWhitespace(line[cursor])) cursor++;
+	const digitsBegin = cursor;
+	while (cursor < line.length && line.charCodeAt(cursor) >= 48 && line.charCodeAt(cursor) <= 57) cursor++;
+
+	if (cursor === digitsBegin) {
+		if (cursor === 1) return null;
+		return { prefix, lineNum: line.slice(1, cursor - 1), content: line.slice(cursor) };
+	}
+	if (!isWhitespace(line[cursor])) return null;
+	return { prefix, lineNum: line.slice(1, cursor), content: line.slice(cursor + 1) };
+}
+
+function isWhitespace(character: string | undefined): character is string {
+	return character !== undefined && character.trim() === "";
 }
 
 /**
