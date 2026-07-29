@@ -1341,13 +1341,9 @@ export class DefaultPackageManager implements PackageManager {
 	}
 
 	private parseNpmSpec(spec: string): { name: string; version?: string } {
-		const match = spec.match(/^(@?[^@]+(?:\/[^@]+)?)(?:@(.+))?$/);
-		if (!match) {
-			return { name: spec };
-		}
-		const name = match[1] ?? spec;
-		const version = match[2];
-		return { name, version };
+		const separator = spec.indexOf("@", spec.startsWith("@") ? 1 : 0);
+		if (separator <= 0 || separator === spec.length - 1) return { name: spec };
+		return { name: spec.slice(0, separator), version: spec.slice(separator + 1) };
 	}
 
 	private assertProjectTrustedForScope(scope: SourceScope): void {

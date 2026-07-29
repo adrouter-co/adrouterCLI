@@ -356,26 +356,38 @@ async function resolveKind(
 }
 
 function joinEnvPath(base: string, child: string): string {
-	return `${base.replace(/[\\/]+$/, "")}/${child.replace(/^[\\/]+/, "")}`;
+	return `${trimTrailingSeparators(base)}/${trimLeadingSeparators(child)}`;
 }
 
 function dirnameEnvPath(path: string): string {
-	const normalized = path.replace(/[\\/]+$/, "");
+	const normalized = trimTrailingSeparators(path);
 	const slashIndex = Math.max(normalized.lastIndexOf("/"), normalized.lastIndexOf("\\"));
 	return slashIndex <= 0 ? normalized.slice(0, slashIndex + 1) || "/" : normalized.slice(0, slashIndex);
 }
 
 function basenameEnvPath(path: string): string {
-	const normalized = path.replace(/[\\/]+$/, "");
+	const normalized = trimTrailingSeparators(path);
 	const slashIndex = Math.max(normalized.lastIndexOf("/"), normalized.lastIndexOf("\\"));
 	return slashIndex === -1 ? normalized : normalized.slice(slashIndex + 1);
 }
 
+function trimTrailingSeparators(path: string): string {
+	let end = path.length;
+	while (end > 0 && (path[end - 1] === "/" || path[end - 1] === "\\")) end--;
+	return path.slice(0, end);
+}
+
+function trimLeadingSeparators(path: string): string {
+	let start = 0;
+	while (start < path.length && (path[start] === "/" || path[start] === "\\")) start++;
+	return path.slice(start);
+}
+
 function relativeEnvPath(root: string, path: string): string {
-	const normalizedRoot = root.replace(/\\/g, "/").replace(/\/+$/, "");
-	const normalizedPath = path.replace(/\\/g, "/").replace(/\/+$/, "");
+	const normalizedRoot = trimTrailingSeparators(root.replaceAll("\\", "/"));
+	const normalizedPath = trimTrailingSeparators(path.replaceAll("\\", "/"));
 	if (normalizedPath === normalizedRoot) return "";
 	return normalizedPath.startsWith(`${normalizedRoot}/`)
 		? normalizedPath.slice(normalizedRoot.length + 1)
-		: normalizedPath.replace(/^\/+/, "");
+		: trimLeadingSeparators(normalizedPath);
 }
