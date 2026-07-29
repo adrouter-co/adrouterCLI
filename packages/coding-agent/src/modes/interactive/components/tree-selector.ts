@@ -15,7 +15,7 @@ import {
 import type { SessionTreeNode } from "../../../core/session-manager.ts";
 import { theme } from "../theme/theme.ts";
 import { DynamicBorder } from "./dynamic-border.ts";
-import { formatKeyText, keyHint } from "./keybinding-hints.ts";
+import { formatKeyText, helperHint } from "./keybinding-hints.ts";
 
 /** Gutter info: position (displayIndent where connector was) and whether to show │ */
 interface GutterInfo {
@@ -1263,7 +1263,7 @@ class LabelInput implements Component, Focusable {
 		lines.push(...this.input.render(availableWidth).map((line) => truncateToWidth(`${indent}${line}`, width)));
 		lines.push(
 			truncateToWidth(
-				`${indent}${keyHint("tui.select.confirm", "save")}  ${keyHint("tui.select.cancel", "cancel")}`,
+				`${indent}${helperHint("tui.select.confirm", "save")}  │  ${helperHint("tui.select.cancel", "cancel")}`,
 				width,
 			),
 		);

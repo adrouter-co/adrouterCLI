@@ -18,19 +18,44 @@ describe("CustomEditor OpenCode panel", () => {
 		const editor = new CustomEditor(createTui(), getEditorTheme(), KeybindingsManager.create());
 		editor.setMetadataProvider(() => ({
 			cwd: "/tmp/project",
+			branch: "feature/tui-refresh",
 			sessionName: "demo",
 			profileName: "deepseek-live",
 			modeLabel: "AdRouterCLI",
 			modelLabel: "deepseek-v4-flash",
+			providerLabel: "adrouter",
 			thinkingLabel: "high",
+			contextTokens: 24_600,
+			contextWindow: 200_000,
+			cacheOptimizerStatus: "DeepSeek 2/3 · 0.05M/0.10M tok (50%) ⚠️ compat",
+			totalCost: 1.234,
+			totalSubsidy: 0.234,
+			effectiveCost: 1,
+			autoCompactEnabled: true,
 		}));
 
 		const lines = editor.render(80);
 		const plain = lines.map(stripAnsi);
 
-		expect(plain[0]).toContain("/tmp/project · demo");
+		expect(plain[0]).toContain("/tmp/project");
+		expect(plain[0]).toContain("feature/tui-refresh");
+		expect(plain[0]).toContain("demo  │  deepseek-live");
+		expect(plain[0]).not.toContain("Session:");
+		expect(plain[0]).not.toContain("Profile:");
 		expect(plain[0]).toContain("deepseek-live");
 		expect(plain.some((line) => line.includes("Ask anything..."))).toBe(true);
+		expect(plain.some((line) => /^▄+$/.test(line))).toBe(true);
+		expect(plain.some((line) => /^▀+$/.test(line))).toBe(true);
+		expect(plain.join("\n")).not.toContain("[Esc] Interrupt");
+		expect(plain.join("\n")).not.toContain("[/] Commands");
+		expect(plain.join("\n")).toContain("ctx 25k/200k auto");
+		expect(plain.join("\n")).toContain("adrouter · deepseek-v4-flash · thinking high");
+		expect(plain.join("\n")).toContain("Σ$1.234 · +$0.234 · =$1.000");
+		expect(plain.join("\n")).toContain("DeepSeek 2/3 · 0.05M/0.10M tok (50%) ⚠️ compat");
+		expect(plain.slice(-2).every((line) => !line.includes("─"))).toBe(true);
+		const lowerPanelEdge = plain.findIndex((line) => /^▀+$/.test(line));
+		expect(lowerPanelEdge).toBeGreaterThanOrEqual(0);
+		expect(plain).toHaveLength(lowerPanelEdge + 3);
 		expect(lines.some((line) => line.includes("\x1b[48"))).toBe(true);
 		expect(lines.every((line) => visibleWidth(line) <= 80)).toBe(true);
 	});
@@ -46,6 +71,11 @@ describe("CustomEditor OpenCode panel", () => {
 		}));
 
 		expect(editor.render(24).every((line) => visibleWidth(line) <= 24)).toBe(true);
+		const plain = editor.render(24).map(stripAnsi).join("\n");
+		expect(plain).not.toContain("Session:");
+		expect(plain).not.toContain("Profile:");
+		expect(plain).not.toContain("─");
+		expect(plain).not.toContain("Commands");
 	});
 
 	it("uses the approved dark grayscale progression as the input panel background", () => {

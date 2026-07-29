@@ -7,18 +7,33 @@ import {
 	truncateToWidth,
 	visibleWidth,
 } from "@adrouter/tui";
+import chalk from "chalk";
+import { formatAdRouterSubsidy } from "../../../core/adrouter-session.ts";
 import type { AppKeybinding, KeybindingsManager } from "../../../core/keybindings.ts";
-import { theme as uiTheme } from "../theme/theme.ts";
+import { type ThemeColor, theme as uiTheme } from "../theme/theme.ts";
+import { formatTokens } from "./footer.ts";
+import { fitDisplayDirectory } from "./path-display.ts";
 
 export interface EditorMetadata {
 	cwd?: string;
+	branch?: string;
 	sessionName?: string;
 	profileName?: string;
 	modeLabel?: string;
 	modelLabel?: string;
 	providerLabel?: string;
 	thinkingLabel?: string;
-	rightLabel?: string;
+	contextTokens?: number | null;
+	contextWindow?: number;
+	cacheOptimizerStatus?: string;
+	totalCost?: number;
+	totalSubsidy?: number;
+	effectiveCost?: number;
+	autoCompactEnabled?: boolean;
+}
+
+function panelColor(color: ThemeColor, text: string): string {
+	return chalk.level === 0 || process.env.NO_COLOR ? text : uiTheme.fg(color, text);
 }
 
 /**
@@ -71,10 +86,7 @@ export class CustomEditor extends Editor {
 		this.scrollOffset = Math.max(0, Math.min(this.scrollOffset, Math.max(0, layoutLines.length - maxVisibleLines)));
 		const visibleLines = layoutLines.slice(this.scrollOffset, this.scrollOffset + maxVisibleLines);
 		const result: string[] = [];
-
-		const left = [meta.cwd, meta.sessionName].filter(Boolean).join(" · ");
-		const right = meta.profileName || "no profile loaded";
-		result.push(this.renderSplitLine(left, right, width));
+		result.push(this.renderMetadataLine(meta, width));
 
 		const foregroundSample = this.borderColor("");
 		const foreground = foregroundSample.match(/\x1b\[38[^m]*m/)?.[0];
@@ -86,6 +98,10 @@ export class CustomEditor extends Editor {
 			const padded = clipped + " ".repeat(Math.max(0, panelWidth - visibleWidth(clipped)));
 			return panelBackground ? `${panelBackground}${padded}\x1b[49m` : padded;
 		};
+		const halfBlockLine = (block: "▄" | "▀"): string =>
+			foreground ? `${foreground}${block.repeat(panelWidth)}\x1b[39m` : block.repeat(panelWidth);
+
+		result.push(halfBlockLine("▄"));
 
 		if (this.scrollOffset > 0) {
 			result.push(makePanelLine(uiTheme.fg("dim", ` ↑ ${this.scrollOffset} more`)));
@@ -136,20 +152,94 @@ export class CustomEditor extends Editor {
 				result.push(makePanelLine(`${" ".repeat(padX)}${line}${padding}${" ".repeat(padX)}`));
 			}
 		}
-
-		const statusLeft = [meta.modeLabel, meta.modelLabel, meta.providerLabel, meta.thinkingLabel]
-			.filter(Boolean)
-			.join(" · ");
-		result.push(this.renderSplitLine(statusLeft, meta.rightLabel || "models  / commands", width));
+		result.push(halfBlockLine("▀"));
+		const modelStatus = [
+			meta.providerLabel || "no-provider",
+			meta.modelLabel || "no-model",
+			`thinking ${meta.thinkingLabel || "off"}`,
+		].join(" · ");
+		result.push(
+			this.renderSplitLine(
+				panelColor("dim", this.renderContextStatus(meta, width)),
+				panelColor("dim", modelStatus),
+				width,
+				"left",
+			),
+		);
+		result.push(this.renderSplitLine(this.renderCostStatus(meta, width), meta.cacheOptimizerStatus || "", width));
 		return result;
 	}
 
-	private renderSplitLine(left: string, right: string, width: number): string {
-		const rightText = truncateToWidth(right, width, "…");
-		const availableLeft = Math.max(0, width - visibleWidth(rightText) - 2);
-		const leftText = truncateToWidth(left, availableLeft, "…");
-		const gap = Math.max(0, width - visibleWidth(leftText) - visibleWidth(rightText));
-		return uiTheme.fg("dim", leftText) + " ".repeat(gap) + uiTheme.fg("dim", rightText);
+	private renderMetadataLine(meta: EditorMetadata, width: number): string {
+		if (width <= 0) return "";
+		const session = meta.sessionName || "no session name";
+		const profile = meta.profileName || "no profile loaded";
+		const fullRight = `${session}  │  ${profile}`;
+		const minimumLeft = Math.min(12, Math.max(1, Math.floor(width / 2)));
+		const maximumRight = Math.max(0, width - minimumLeft - 2);
+		const right = truncateToWidth(fullRight, maximumRight, "…");
+		const gapWidth = right ? 2 : 0;
+		const leftWidth = Math.max(0, width - visibleWidth(right) - gapWidth);
+		const branch = meta.branch ? ` (${meta.branch})` : "";
+		const fullCwd = fitDisplayDirectory(meta.cwd || "~", process.env.HOME || process.env.USERPROFILE, leftWidth);
+		const branchBudget =
+			visibleWidth(fullCwd) + visibleWidth(branch) <= leftWidth
+				? visibleWidth(branch)
+				: Math.floor(leftWidth * 0.45);
+		const fittedBranch = truncateToWidth(branch, Math.max(0, branchBudget), "…");
+		const pathWidth = Math.max(0, leftWidth - visibleWidth(fittedBranch));
+		const cwd = fitDisplayDirectory(meta.cwd || "~", process.env.HOME || process.env.USERPROFILE, pathWidth);
+		const left = truncateToWidth(`${cwd}${fittedBranch}`, leftWidth, "…");
+		const gap = " ".repeat(Math.max(0, width - visibleWidth(left) - visibleWidth(right)));
+		return uiTheme.fg("dim", left) + gap + uiTheme.fg("dim", right);
+	}
+
+	private renderContextStatus(meta: EditorMetadata, width: number): string {
+		const contextWindow = Math.max(0, meta.contextWindow ?? 0);
+		const contextMax = contextWindow > 0 ? formatTokens(contextWindow) : "?";
+		const contextCurrent = meta.contextTokens == null ? "?" : formatTokens(Math.max(0, meta.contextTokens));
+		const auto = meta.autoCompactEnabled ? " auto" : "";
+		return `${width < 96 ? "ctx" : "context"} ${contextCurrent}/${contextMax}${auto}`;
+	}
+
+	private renderCostStatus(meta: EditorMetadata, width: number): string {
+		const totalCost = Math.max(0, meta.totalCost ?? 0);
+		const totalSubsidy = Math.max(0, meta.totalSubsidy ?? 0);
+		const effectiveCost = Math.max(0, meta.effectiveCost ?? totalCost - totalSubsidy);
+		const parts =
+			width < 96
+				? [
+						panelColor("muted", `Σ$${totalCost.toFixed(3)}`),
+						panelColor("subsidy", `+$${formatAdRouterSubsidy(totalSubsidy)}`),
+						panelColor("success", `=$${formatAdRouterSubsidy(effectiveCost)}`),
+					]
+				: [
+						panelColor("muted", `cost $${totalCost.toFixed(3)}`),
+						panelColor("subsidy", `subsidy $${formatAdRouterSubsidy(totalSubsidy)}`),
+						panelColor("success", `effective $${formatAdRouterSubsidy(effectiveCost)}`),
+					];
+		return parts.join(" · ");
+	}
+
+	private renderSplitLine(left: string, right: string, width: number, priority: "left" | "right" = "right"): string {
+		if (width <= 0) return "";
+		let leftText: string;
+		let rightText: string;
+		if (priority === "left") {
+			leftText = truncateToWidth(left, width, "…");
+			const separatorWidth = leftText && right ? 3 : 0;
+			const availableRight = Math.max(0, width - visibleWidth(leftText) - separatorWidth);
+			rightText = truncateToWidth(right, availableRight, "…");
+		} else {
+			rightText = truncateToWidth(right, width, "…");
+			const separatorWidth = left && rightText ? 3 : 0;
+			const availableLeft = Math.max(0, width - visibleWidth(rightText) - separatorWidth);
+			leftText = truncateToWidth(left, availableLeft, "…");
+		}
+		const rightWidth = visibleWidth(rightText);
+		const leftWidth = visibleWidth(leftText);
+		const gap = Math.max(0, width - leftWidth - rightWidth);
+		return `${leftText}${" ".repeat(gap)}${rightText}`;
 	}
 
 	handleInput(data: string): void {

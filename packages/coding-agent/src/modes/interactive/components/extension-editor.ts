@@ -20,7 +20,7 @@ import {
 import type { KeybindingsManager } from "../../../core/keybindings.ts";
 import { getEditorTheme, theme } from "../theme/theme.ts";
 import { DynamicBorder } from "./dynamic-border.ts";
-import { keyHint } from "./keybinding-hints.ts";
+import { helperHint } from "./keybinding-hints.ts";
 
 export class ExtensionEditorComponent extends Container implements Focusable {
 	private editor: Editor;
@@ -81,12 +81,12 @@ export class ExtensionEditorComponent extends Container implements Focusable {
 		// Add hint
 		const hasExternalEditor = !!this.getExternalEditorCommand();
 		const hint =
-			keyHint("tui.select.confirm", "submit") +
-			"  " +
-			keyHint("tui.input.newLine", "newline") +
-			"  " +
-			keyHint("tui.select.cancel", "cancel") +
-			(hasExternalEditor ? `  ${keyHint("app.editor.external", "external editor")}` : "");
+			helperHint("tui.select.confirm", "submit") +
+			"  │  " +
+			helperHint("tui.input.newLine", "newline") +
+			"  │  " +
+			helperHint("tui.select.cancel", "cancel") +
+			(hasExternalEditor ? `  │  ${helperHint("app.editor.external", "external editor")}` : "");
 		this.addChild(new Text(hint, 1, 0));
 
 		this.addChild(new Spacer(1));

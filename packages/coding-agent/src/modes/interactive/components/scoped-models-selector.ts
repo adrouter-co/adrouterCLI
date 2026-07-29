@@ -13,7 +13,7 @@ import {
 import { getModelSearchText } from "../model-search.ts";
 import { theme } from "../theme/theme.ts";
 import { DynamicBorder } from "./dynamic-border.ts";
-import { keyText } from "./keybinding-hints.ts";
+import { helperHint, keyDisplayText, keyText, rawHelperHint } from "./keybinding-hints.ts";
 
 // EnabledIds: null = all enabled (no filter), string[] = explicit ordered list
 type EnabledIds = string[] | null;
@@ -167,17 +167,21 @@ export class ScopedModelsSelectorComponent extends Container implements Focusabl
 		const allEnabled = this.enabledIds === null;
 		const countText = allEnabled ? "all enabled" : `${enabledCount}/${this.allIds.length} enabled`;
 		const parts = [
-			`${keyText("tui.select.confirm")} toggle`,
-			`${keyText("app.models.enableAll")} all`,
-			`${keyText("app.models.clearAll")} clear`,
-			`${keyText("app.models.toggleProvider")} provider`,
-			`${keyText("app.models.reorderUp")}/${keyText("app.models.reorderDown")} reorder`,
-			`${keyText("app.models.save")} save`,
+			helperHint("tui.select.confirm", "toggle"),
+			helperHint("app.models.enableAll", "all"),
+			helperHint("app.models.clearAll", "clear"),
+			helperHint("app.models.toggleProvider", "provider"),
+			rawHelperHint(
+				`${keyDisplayText("app.models.reorderUp")}/${keyDisplayText("app.models.reorderDown")}`,
+				"reorder",
+				false,
+			),
+			helperHint("app.models.save", "save"),
 			countText,
 		];
 		return this.isDirty
-			? theme.fg("dim", `  ${parts.join(" · ")} `) + theme.fg("warning", "(unsaved)")
-			: theme.fg("dim", `  ${parts.join(" · ")}`);
+			? theme.fg("dim", `  ${parts.join("  │  ")} `) + theme.fg("warning", "(unsaved)")
+			: theme.fg("dim", `  ${parts.join("  │  ")}`);
 	}
 
 	private refresh(): void {

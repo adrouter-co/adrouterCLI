@@ -2,9 +2,12 @@ import { visibleWidth } from "@adrouter/tui";
 import { beforeAll, describe, expect, it } from "vitest";
 import type { AgentSession } from "../src/core/agent-session.ts";
 import type { ReadonlyFooterDataProvider } from "../src/core/footer-data-provider.ts";
-import { FooterComponent, formatCwdForFooter } from "../src/modes/interactive/components/footer.ts";
+import {
+	collectFooterMetrics,
+	FooterComponent,
+	formatCwdForFooter,
+} from "../src/modes/interactive/components/footer.ts";
 import { initTheme } from "../src/modes/interactive/theme/theme.ts";
-import { stripAnsi } from "../src/utils/ansi.ts";
 
 type AssistantUsage = {
 	input: number;
@@ -60,10 +63,10 @@ function createSession(options: {
 	return session as unknown as AgentSession;
 }
 
-function createFooterData(providerCount: number): ReadonlyFooterDataProvider {
+function createFooterData(providerCount: number, statuses = new Map<string, string>()): ReadonlyFooterDataProvider {
 	const provider = {
 		getGitBranch: () => "main",
-		getExtensionStatuses: () => new Map<string, string>(),
+		getExtensionStatuses: () => statuses,
 		getAvailableProviderCount: () => providerCount,
 		onBranchChange: (callback: () => void) => {
 			void callback;
@@ -125,7 +128,7 @@ describe("FooterComponent width handling", () => {
 		}
 	});
 
-	it("shows the latest cache hit rate when cache usage is present", () => {
+	it("uses only the pi-cache optimizer status for cache information", () => {
 		const session = createSession({
 			sessionName: "",
 			usage: {
@@ -136,9 +139,17 @@ describe("FooterComponent width handling", () => {
 				cost: { total: 0.001 },
 			},
 		});
-		const footer = new FooterComponent(session, createFooterData(1));
+		const footerData = createFooterData(
+			1,
+			new Map([
+				["other-extension", "unrelated status"],
+				["pi-cache-stats", "DeepSeek 2/3 · 0.05M/0.10M tok (50%) ⚠️ compat\n"],
+			]),
+		);
+		const footer = new FooterComponent(session, footerData);
 
-		const statsLine = stripAnsi(footer.render(120)[0]!);
-		expect(statsLine).toContain("CH25.0%");
+		expect(footer.getMetrics().cacheOptimizerStatus).toBe("DeepSeek 2/3 · 0.05M/0.10M tok (50%) ⚠️ compat");
+		expect(collectFooterMetrics(session, createFooterData(1)).cacheOptimizerStatus).toBeUndefined();
+		expect(footer.render(120)).toEqual([]);
 	});
 });

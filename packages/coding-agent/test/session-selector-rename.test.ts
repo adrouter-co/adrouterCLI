@@ -53,8 +53,8 @@ describe("session selector rename", () => {
 		await flushPromises();
 
 		const output = selector.render(120).join("\n");
-		expect(output).toContain("ctrl+r");
-		expect(output).toContain("rename");
+		expect(output).toContain("[Ctrl+R]");
+		expect(output).toContain("Rename");
 	});
 
 	it("does not show rename hint in --resume picker configuration", async () => {
