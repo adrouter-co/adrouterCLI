@@ -3,7 +3,9 @@ import { truncateToWidth, visibleWidth } from "@adrouter/tui";
 function normalizeDisplayPath(value: string): string {
 	const normalized = value.replace(/\\/g, "/");
 	if (normalized === "/" || /^[A-Za-z]:\/$/.test(normalized)) return normalized;
-	return normalized.replace(/\/+$/, "");
+	let end = normalized.length;
+	while (end > 0 && normalized.charCodeAt(end - 1) === 47) end--;
+	return normalized.slice(0, end);
 }
 
 function isWithinHome(path: string, home: string): boolean {

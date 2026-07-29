@@ -9,6 +9,7 @@ import {
 describe("directory display formatting", () => {
 	it("uses ~ only for the home directory and its descendants", () => {
 		expect(formatDisplayDirectory("/opt/people/example", "/opt/people/example")).toBe("~");
+		expect(formatDisplayDirectory("/opt/people/example////", "/opt/people/example")).toBe("~");
 		expect(formatDisplayDirectory("/opt/people/example/projects/cli", "/opt/people/example")).toBe("~/projects/cli");
 		expect(formatDisplayDirectory("/opt/people/example2/project", "/opt/people/example")).toBe(
 			"/opt/people/example2/project",
