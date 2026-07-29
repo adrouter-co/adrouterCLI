@@ -13,6 +13,7 @@ import { formatAdRouterSubsidy } from "../../../core/adrouter-session.ts";
 import type { AppKeybinding, KeybindingsManager } from "../../../core/keybindings.ts";
 import { type ThemeColor, theme as uiTheme } from "../theme/theme.ts";
 import { formatTokens } from "./footer.ts";
+import { fitDisplayDirectory } from "./path-display.ts";
 
 function panelColor(color: ThemeColor, text: string): string {
 	return chalk.level === 0 || process.env.NO_COLOR ? text : uiTheme.fg(color, text);
@@ -89,11 +90,7 @@ export class CustomEditor extends Editor {
 		const visibleLines = layoutLines.slice(this.scrollOffset, this.scrollOffset + maxVisibleLines);
 		const result: string[] = [];
 
-		const directory = [meta.cwd, meta.gitBranch ? `(${meta.gitBranch})` : undefined].filter(Boolean).join(" ");
-		const profile = meta.profileName ? `${meta.profileName} loaded` : "no profile loaded";
-		const sessionName = meta.sessionName || "no session name";
-		result.push(this.renderSplitLine("", panelColor("dim", directory || "~"), width));
-		result.push(this.renderSplitLine(panelColor("dim", profile), panelColor("dim", sessionName), width, "left"));
+		result.push(this.renderMetadataLine(meta, width));
 
 		const foregroundSample = chalk.level === 0 || process.env.NO_COLOR ? "" : this.borderColor("");
 		const foreground = foregroundSample.match(/\x1b\[38[^m]*m/)?.[0];
@@ -105,6 +102,10 @@ export class CustomEditor extends Editor {
 			const padded = clipped + " ".repeat(Math.max(0, panelWidth - visibleWidth(clipped)));
 			return panelBackground ? `${panelBackground}${padded}\x1b[49m` : padded;
 		};
+		const halfBlockLine = (block: "▄" | "▀"): string =>
+			foreground ? `${foreground}${block.repeat(panelWidth)}\x1b[39m` : block.repeat(panelWidth);
+
+		result.push(halfBlockLine("▄"));
 
 		if (this.scrollOffset > 0) {
 			result.push(makePanelLine(panelColor("dim", ` ↑ ${this.scrollOffset} more`)));
@@ -158,6 +159,7 @@ export class CustomEditor extends Editor {
 				result.push(makePanelLine(`${" ".repeat(promptGutter)}${line}${padding}${" ".repeat(rightPadding)}`));
 			}
 		}
+		result.push(halfBlockLine("▀"));
 
 		const modelStatus = [
 			meta.providerLabel || "no-provider",
@@ -174,12 +176,36 @@ export class CustomEditor extends Editor {
 		);
 		result.push(
 			this.renderSplitLine(
-				panelColor("dim", (meta.extensionStatuses ?? []).join("  ")),
 				this.renderCostStatus(meta, width),
+				panelColor("dim", (meta.extensionStatuses ?? []).join("  ")),
 				width,
 			),
 		);
 		return result;
+	}
+
+	private renderMetadataLine(meta: EditorMetadata, width: number): string {
+		if (width <= 0) return "";
+		const session = meta.sessionName || "no session name";
+		const profile = meta.profileName || "no profile loaded";
+		const fullRight = `${session}  │  ${profile}`;
+		const minimumLeft = Math.min(12, Math.max(1, Math.floor(width / 2)));
+		const maximumRight = Math.max(0, width - minimumLeft - 2);
+		const right = truncateToWidth(fullRight, maximumRight, "…");
+		const gapWidth = right ? 2 : 0;
+		const leftWidth = Math.max(0, width - visibleWidth(right) - gapWidth);
+		const branch = meta.gitBranch ? ` (${meta.gitBranch})` : "";
+		const fullCwd = fitDisplayDirectory(meta.cwd || "~", process.env.HOME || process.env.USERPROFILE, leftWidth);
+		const branchBudget =
+			visibleWidth(fullCwd) + visibleWidth(branch) <= leftWidth
+				? visibleWidth(branch)
+				: Math.floor(leftWidth * 0.45);
+		const fittedBranch = truncateToWidth(branch, Math.max(0, branchBudget), "…");
+		const pathWidth = Math.max(0, leftWidth - visibleWidth(fittedBranch));
+		const cwd = fitDisplayDirectory(meta.cwd || "~", process.env.HOME || process.env.USERPROFILE, pathWidth);
+		const left = truncateToWidth(`${cwd}${fittedBranch}`, leftWidth, "…");
+		const gap = " ".repeat(Math.max(0, width - visibleWidth(left) - visibleWidth(right)));
+		return panelColor("dim", left) + gap + panelColor("dim", right);
 	}
 
 	private renderContextStatus(meta: EditorMetadata, width: number): string {
@@ -197,16 +223,16 @@ export class CustomEditor extends Editor {
 		const parts =
 			width < 96
 				? [
-						panelColor("muted", `$${totalCost.toFixed(3)}`),
-						panelColor("subsidy", `$${formatAdRouterSubsidy(totalSubsidy)}`),
-						panelColor("success", `$${formatAdRouterSubsidy(effectiveCost)}`),
+						panelColor("muted", `Σ$${totalCost.toFixed(3)}`),
+						panelColor("subsidy", `+$${formatAdRouterSubsidy(totalSubsidy)}`),
+						panelColor("success", `=$${formatAdRouterSubsidy(effectiveCost)}`),
 					]
 				: [
 						panelColor("muted", `cost $${totalCost.toFixed(3)}`),
 						panelColor("subsidy", `subsidy $${formatAdRouterSubsidy(totalSubsidy)}`),
 						panelColor("success", `effective $${formatAdRouterSubsidy(effectiveCost)}`),
 					];
-		return `${parts[0]} ${panelColor("muted", "-")} ${parts[1]} ${panelColor("muted", "=")} ${parts[2]}`;
+		return parts.join(" · ");
 	}
 
 	private renderSplitLine(left: string, right: string, width: number, priority: "left" | "right" = "right"): string {

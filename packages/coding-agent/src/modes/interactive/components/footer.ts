@@ -1,10 +1,10 @@
-import { isAbsolute, relative, resolve, sep } from "node:path";
 import { type Component, truncateToWidth } from "@adrouter/tui";
 import { cumulativeAdRouterSubsidy } from "../../../core/adrouter-session.ts";
 import type { AgentSession } from "../../../core/agent-session.ts";
 import { areExperimentalFeaturesEnabled } from "../../../core/experimental.ts";
 import type { ReadonlyFooterDataProvider } from "../../../core/footer-data-provider.ts";
 import { theme } from "../theme/theme.ts";
+import { formatDisplayDirectory } from "./path-display.ts";
 
 /** Values rendered around the default input panel. */
 export interface FooterMetrics {
@@ -60,17 +60,7 @@ export function formatTokens(count: number): string {
 }
 
 export function formatCwdForFooter(cwd: string, home: string | undefined): string {
-	if (!home) return cwd;
-
-	const resolvedCwd = resolve(cwd);
-	const resolvedHome = resolve(home);
-	const relativeToHome = relative(resolvedHome, resolvedCwd);
-	const isInsideHome =
-		relativeToHome === "" ||
-		(relativeToHome !== ".." && !relativeToHome.startsWith(`..${sep}`) && !isAbsolute(relativeToHome));
-
-	if (!isInsideHome) return cwd;
-	return relativeToHome === "" ? "~" : `~/${relativeToHome.split(sep).join("/")}`;
+	return formatDisplayDirectory(cwd, home);
 }
 
 /** Collect cumulative session values once for the input panel and its tests. */
