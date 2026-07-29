@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.81.0-beta.11] - 2026-07-29
+
+### Changed
+
+- Repacked the private AI runtime for the responsive TUI refresh beta.
+
 ## [0.81.0-beta.10] - 2026-07-28
 
 ### Changed

@@ -118,7 +118,7 @@ npm run check
 
 ### Status
 
-`in_progress`
+`done`
 
 ### Objective
 
@@ -127,8 +127,8 @@ Land the TUI refresh through a reviewed feature pull request with the required p
 ### Tasks
 
 - [x] Review the complete diff for stale-baseline regressions and generated/private files.
-- [ ] Commit and push the feature branch, open a pull request, and wait for required CI.
-- [ ] Merge only after all required checks pass.
+- [x] Commit and push the feature branch, open a pull request, and wait for required CI.
+- [x] Merge only after all required checks pass.
 
 ### Relevant Files
 
@@ -153,17 +153,17 @@ gh pr checks --watch
 
 ### Acceptance Criteria
 
-- [ ] The feature pull request is reviewed and merged into current `main`.
-- [ ] Required six-platform CI is green.
-- [ ] The merged source contains the public-beta blue `❯` and all intended TUI tests.
+- [x] The feature pull request is reviewed and merged into current `main`.
+- [x] Required six-platform CI is green.
+- [x] The merged source contains the public-beta blue `❯` and all intended TUI tests.
 
 ### Validation Results
 
-- Feature PR checks: not run.
+- Feature PR #43 checks: all security and six platform jobs passed on 2026-07-29.
 
 ### Findings / Notes
 
-- None yet.
+- PR #43 merged as `152266eaba60d2126af2c3f3c8e8d026f2e1d1c6`.
 
 ---
 
@@ -171,7 +171,7 @@ gh pr checks --watch
 
 ### Status
 
-`todo`
+`in_progress`
 
 ### Objective
 
@@ -179,10 +179,10 @@ Create and merge a metadata-only release change, then tag its exact commit.
 
 ### Tasks
 
-- [ ] Recheck that beta.11 is unused across npm, Git refs, releases, and workflow state.
-- [ ] Synchronize all workspace versions, lock/shrinkwrap output, manifest, README, and changelogs
+- [x] Recheck that beta.11 is unused across npm, Git refs, releases, and workflow state.
+- [x] Synchronize all workspace versions, lock/shrinkwrap output, manifest, README, and changelogs
       using repository release tooling.
-- [ ] Set candidate and final npm tags so accepted beta.11 replaces beta.10 on `beta` and `latest`.
+- [x] Set candidate and final npm tags so accepted beta.11 replaces beta.10 on `beta` and `latest`.
 - [ ] Run clean-checkout release gates on Node.js 22.19+, merge the release PR, and tag its exact
       merged commit as `v0.81.0-beta.11`.
 - [ ] Verify `release-tag.yml` creates and attests the exact draft GitHub prerelease artifacts.
@@ -220,19 +220,22 @@ node scripts/ci-package-smoke.mjs
 
 ### Acceptance Criteria
 
-- [ ] All four workspaces and generated release metadata agree on beta.11.
-- [ ] Every pre-tag gate passes from a clean Node.js 22.19+ checkout.
+- [x] All four workspaces and generated release metadata agree on beta.11.
+- [x] Every pre-tag gate passes from a clean Node.js 22.19+ checkout.
 - [ ] The release PR is merged and its exact commit is tagged once.
 - [ ] The draft prerelease contains the exact attested staged tarball and required assets.
 
 ### Validation Results
 
-- Clean release gates: not run.
+- Node.js `v22.19.0` clean install, build, check, isolated tests, release readiness, and packaged
+  smoke: passed on 2026-07-29.
 - Tag workflow: not run.
 
 ### Findings / Notes
 
 - If beta.11 becomes occupied before tagging, select and record the lowest unused higher beta.
+- The first isolated-test attempt was stopped because the filesystem/network sandbox blocked local
+  mock HTTP servers. The rerun with loopback access passed all workspaces with credentials stripped.
 
 ---
 
