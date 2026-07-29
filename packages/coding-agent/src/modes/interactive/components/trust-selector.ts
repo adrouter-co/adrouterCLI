@@ -6,7 +6,7 @@ import {
 } from "../../../core/trust-manager.ts";
 import { theme } from "../theme/theme.ts";
 import { DynamicBorder } from "./dynamic-border.ts";
-import { keyHint, rawKeyHint } from "./keybinding-hints.ts";
+import { helperHint, rawHelperHint } from "./keybinding-hints.ts";
 
 export type TrustSelection = Pick<ProjectTrustOption, "trusted" | "updates">;
 
@@ -74,11 +74,11 @@ export class TrustSelectorComponent extends Container {
 		this.addChild(new Spacer(1));
 		this.addChild(
 			new Text(
-				rawKeyHint("↑↓", "navigate") +
-					"  " +
-					keyHint("tui.select.confirm", "save") +
-					"  " +
-					keyHint("tui.select.cancel", "cancel"),
+				rawHelperHint("↑↓", "navigate") +
+					"  │  " +
+					helperHint("tui.select.confirm", "save") +
+					"  │  " +
+					helperHint("tui.select.cancel", "cancel"),
 				1,
 				0,
 			),

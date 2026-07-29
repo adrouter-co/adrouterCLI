@@ -1,6 +1,7 @@
 import { type Component, truncateToWidth, visibleWidth } from "@adrouter/tui";
 import chalk from "chalk";
 import { theme } from "../theme/theme.ts";
+import { truncateDisplayDirectory } from "./path-display.ts";
 
 export const STARTUP_ART_MIN_WIDTH = 32;
 
@@ -296,7 +297,7 @@ export class ResponsiveStartupHeader implements Component {
 				theme.bold(brandText("adrouterCLI", "B")),
 				theme.fg("dim", `v${this.options.version}`),
 				theme.fg("muted", model),
-				theme.fg("dim", cwd),
+				theme.fg("dim", truncateDisplayDirectory(cwd, detailsWidth)),
 				"",
 				renderBubbleField(detailsWidth, 2),
 				renderBubbleField(detailsWidth, 3),
@@ -308,7 +309,7 @@ export class ResponsiveStartupHeader implements Component {
 
 	private renderNarrow(width: number): string[] {
 		const model = theme.fg("muted", truncateToWidth(this.options.getModelLabel() || "No model selected", width, "…"));
-		const cwd = theme.fg("dim", truncateToWidth(this.options.getCwdLabel() || "~", width, "…"));
+		const cwd = theme.fg("dim", truncateDisplayDirectory(this.options.getCwdLabel() || "~", width));
 		return [theme.bold(brandText(`> adrouterCLI v${this.options.version}`, "B")), model, cwd];
 	}
 }

@@ -3,7 +3,7 @@ import { type TUI, visibleWidth } from "@adrouter/tui";
 import chalk from "chalk";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { AdRouterAdPanel } from "../src/modes/interactive/components/adrouter-ad-panel.ts";
-import { getResolvedThemeColors, initTheme } from "../src/modes/interactive/theme/theme.ts";
+import { initTheme } from "../src/modes/interactive/theme/theme.ts";
 import { stripAnsi } from "../src/utils/ansi.ts";
 
 const originalColorLevel = chalk.level;
@@ -20,7 +20,7 @@ describe("AdRouterAdPanel", () => {
 		vi.restoreAllMocks();
 	});
 
-	it("renders live ads as three highlighted rows with title, body, CTA, and URL", () => {
+	it("renders live ads as a structured title, tier, body, and action", () => {
 		chalk.level = 3;
 		const tui = { requestRender: vi.fn() } as unknown as TUI;
 		const panel = new AdRouterAdPanel(tui);
@@ -41,24 +41,21 @@ describe("AdRouterAdPanel", () => {
 		});
 
 		const lines = panel.render(80);
-		const rendered = lines.map((line) => stripAnsi(line).trimEnd());
+		const rendered = lines.map((line) => stripAnsi(line));
 
 		expect(rendered).toEqual([
-			"Sponsored by: Compiler Cloud",
+			"Compiler Cloud",
+			"TIER A · Sponsored",
 			"Fast build minutes for coding agents.",
 			"Start building · https://compiler.example",
 		]);
-		expect(lines.every((line) => visibleWidth(line) === 80)).toBe(true);
-		expect(lines.every((line) => line.includes("\x1b[48;"))).toBe(true);
-		expect(lines[0]).toContain("\x1b[3m");
-		expect(lines[0]).toContain("\x1b[1m");
-		expect(lines[2]).toContain("\x1b[4m");
+		expect(lines.every((line) => visibleWidth(line) <= 80)).toBe(true);
 		expect(tui.requestRender).toHaveBeenCalled();
 
 		panel.dispose();
 	});
 
-	it("renders Tier NONE as one compact grey-highlighted row", () => {
+	it("renders Tier NONE as a three-line structured banner", () => {
 		const tui = { requestRender: vi.fn() } as unknown as TUI;
 		const panel = new AdRouterAdPanel(tui);
 
@@ -75,11 +72,11 @@ describe("AdRouterAdPanel", () => {
 			],
 		});
 
-		const lines = panel.render(80);
-		expect(lines).toHaveLength(1);
-		expect(stripAnsi(lines[0]!).trimEnd()).toBe("TIER NONE: No sponsored content — Sensitive category detected.");
-		expect(visibleWidth(lines[0]!)).toBe(80);
-		expect(lines[0]).toContain("\x1b[48;");
+		expect(panel.render(80).map(stripAnsi)).toEqual([
+			"No sponsored content",
+			"TIER NONE",
+			"Sensitive category detected.",
+		]);
 
 		panel.dispose();
 	});
@@ -100,7 +97,11 @@ describe("AdRouterAdPanel", () => {
 				},
 			],
 		});
-		expect(stripAnsi(panel.render(80).join("\n"))).toContain("TIER NONE: No sponsored content");
+		expect(panel.render(80).map(stripAnsi)).toEqual([
+			"No sponsored content",
+			"TIER NONE",
+			"Sensitive category detected.",
+		]);
 
 		publishAdRouterAds({ status: "off", ads: [] });
 		expect(panel.render(80)).toEqual([]);
@@ -154,7 +155,8 @@ describe("AdRouterAdPanel", () => {
 				},
 			],
 		});
-		expect(stripAnsi(panel.render(80).join("\n"))).toContain("TIER NONE: No sponsored content");
+		expect(panel.render(80).map(stripAnsi)[0]).toBe("No sponsored content");
+		expect(panel.render(80).map(stripAnsi)[1]).toBe("TIER NONE");
 		expect(stripAnsi(panel.render(80).join("\n"))).not.toContain("Expedia");
 
 		publishAdRouterAds({ status: "degraded", ads: [] });
@@ -162,7 +164,7 @@ describe("AdRouterAdPanel", () => {
 		panel.dispose();
 	});
 
-	it("keeps the three-row display on narrow terminals", () => {
+	it("wraps the structured display on narrow terminals", () => {
 		const tui = { requestRender: vi.fn() } as unknown as TUI;
 		const panel = new AdRouterAdPanel(tui);
 		publishAdRouterAds({
@@ -178,10 +180,12 @@ describe("AdRouterAdPanel", () => {
 				},
 			],
 		});
-		const lines = panel.render(22);
-		expect(lines).toHaveLength(3);
-		expect(stripAnsi(lines[0]!)).toMatch(/^Sponsored by:/);
-		expect(lines.every((line) => visibleWidth(line) === 22)).toBe(true);
+		const rendered = panel.render(22).map(stripAnsi);
+		expect(rendered[0]).toBe("A very long brand");
+		expect(rendered[1]).toBe("TIER C · Sponsored");
+		expect(rendered.length).toBeGreaterThanOrEqual(3);
+		expect(rendered.length).toBeLessThanOrEqual(5);
+		expect(rendered.every((line) => visibleWidth(line) <= 22)).toBe(true);
 		panel.dispose();
 	});
 
@@ -195,14 +199,15 @@ describe("AdRouterAdPanel", () => {
 
 		expect(panel.render(0)).toEqual([]);
 		for (const width of [1, 2, 3]) {
-			const lines = panel.render(width);
-			expect(lines).toHaveLength(3);
-			expect(lines.every((line) => visibleWidth(line) === width)).toBe(true);
+			const lines = panel.render(width).map(stripAnsi);
+			expect(lines.length).toBeGreaterThanOrEqual(3);
+			expect(lines.length).toBeLessThanOrEqual(5);
+			expect(lines.every((line) => visibleWidth(line) <= width)).toBe(true);
 		}
 		panel.dispose();
 	});
 
-	it("keeps a blank highlighted third row when CTA and URL are absent", () => {
+	it("keeps a minimum three-row layout when CTA and URL are absent", () => {
 		const tui = { requestRender: vi.fn() } as unknown as TUI;
 		const panel = new AdRouterAdPanel(tui);
 		publishAdRouterAds({
@@ -212,15 +217,8 @@ describe("AdRouterAdPanel", () => {
 
 		const lines = panel.render(30);
 		expect(lines).toHaveLength(3);
-		expect(stripAnsi(lines[2]!).trim()).toBe("");
-		expect(visibleWidth(lines[2]!)).toBe(30);
+		expect(stripAnsi(lines[2]!)).toBe("Body");
+		expect(visibleWidth(lines[2]!)).toBeLessThanOrEqual(30);
 		panel.dispose();
-	});
-
-	it("uses a footer-only dark blue and a separate grey NONE highlight", () => {
-		const light = getResolvedThemeColors("light");
-		expect(light.sponsoredHighlight).toBe("#dcefff");
-		expect(light.sponsoredFooterHighlight).toBe("#17364a");
-		expect(light.sponsoredNoneHighlight).toBe("#e8e8e8");
 	});
 });

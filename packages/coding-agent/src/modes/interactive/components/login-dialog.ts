@@ -3,7 +3,7 @@ import { Container, type Focusable, getKeybindings, Input, Spacer, Text, type TU
 import { openBrowser } from "../../../utils/open-browser.ts";
 import { theme } from "../theme/theme.ts";
 import { DynamicBorder } from "./dynamic-border.ts";
-import { keyHint } from "./keybinding-hints.ts";
+import { helperHint } from "./keybinding-hints.ts";
 
 /**
  * Login dialog component - replaces editor during OAuth login flow
@@ -141,7 +141,7 @@ export class LoginDialogComponent extends Container implements Focusable {
 		this.contentContainer.addChild(new Spacer(1));
 		this.contentContainer.addChild(new Text(theme.fg("dim", prompt), 1, 0));
 		this.contentContainer.addChild(this.input);
-		this.contentContainer.addChild(new Text(`(${keyHint("tui.select.cancel", "to cancel")})`, 1, 0));
+		this.contentContainer.addChild(new Text(helperHint("tui.select.cancel", "cancel"), 1, 0));
 		this.tui.requestRender();
 
 		return new Promise((resolve, reject) => {
@@ -163,7 +163,7 @@ export class LoginDialogComponent extends Container implements Focusable {
 		this.contentContainer.addChild(this.input);
 		this.contentContainer.addChild(
 			new Text(
-				`(${keyHint("tui.select.cancel", "to cancel,")} ${keyHint("tui.select.confirm", "to submit")})`,
+				`${helperHint("tui.select.cancel", "cancel")}  │  ${helperHint("tui.select.confirm", "submit")}`,
 				1,
 				0,
 			),
@@ -188,7 +188,7 @@ export class LoginDialogComponent extends Container implements Focusable {
 			this.contentContainer.addChild(new Text(line, 1, 0));
 		}
 		this.contentContainer.addChild(new Spacer(1));
-		this.contentContainer.addChild(new Text(`(${keyHint("tui.select.cancel", "to close")})`, 1, 0));
+		this.contentContainer.addChild(new Text(helperHint("tui.select.cancel", "close"), 1, 0));
 		this.tui.requestRender();
 	}
 
@@ -198,7 +198,7 @@ export class LoginDialogComponent extends Container implements Focusable {
 	showWaiting(message: string): void {
 		this.contentContainer.addChild(new Spacer(1));
 		this.contentContainer.addChild(new Text(theme.fg("dim", message), 1, 0));
-		this.contentContainer.addChild(new Text(`(${keyHint("tui.select.cancel", "to cancel")})`, 1, 0));
+		this.contentContainer.addChild(new Text(helperHint("tui.select.cancel", "cancel"), 1, 0));
 		this.tui.requestRender();
 	}
 

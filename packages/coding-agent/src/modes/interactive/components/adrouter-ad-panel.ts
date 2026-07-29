@@ -1,6 +1,5 @@
 import { type AdRouterAd, type AdRouterAdUpdate, subscribeAdRouterAds } from "@adrouter/ai";
-import { type Component, type TUI, truncateToWidth, visibleWidth } from "@adrouter/tui";
-import { type ThemeBg, theme } from "../theme/theme.ts";
+import { type Component, type TUI, truncateToWidth, visibleWidth, wrapTextWithAnsi } from "@adrouter/tui";
 
 function sanitize(value: string | undefined): string {
 	return (value ?? "")
@@ -11,10 +10,11 @@ function sanitize(value: string | undefined): string {
 		.trim();
 }
 
-function highlightedLine(text: string, width: number, background: ThemeBg): string {
-	const clipped = truncateToWidth(text, width, "…");
-	const padded = clipped + " ".repeat(Math.max(0, width - visibleWidth(clipped)));
-	return theme.bg(background, padded);
+function truncate(text: string, width: number): string {
+	if (width <= 0) return "";
+	if (visibleWidth(text) <= width) return text;
+	if (width <= 3) return ".".repeat(width);
+	return truncateToWidth(text, width, "...");
 }
 
 function initialUpdate(): AdRouterAdUpdate {
@@ -75,26 +75,25 @@ export class AdRouterAdPanel implements Component {
 	}
 
 	private renderAd(ad: AdRouterAd, width: number): string[] {
-		const title = sanitize(ad.title);
+		const title = sanitize(ad.title) || (ad.tier === "NONE" ? "No sponsored content" : "Sponsored");
 		const body = sanitize(ad.body);
+		const label = sanitize(ad.label);
 		const cta = sanitize(ad.cta);
 		const url = sanitize(ad.url);
-		if (ad.tier === "NONE") {
-			const content = `TIER NONE: No sponsored content${body ? ` — ${body}` : ""}`;
-			return [highlightedLine(theme.fg("sponsoredText", content), width, "sponsoredNoneHighlight")];
+		const meta = [`TIER ${ad.tier}`, label && label.toUpperCase() !== `TIER ${ad.tier}` ? label : ""]
+			.filter(Boolean)
+			.join(" · ");
+		const action = [cta, url].filter(Boolean).join(" · ");
+		const maxBodyLines = action ? 2 : 3;
+		const wrappedBody = body ? wrapTextWithAnsi(body, width) : [];
+		const bodyLines = wrappedBody.slice(0, maxBodyLines);
+		if (wrappedBody.length > maxBodyLines && bodyLines.length > 0) {
+			bodyLines[bodyLines.length - 1] = truncateToWidth(`${bodyLines.at(-1)}…`, width, "…");
 		}
 
-		const sponsorLabel = theme.italic(theme.fg("sponsoredFooterMuted", "Sponsored by:"));
-		const titleText = theme.bold(theme.fg("sponsoredFooterText", title));
-		const bodyText = theme.fg("sponsoredFooterText", body);
-		const actionParts = [
-			cta ? theme.fg("sponsoredFooterText", cta) : "",
-			url ? theme.underline(theme.fg("sponsoredFooterLink", url)) : "",
-		].filter(Boolean);
-		return [
-			highlightedLine(`${sponsorLabel}${titleText ? ` ${titleText}` : ""}`, width, "sponsoredFooterHighlight"),
-			highlightedLine(bodyText, width, "sponsoredFooterHighlight"),
-			highlightedLine(actionParts.join(theme.fg("sponsoredFooterMuted", " · ")), width, "sponsoredFooterHighlight"),
-		];
+		const lines = [truncate(title, width), truncate(meta, width), ...bodyLines.map((line) => truncate(line, width))];
+		if (action) lines.push(truncate(action, width));
+		while (lines.length < 3) lines.push("");
+		return lines.slice(0, 5);
 	}
 }

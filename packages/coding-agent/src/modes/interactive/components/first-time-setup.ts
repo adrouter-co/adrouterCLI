@@ -2,7 +2,7 @@ import { Container, getKeybindings, Spacer, Text } from "@adrouter/tui";
 import { APP_NAME } from "../../../config.ts";
 import { type TerminalTheme, theme } from "../theme/theme.ts";
 import { DynamicBorder } from "./dynamic-border.ts";
-import { keyHint, rawKeyHint } from "./keybinding-hints.ts";
+import { helperHint, rawHelperHint } from "./keybinding-hints.ts";
 
 export interface FirstTimeSetupResult {
 	theme: TerminalTheme;
@@ -87,11 +87,11 @@ export class FirstTimeSetupComponent extends Container {
 		this.addChild(new Spacer(1));
 		this.addChild(
 			new Text(
-				rawKeyHint("↑↓", "navigate") +
-					"  " +
-					keyHint("tui.select.confirm", this.step === "theme" ? "continue" : "finish") +
-					"  " +
-					keyHint("tui.select.cancel", "skip setup"),
+				rawHelperHint("↑↓", "navigate") +
+					"  │  " +
+					helperHint("tui.select.confirm", this.step === "theme" ? "continue" : "finish") +
+					"  │  " +
+					helperHint("tui.select.cancel", "skip setup"),
 				1,
 				0,
 			),

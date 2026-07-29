@@ -56,21 +56,22 @@ describe.sequential("CustomEditor input panel", () => {
 		initTheme("dark", false);
 	});
 
-	it("renders the requested metadata with exactly two unframed rows below the prompt", () => {
+	it("renders one metadata row, a framed prompt, and exactly two unframed status rows", () => {
 		chalk.level = 0;
 		process.env.NO_COLOR = "1";
 		const lines = createEditor(140).render(140);
 		const plain = lines.map(stripAnsi);
 
-		expect(plain).toHaveLength(5);
-		expect(plain[0]).toMatch(/\/tmp\/project \(main\)$/);
-		expect(plain[1]).toMatch(/^deepseek-live loaded/);
-		expect(plain[1]).toMatch(/demo$/);
+		expect(plain).toHaveLength(6);
+		expect(plain[0]).toContain("/tmp/project (main)");
+		expect(plain[0]).toContain("demo  │  deepseek-live");
+		expect(plain[1]).toMatch(/^▄+$/);
 		expect(plain[2]).toMatch(/^❯ {2}Ask anything\.\.\./);
-		expect(plain[3]).toMatch(/^context 25k\/200k auto/);
-		expect(plain[3]).toMatch(/adrouter · deepseek-v4-flash · thinking high$/);
-		expect(plain[4]).toMatch(/^OpenAI cache 3\/10/);
-		expect(plain[4]).toMatch(/cost \$1\.234 - subsidy \$0\.234 = effective \$1\.000$/);
+		expect(plain[3]).toMatch(/^▀+$/);
+		expect(plain[4]).toMatch(/^context 25k\/200k auto/);
+		expect(plain[4]).toMatch(/adrouter · deepseek-v4-flash · thinking high$/);
+		expect(plain[5]).toMatch(/^cost \$1\.234 · subsidy \$0\.234 · effective \$1\.000/);
+		expect(plain[5]).toMatch(/OpenAI cache 3\/10/);
 		expect(plain.join("\n")).not.toContain("─");
 		expect(lines.every((line) => visibleWidth(line) === 140)).toBe(true);
 	});
@@ -92,7 +93,7 @@ describe.sequential("CustomEditor input panel", () => {
 			.render(110)
 			.map(stripAnsi);
 
-		expect(lines[1]).toContain("no profile loaded");
+		expect(lines[0]).toContain("no profile loaded");
 		expect(lines.at(-2)).toContain("context ?/200k auto");
 		expect(lines.at(-1)).not.toContain("cache 0.0%");
 		expect(lines.at(-1)).toContain("effective $0.000000");

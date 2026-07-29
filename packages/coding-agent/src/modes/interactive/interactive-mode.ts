@@ -122,7 +122,7 @@ import { ExtensionEditorComponent } from "./components/extension-editor.ts";
 import { ExtensionInputComponent } from "./components/extension-input.ts";
 import { ExtensionSelectorComponent } from "./components/extension-selector.ts";
 import { FooterComponent, formatTokens } from "./components/footer.ts";
-import { formatKeyText, keyDisplayText, keyHint, keyText, rawKeyHint } from "./components/keybinding-hints.ts";
+import { formatKeyText, helperHint, keyDisplayText, keyText, rawHelperHint } from "./components/keybinding-hints.ts";
 import { LoginDialogComponent } from "./components/login-dialog.ts";
 import { ModelSelectorComponent } from "./components/model-selector.ts";
 import {
@@ -130,6 +130,7 @@ import {
 	formatAuthSelectorProviderType,
 	OAuthSelectorComponent,
 } from "./components/oauth-selector.ts";
+import { formatDisplayDirectory } from "./components/path-display.ts";
 import { ResponsiveStartupHeader } from "./components/responsive-startup-header.ts";
 import { ScopedModelsSelectorComponent } from "./components/scoped-models-selector.ts";
 import { SessionSelectorComponent } from "./components/session-selector.ts";
@@ -755,36 +756,33 @@ export class InteractiveMode {
 		// Add header with keybindings from config (unless silenced)
 		if (this.options.verbose || !this.settingsManager.getQuietStartup()) {
 			// Build startup instructions using keybinding hint helpers
-			const hint = (keybinding: AppKeybinding, description: string) => keyHint(keybinding, description);
-
 			const expandedInstructions = [
-				hint("app.interrupt", "to interrupt"),
-				hint("app.clear", "to clear"),
-				rawKeyHint(`${keyText("app.clear")} twice`, "to exit"),
-				hint("app.exit", "to exit (empty)"),
-				hint("app.suspend", "to suspend"),
-				keyHint("tui.editor.deleteToLineEnd", "to delete to end"),
-				hint("app.thinking.cycle", "to cycle thinking level"),
-				rawKeyHint(`${keyText("app.model.cycleForward")}/${keyText("app.model.cycleBackward")}`, "to cycle models"),
-				hint("app.model.select", "to select model"),
-				hint("app.tools.expand", "to expand tools"),
-				hint("app.thinking.toggle", "to expand thinking"),
-				hint("app.editor.external", "for external editor"),
-				rawKeyHint("/", "for commands"),
-				rawKeyHint("!", "to run bash"),
-				rawKeyHint("!!", "to run bash (no context)"),
-				hint("app.message.followUp", "to queue follow-up"),
-				hint("app.message.dequeue", "to edit all queued messages"),
-				hint("app.clipboard.pasteImage", "to paste image"),
-				rawKeyHint("drop files", "to attach"),
+				helperHint("app.interrupt", "interrupt"),
+				helperHint("app.clear", "clear"),
+				rawHelperHint(`${keyText("app.clear")} twice`, "exit"),
+				helperHint("app.exit", "exit when empty"),
+				helperHint("app.suspend", "suspend"),
+				helperHint("tui.editor.deleteToLineEnd", "delete to end"),
+				helperHint("app.thinking.cycle", "cycle thinking level"),
+				rawHelperHint(`${keyText("app.model.cycleForward")}/${keyText("app.model.cycleBackward")}`, "cycle models"),
+				helperHint("app.model.select", "select model"),
+				helperHint("app.tools.expand", "expand tools"),
+				helperHint("app.thinking.toggle", "expand thinking"),
+				helperHint("app.editor.external", "external editor"),
+				rawHelperHint("/", "commands"),
+				rawHelperHint("!", "bash"),
+				rawHelperHint("!!", "bash without context"),
+				helperHint("app.message.followUp", "queue follow-up"),
+				helperHint("app.message.dequeue", "edit queued messages"),
+				helperHint("app.clipboard.pasteImage", "paste image"),
+				rawHelperHint("drop files", "attach"),
 			].join("\n");
 			const compactInstructions = [
-				hint("app.interrupt", "interrupt"),
-				rawKeyHint(`${keyText("app.clear")}/${keyText("app.exit")}`, "clear/exit"),
-				rawKeyHint("/", "commands"),
-				rawKeyHint("!", "bash"),
-				hint("app.tools.expand", "more"),
-			].join(theme.fg("muted", " · "));
+				helperHint("app.interrupt", "interrupt"),
+				helperHint("app.clear", "clear"),
+				rawHelperHint("/", "commands"),
+				rawHelperHint("!", "bash"),
+			].join(theme.fg("muted", "  │  "));
 			const compactOnboarding = theme.fg(
 				"dim",
 				`Press ${keyText("app.tools.expand")} to show full startup help and loaded resources.`,
@@ -986,15 +984,7 @@ export class InteractiveMode {
 	// =========================================================================
 
 	private formatDisplayPath(p: string): string {
-		const home = os.homedir();
-		let result = p;
-
-		// Replace home directory with ~
-		if (result.startsWith(home)) {
-			result = `~${result.slice(home.length)}`;
-		}
-
-		return result;
+		return formatDisplayDirectory(p, os.homedir());
 	}
 
 	private formatExtensionDisplayPath(path: string): string {
