@@ -1,17 +1,17 @@
 {
 	"name": "@adrouter/cli",
-	"version": "0.81.0-beta.11",
+	"version": "0.81.0-beta.12",
 	"lockfileVersion": 3,
 	"requires": true,
 	"packages": {
 		"": {
 			"name": "@adrouter/cli",
-			"version": "0.81.0-beta.11",
+			"version": "0.81.0-beta.12",
 			"license": "MIT",
 			"dependencies": {
-				"@adrouter/agent-core": "0.81.0-beta.11",
-				"@adrouter/ai": "0.81.0-beta.11",
-				"@adrouter/tui": "0.81.0-beta.11",
+				"@adrouter/agent-core": "0.81.0-beta.12",
+				"@adrouter/ai": "0.81.0-beta.12",
+				"@adrouter/tui": "0.81.0-beta.12",
 				"@silvia-odwyer/photon-node": "0.3.4",
 				"@mozilla/readability": "0.6.0",
 				"chalk": "5.6.2",
@@ -46,11 +46,11 @@
 			}
 		},
 		"node_modules/@adrouter/agent-core": {
-			"version": "0.81.0-beta.11",
+			"version": "0.81.0-beta.12",
 			"inBundle": true,
 			"license": "MIT",
 			"dependencies": {
-				"@adrouter/ai": "0.81.0-beta.11",
+				"@adrouter/ai": "0.81.0-beta.12",
 				"ignore": "7.0.5",
 				"typebox": "1.1.38",
 				"yaml": "2.9.0"
@@ -60,7 +60,7 @@
 			}
 		},
 		"node_modules/@adrouter/ai": {
-			"version": "0.81.0-beta.11",
+			"version": "0.81.0-beta.12",
 			"inBundle": true,
 			"license": "MIT",
 			"dependencies": {
@@ -81,7 +81,7 @@
 			}
 		},
 		"node_modules/@adrouter/tui": {
-			"version": "0.81.0-beta.11",
+			"version": "0.81.0-beta.12",
 			"inBundle": true,
 			"license": "MIT",
 			"dependencies": {
@@ -632,9 +632,6 @@
 			"cpu": [
 				"arm64"
 			],
-			"libc": [
-				"glibc"
-			],
 			"optional": true
 		},
 		"node_modules/@mariozechner/clipboard-linux-arm64-musl": {
@@ -650,9 +647,6 @@
 			],
 			"cpu": [
 				"arm64"
-			],
-			"libc": [
-				"musl"
 			],
 			"optional": true
 		},
@@ -670,9 +664,6 @@
 			"cpu": [
 				"riscv64"
 			],
-			"libc": [
-				"glibc"
-			],
 			"optional": true
 		},
 		"node_modules/@mariozechner/clipboard-linux-x64-gnu": {
@@ -689,9 +680,6 @@
 			"cpu": [
 				"x64"
 			],
-			"libc": [
-				"glibc"
-			],
 			"optional": true
 		},
 		"node_modules/@mariozechner/clipboard-linux-x64-musl": {
@@ -707,9 +695,6 @@
 			],
 			"cpu": [
 				"x64"
-			],
-			"libc": [
-				"musl"
 			],
 			"optional": true
 		},

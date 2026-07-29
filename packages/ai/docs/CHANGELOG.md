@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.81.0-beta.12] - 2026-07-29
+
+### Changed
+
+- Repacked the private AI runtime for the security-hardening beta.
+
 ## [0.81.0-beta.11] - 2026-07-29
 
 ### Changed
