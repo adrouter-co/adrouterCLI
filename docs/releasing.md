@@ -91,7 +91,7 @@ git remote -v
 ```
 
 The account must have repository write access, permission to create the
-protected `v0.81.0-beta.10` tag, run workflows, and approve both environments.
+protected `v0.81.0-beta.11` tag, run workflows, and approve both environments.
 Do not reuse npm, installation, provider, or GitHub credentials for another role.
 
 ## Stable promotion

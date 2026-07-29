@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.81.0-beta.11] - 2026-07-29
+
+### Changed
+
+- Consolidated directory, branch, session, and profile metadata into one width-aware row above the
+  framed input panel while retaining the public-beta blue `❯` prompt.
+- Standardized startup and selector shortcuts as bracketed, capitalized key/action hints with
+  width-safe separators and middle-collapsed Unix and Windows paths.
+- Reworked sponsored placements into a structured title, tier, wrapped body, and action layout that
+  remains bounded on narrow terminals and preserves privacy-protected Tier NONE outcomes.
+
 ## [0.81.0-beta.10] - 2026-07-28
 
 ### Changed
