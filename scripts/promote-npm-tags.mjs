@@ -25,7 +25,7 @@ function run(command, args) {
 	if (result.status !== 0) throw new Error(`${command} ${args.join(" ")} failed`);
 }
 
-function npmJson(args) {
+function npmJson(args, { allowNotFound = false } = {}) {
 	const result = spawnSync(process.platform === "win32" ? "npm.cmd" : "npm", [
 		...args,
 		"--json",
@@ -36,7 +36,17 @@ function npmJson(args) {
 		encoding: "utf8",
 		shell: process.platform === "win32",
 	});
-	if (result.status !== 0) throw new Error(`npm ${args.join(" ")} failed\n${result.stdout}\n${result.stderr}`);
+	if (result.status !== 0) {
+		if (allowNotFound) {
+			try {
+				const error = JSON.parse(result.stdout);
+				if (error?.error?.code === "E404") return undefined;
+			} catch {
+				// Preserve the original npm failure below when stdout is not JSON.
+			}
+		}
+		throw new Error(`npm ${args.join(" ")} failed\n${result.stdout}\n${result.stderr}`);
+	}
 	return JSON.parse(result.stdout);
 }
 
@@ -92,8 +102,10 @@ if (currentTags[publication.candidateTag] !== undefined) {
 if (publication.supersedes) {
 	const supersededSpecifier = `${packageName}@${publication.supersedes}`;
 	const deprecation = `Superseded by ${packageName}@${version}; reinstall @beta.`;
-	const supersededMetadata = npmJson(["view", supersededSpecifier]);
-	if (supersededMetadata.deprecated !== deprecation) {
+	const supersededMetadata = npmJson(["view", supersededSpecifier], { allowNotFound: true });
+	if (supersededMetadata === undefined) {
+		console.warn(`${supersededSpecifier} was not published; skipping optional deprecation.`);
+	} else if (supersededMetadata.deprecated !== deprecation) {
 		run("npm", [
 			"deprecate",
 			supersededSpecifier,
