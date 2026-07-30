@@ -138,6 +138,9 @@ test("release workflows are bound to the canonical repository and registry insta
 		"GitHub publication must follow npm promotion",
 	);
 	const finalizerSource = readFileSync("scripts/promote-npm-tags.mjs", "utf8");
+	assert.match(finalizerSource, /allowNotFound/);
+	assert.match(finalizerSource, /error\?\.error\?\.code === "E404"/);
+	assert.match(finalizerSource, /was not published; skipping optional deprecation/);
 	assert.match(finalizerSource, /finalStateAttempts = 12/);
 	assert.match(finalizerSource, /supersededMetadata\.deprecated !== deprecation/);
 	const publishSource = readFileSync("scripts/publish.mjs", "utf8");
