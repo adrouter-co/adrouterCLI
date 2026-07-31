@@ -6,6 +6,14 @@
 
 - Exposed the six-model AdRouter catalog in offline model listing and packaged-runtime verification.
 
+### Fixed
+
+- Changed installation login to wait for confirmed browser sign-in before creating the key and
+  server approval request, made Windows browser launch use the default-handler-compatible Explorer
+  path, surfaced launcher failures with the manual URL, validated candidate credentials before
+  persistence, and removed pending keys plus best-effort server state after failed, cancelled, or
+  interrupted attempts so retries and restarts begin cleanly.
+
 ## [0.81.0-beta.12] - 2026-07-29
 
 ### Fixed

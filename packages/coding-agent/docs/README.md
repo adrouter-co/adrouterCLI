@@ -9,7 +9,7 @@ npm install --global --ignore-scripts @adrouter/cli@beta
 adrouter
 ```
 
-At first launch, review the workspace trust prompt, run `/login adrouter`, and approve the matching installation code in the opened AdRouter WebUI. The CLI keeps its Ed25519 key and rotating refresh credential in user-only file-protected storage and keeps access tokens in memory. The hosted beta supports `deepseek-v4-flash` and `deepseek-v4-pro`. Run `/ads` to inspect or immediately disable display-only sponsorship, and `/logout adrouter` to revoke and remove the installation.
+At first launch, review the workspace trust prompt and run `/login adrouter`. Sign in at the printed AdRouter website, type `DONE` only after browser sign-in completes, and approve the matching installation code in the WebUI. The CLI keeps its approved Ed25519 key and rotating refresh credential in user-only file-protected storage, removes pending keys after failed attempts, and keeps access tokens in memory. The hosted beta supports `deepseek-v4-flash` and `deepseek-v4-pro`. Run `/ads` to inspect or immediately disable display-only sponsorship, and `/logout adrouter` to revoke and remove the installation.
 
 Global state is stored under `~/.adrouter/agent`; project configuration is stored under `.adrouter/`. AdRouterCLI preserves user-approved command execution.
 

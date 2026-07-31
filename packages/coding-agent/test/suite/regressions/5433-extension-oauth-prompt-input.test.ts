@@ -4,6 +4,7 @@ import { KeybindingsManager } from "../../../src/core/keybindings.ts";
 import { LoginDialogComponent } from "../../../src/modes/interactive/components/login-dialog.ts";
 import { initTheme } from "../../../src/modes/interactive/theme/theme.ts";
 import { stripAnsi } from "../../../src/utils/ansi.ts";
+import { openBrowser } from "../../../src/utils/open-browser.ts";
 
 vi.mock("../../../src/utils/open-browser.ts", () => ({
 	openBrowser: vi.fn(),
@@ -35,6 +36,7 @@ describe("LoginDialogComponent OAuth prompts", () => {
 
 	beforeEach(() => {
 		setKeybindings(new KeybindingsManager());
+		vi.mocked(openBrowser).mockClear();
 	});
 
 	test("keeps previous prompt input stable when a later prompt is active", async () => {
@@ -68,6 +70,27 @@ describe("LoginDialogComponent OAuth prompts", () => {
 		expect(output).toContain("https://example.invalid/login");
 		expect(output).toContain("Authorize the extension");
 		expect(output).toContain("First prompt:");
+	});
+
+	test("opens both the sign-in page and the server-provided approval request", () => {
+		const dialog = createDialog();
+		const signInUrl = "https://app-staging.adrouter.co/developers?connect=cli";
+		const approvalUrl = "https://app-staging.adrouter.co/connect?code=ABCD-EFGH";
+
+		dialog.showAuth(signInUrl, "Sign in first");
+		dialog.showDeviceCode({
+			userCode: "ABCD-EFGH",
+			verificationUri: "https://app-staging.adrouter.co/connect",
+			verificationUriComplete: approvalUrl,
+		});
+
+		expect(vi.mocked(openBrowser).mock.calls).toEqual([
+			[signInUrl, expect.any(Function)],
+			[approvalUrl, expect.any(Function)],
+		]);
+		vi.mocked(openBrowser).mock.calls[1]?.[1]?.(new Error("launcher unavailable"));
+		expect(renderDialog(dialog).join("\n")).toContain("ABCD-EFGH");
+		expect(renderDialog(dialog).join("\n")).toContain("could not be opened automatically");
 	});
 
 	test("keeps previous manual input stable when a later prompt is active", async () => {

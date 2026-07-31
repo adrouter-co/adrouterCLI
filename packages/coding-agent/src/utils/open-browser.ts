@@ -1,5 +1,14 @@
 import { spawn } from "node:child_process";
 
+export function browserLaunchCommand(
+	target: string,
+	platform: NodeJS.Platform = process.platform,
+): { command: string; args: string[] } {
+	if (platform === "darwin") return { command: "open", args: [target] };
+	if (platform === "win32") return { command: "explorer.exe", args: [target] };
+	return { command: "xdg-open", args: [target] };
+}
+
 /**
  * Open a URL or file in the platform browser/default handler.
  *
@@ -7,18 +16,13 @@ import { spawn } from "node:child_process";
  * `cmd /c start`: cmd.exe re-parses metacharacters (&, |, ^, ...) before
  * `start` runs, which would make attacker-controlled URLs injectable.
  */
-export function openBrowser(target: string): void {
-	const [cmd, args]: [string, string[]] =
-		process.platform === "darwin"
-			? ["open", [target]]
-			: process.platform === "win32"
-				? ["rundll32", ["url.dll,FileProtocolHandler", target]]
-				: ["xdg-open", [target]];
+export function openBrowser(target: string, onError?: (error: Error) => void): void {
+	const { command, args } = browserLaunchCommand(target);
 
 	// spawn reports launcher failures (for example, missing xdg-open) via an
 	// error event. Browser launch is best-effort: callers still present the target
 	// to the user, so keep the launcher failure from becoming a process crash.
-	spawn(cmd, args, { stdio: "ignore", detached: true })
-		.on("error", () => {})
+	spawn(command, args, { stdio: "ignore", detached: true })
+		.on("error", (error) => onError?.(error))
 		.unref();
 }

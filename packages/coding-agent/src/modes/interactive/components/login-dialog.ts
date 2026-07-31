@@ -91,6 +91,17 @@ export class LoginDialogComponent extends Container implements Focusable {
 		this.onComplete(false, "Login cancelled");
 	}
 
+	private reportBrowserLaunchFailure(url: string): void {
+		this.contentContainer.addChild(
+			new Text(
+				theme.fg("warning", `The browser could not be opened automatically. Open this URL manually: ${url}`),
+				1,
+				0,
+			),
+		);
+		this.tui.requestRender();
+	}
+
 	/**
 	 * Called by onAuth callback - show URL and optional instructions
 	 */
@@ -109,7 +120,7 @@ export class LoginDialogComponent extends Container implements Focusable {
 			this.contentContainer.addChild(new Text(theme.fg("warning", instructions), 1, 0));
 		}
 
-		openBrowser(url);
+		openBrowser(url, () => this.reportBrowserLaunchFailure(url));
 		this.tui.requestRender();
 	}
 
@@ -129,7 +140,7 @@ export class LoginDialogComponent extends Container implements Focusable {
 		this.contentContainer.addChild(new Spacer(1));
 		this.contentContainer.addChild(new Text(theme.fg("warning", `Enter code: ${info.userCode}`), 1, 0));
 
-		openBrowser(browserUrl);
+		openBrowser(browserUrl, () => this.reportBrowserLaunchFailure(browserUrl));
 		this.tui.requestRender();
 	}
 

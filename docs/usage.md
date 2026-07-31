@@ -2,7 +2,7 @@
 
 Start `adrouter` in the intended project. The first-project prompt controls whether repository-owned `.adrouter/` resources can load. Trust only reviewed workspaces.
 
-Run `/login adrouter`, type `CONNECT` only when you intend to create a new installation, and approve the matching user code in the opened WebUI page. The device code, private key, and credentials are never displayed. Then select `deepseek-v4-flash`, `deepseek-v4-pro`, `mimo-v2.5`, `mimo-v2.5-pro`, `agnes-2.5-flash`, or `agnes-2.5-pro-alpha`. For non-interactive work after enrollment:
+Run `/login adrouter`, sign in at the printed AdRouter website, and type `DONE` only after the website confirms you are signed in. The CLI then creates a fresh installation key and opens the matching WebUI approval page; an already-open signed-in tab also shows the approval modal. Open the printed URL manually if the browser does not launch. Failed attempts remove the pending key and best-effort cancel server state, so a later `/login adrouter` starts cleanly. The device code, private key, and credentials are never displayed. Then select `deepseek-v4-flash`, `deepseek-v4-pro`, `mimo-v2.5`, `mimo-v2.5-pro`, `agnes-2.5-flash`, or `agnes-2.5-pro-alpha`. For non-interactive work after enrollment:
 
 ```sh
 adrouter --provider adrouter --model deepseek-v4-flash --print "Explain this project"

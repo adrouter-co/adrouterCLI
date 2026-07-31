@@ -45,13 +45,20 @@ and is never valid release or deployment evidence.
 1. Start `adrouter` inside the intended project.
 2. Accept the trust prompt only after reviewing the project-local `.adrouter`
    resources it may load.
-3. Run `/login adrouter`, explicitly choose to connect this CLI, and compare the
-   displayed user code with the approval page opened at `https://app-staging.adrouter.co`.
+3. Run `/login adrouter`, sign in at the printed AdRouter website first, and type
+   `DONE` only after the website confirms you are signed in. The CLI then creates
+   a fresh installation key and opens the matching approval page. An already-open,
+   signed-in AdRouter tab also shows the request as a modal. If automatic browser
+   launch is unavailable, open the printed URL manually.
 4. Approve only the installation you recognize. The CLI stores an Ed25519 private
    key and rotating refresh credential in its mode-0600 auth file; access tokens
    remain memory-only. This storage is `file_protected`, not OS-keychain encrypted.
 5. Run `/ads` to inspect sponsorship status or opt out immediately. Use `/logout
    adrouter` to attempt remote revocation and always remove local installation secrets.
+
+Failed, denied, cancelled, and interrupted login attempts remove the pending private key and ask
+the server to cancel abandoned enrollment state. A later `/login adrouter`, including after `/quit`
+and restart, always creates a clean approval request even when server cleanup was unreachable.
 
 The hosted beta routes six models:
 

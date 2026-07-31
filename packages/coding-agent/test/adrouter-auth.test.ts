@@ -152,11 +152,13 @@ describe("AdRouter installation authentication", () => {
 			});
 		});
 		const onDeviceCode = vi.fn();
-		const enrollment = enrollAdRouterInstallation(
-			authStorage,
-			{ confirm: async () => true, onDeviceCode },
-			fetchMock as typeof fetch,
-		);
+		const confirm = vi.fn(async ({ signInUrl }: { signInUrl: string }) => {
+			expect(signInUrl).toBe("https://app-staging.adrouter.co/developers?connect=cli");
+			expect(fetchMock).not.toHaveBeenCalled();
+			expect(authStorage.getAdRouterPendingEnrollment()).toBeUndefined();
+			return true;
+		});
+		const enrollment = enrollAdRouterInstallation(authStorage, { confirm, onDeviceCode }, fetchMock as typeof fetch);
 		await vi.advanceTimersByTimeAsync(15_000);
 		await enrollment;
 
@@ -166,6 +168,7 @@ describe("AdRouter installation authentication", () => {
 			verificationUriComplete: "https://app-staging.adrouter.co/installations/connect?user_code=ABCD-EFGH",
 			expiresAt: expect.any(Number),
 		});
+		expect(confirm).toHaveBeenCalledOnce();
 		expect(JSON.stringify(onDeviceCode.mock.calls)).not.toContain("private-device-code");
 		expect(authStorage.getAdRouterPendingEnrollment()).toBeUndefined();
 		expect(authStorage.getAdRouterInstallation()).toMatchObject({
@@ -212,7 +215,7 @@ describe("AdRouter installation authentication", () => {
 		expect(profileClaims).not.toHaveProperty("bht");
 	});
 
-	it("resumes an unexpired pending enrollment without starting a replacement", async () => {
+	it("discards an unexpired pending key and starts a clean enrollment after restart", async () => {
 		vi.useFakeTimers();
 		const authStorage = AuthStorage.inMemory();
 		const { privateJwk } = generateAdRouterKeyPair();
@@ -232,14 +235,30 @@ describe("AdRouter installation authentication", () => {
 			displayName: "resume CLI",
 			createdAt: Date.now(),
 		});
+		let initiationCount = 0;
 		const fetchMock = vi.fn(async (url: string | URL | Request) => {
 			const path = new URL(String(url)).pathname;
+			if (path === "/v1/device/authorizations") {
+				initiationCount++;
+				return new Response(
+					JSON.stringify({
+						device_code: "new-device-code",
+						user_code: "NEW1-CODE",
+						verification_uri: "https://app-staging.adrouter.co/connect",
+						verification_uri_complete: "https://app-staging.adrouter.co/connect?code=NEW1-CODE",
+						installation_id: "installation-new",
+						expires_in: 600,
+						interval: 5,
+					}),
+					{ status: 200, headers: { "content-type": "application/json" } },
+				);
+			}
 			if (path === "/v1/oauth/token") {
 				return new Response(
 					JSON.stringify({
 						access_token: "access-resume",
 						refresh_token: "refresh-resume",
-						installation_id: "installation-resume",
+						installation_id: "installation-new",
 						expires_in: 600,
 						refresh_family_expires_in: 3600,
 					}),
@@ -252,17 +271,164 @@ describe("AdRouter installation authentication", () => {
 			});
 		});
 		const onProgress = vi.fn();
+		const onDeviceCode = vi.fn();
 		const enrollment = enrollAdRouterInstallation(
 			authStorage,
-			{ confirm: async () => true, onDeviceCode: vi.fn(), onProgress },
+			{ confirm: async () => true, onDeviceCode, onProgress },
 			fetchMock as typeof fetch,
 		);
 		await vi.advanceTimersByTimeAsync(5_000);
 		await enrollment;
 
-		expect(onProgress).toHaveBeenCalledWith(expect.stringContaining("Resuming"));
-		expect(fetchMock.mock.calls.some((call) => String(call[0]).includes("/v1/device/authorizations"))).toBe(false);
-		expect(authStorage.getAdRouterInstallation()?.installationId).toBe("installation-resume");
+		expect(initiationCount).toBe(1);
+		expect(onProgress).not.toHaveBeenCalledWith(expect.stringContaining("Resuming"));
+		expect(onDeviceCode).toHaveBeenCalledWith(expect.objectContaining({ userCode: "NEW1-CODE" }));
+		expect(authStorage.getAdRouterInstallation()?.installationId).toBe("installation-new");
+	});
+
+	it("removes the newly-created private key when approval fails", async () => {
+		vi.useFakeTimers();
+		const authStorage = AuthStorage.inMemory();
+		let createdAttempts = 0;
+		const fetchMock = vi.fn(async (url: string | URL | Request) => {
+			const path = new URL(String(url)).pathname;
+			if (path === "/v1/device/authorizations") {
+				createdAttempts++;
+				return new Response(
+					JSON.stringify({
+						device_code: `failed-device-code-${createdAttempts}`,
+						user_code: `FAIL-000${createdAttempts}`,
+						verification_uri: "https://app-staging.adrouter.co/connect",
+						verification_uri_complete: `https://app-staging.adrouter.co/connect?code=FAIL-000${createdAttempts}`,
+						expires_in: 600,
+						interval: 5,
+					}),
+					{ status: 200, headers: { "content-type": "application/json" } },
+				);
+			}
+			return new Response(JSON.stringify({ error: "Denied", code: "access_denied" }), {
+				status: 400,
+				headers: { "content-type": "application/json" },
+			});
+		});
+
+		const firstAttempt = enrollAdRouterInstallation(
+			authStorage,
+			{ confirm: async () => true, onDeviceCode: vi.fn() },
+			fetchMock as typeof fetch,
+		);
+		const firstFailure = expect(firstAttempt).rejects.toThrow("approval was denied");
+		await vi.advanceTimersByTimeAsync(5_000);
+		await firstFailure;
+		expect(authStorage.getAdRouterPendingEnrollment()).toBeUndefined();
+		expect(authStorage.getAdRouterInstallation()).toBeUndefined();
+
+		const secondAttempt = enrollAdRouterInstallation(
+			authStorage,
+			{ confirm: async () => true, onDeviceCode: vi.fn() },
+			fetchMock as typeof fetch,
+		);
+		const secondFailure = expect(secondAttempt).rejects.toThrow("approval was denied");
+		await vi.advanceTimersByTimeAsync(5_000);
+		await secondFailure;
+		expect(createdAttempts).toBe(2);
+		expect(authStorage.getAdRouterPendingEnrollment()).toBeUndefined();
+	});
+
+	it("validates a candidate before persistence and best-effort cancels rejected server state", async () => {
+		vi.useFakeTimers();
+		const authStorage = installationStorage();
+		let cancelAttempts = 0;
+		const fetchMock = vi.fn(async (url: string | URL | Request) => {
+			const path = new URL(String(url)).pathname;
+			if (path === "/v1/device/authorizations") {
+				return new Response(
+					JSON.stringify({
+						device_code: "candidate-device-code",
+						user_code: "CAND-0001",
+						verification_uri: "https://app-staging.adrouter.co/connect",
+						verification_uri_complete: "https://app-staging.adrouter.co/connect?code=CAND-0001",
+						expires_in: 600,
+						interval: 5,
+					}),
+					{ status: 201, headers: { "content-type": "application/json" } },
+				);
+			}
+			if (path === "/v1/oauth/token") {
+				return new Response(
+					JSON.stringify({
+						access_token: "candidate-access",
+						refresh_token: "candidate-refresh",
+						installation_id: "candidate-installation",
+						expires_in: 600,
+						refresh_family_expires_in: 3600,
+					}),
+					{ status: 200, headers: { "content-type": "application/json" } },
+				);
+			}
+			if (path === "/v1/profile") {
+				return new Response(
+					JSON.stringify({ error: "Developer access is not enabled.", code: "developer_required" }),
+					{
+						status: 403,
+						headers: { "content-type": "application/json" },
+					},
+				);
+			}
+			cancelAttempts++;
+			if (cancelAttempts === 1) {
+				return new Response(JSON.stringify({ error: "Nonce required", code: "use_dpop_nonce" }), {
+					status: 401,
+					headers: { "dpop-nonce": "cancel_nonce_1234567890" },
+				});
+			}
+			return new Response(null, { status: 204 });
+		});
+		const onProgress = vi.fn();
+		const enrollment = enrollAdRouterInstallation(
+			authStorage,
+			{ confirm: async () => true, onDeviceCode: vi.fn(), onProgress },
+			fetchMock as typeof fetch,
+		);
+		const failure = expect(enrollment).rejects.toThrow("does not have developer access");
+		await vi.advanceTimersByTimeAsync(5_000);
+		await failure;
+
+		expect(authStorage.getAdRouterInstallation()?.installationId).toBe("installation-1");
+		expect(authStorage.getAdRouterPendingEnrollment()).toBeUndefined();
+		expect(cancelAttempts).toBe(2);
+		expect(onProgress).toHaveBeenCalledWith(expect.stringContaining("Removed the failed"));
+	});
+
+	it("clears crash-left pending material before browser confirmation", async () => {
+		const authStorage = AuthStorage.inMemory();
+		const { privateJwk } = generateAdRouterKeyPair();
+		authStorage.setAdRouterPendingEnrollment({
+			type: "adrouter_pending_enrollment",
+			version: 1,
+			privateJwk,
+			deviceCode: "crash-device-code",
+			userCode: "CRSH-0001",
+			verificationUri: "https://app-staging.adrouter.co/connect",
+			intervalSeconds: 5,
+			expiresAt: Date.now() + 60_000,
+			origin: "https://api-staging.adrouter.co",
+			scopes: ["agent:turn", "profile:read"],
+			clientVersion: "0.81.0-beta.13",
+			displayName: "crashed CLI",
+			createdAt: Date.now(),
+		});
+		const fetchMock = vi.fn();
+
+		await expect(
+			enrollAdRouterInstallation(
+				authStorage,
+				{ confirm: async () => false, onDeviceCode: vi.fn() },
+				fetchMock as typeof fetch,
+			),
+		).rejects.toThrow("Login cancelled");
+		expect(authStorage.getAdRouterPendingEnrollment()).toBeUndefined();
+		expect(fetchMock).not.toHaveBeenCalled();
 	});
 
 	it("coalesces concurrent memory-token acquisition and persists refresh rotation", async () => {
