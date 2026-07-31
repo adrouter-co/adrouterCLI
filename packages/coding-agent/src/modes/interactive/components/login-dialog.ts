@@ -145,6 +145,28 @@ export class LoginDialogComponent extends Container implements Focusable {
 	}
 
 	/**
+	 * Show an AdRouter approval request without opening a second browser tab.
+	 * The signed-in WebUI receives the request through the browser handoff; the
+	 * direct URL remains available only as a manual fallback.
+	 */
+	showAdRouterApproval(info: OAuthDeviceCodeInfo & { verificationUriComplete?: string; expiresAt?: number }): void {
+		this.contentContainer.clear();
+		this.contentContainer.addChild(new Spacer(1));
+		this.contentContainer.addChild(
+			new Text(theme.fg("text", "Approval requested. Keep the signed-in AdRouter tab open."), 1, 0),
+		);
+		this.contentContainer.addChild(new Text(theme.fg("warning", `Compare code: ${info.userCode}`), 1, 0));
+		const fallbackUrl = info.verificationUriComplete ?? info.verificationUri;
+		const linkedUrl = `\x1b]8;;${fallbackUrl}\x07${fallbackUrl}\x1b]8;;\x07`;
+		this.contentContainer.addChild(new Spacer(1));
+		this.contentContainer.addChild(
+			new Text(theme.fg("dim", "If the approval popup does not appear, open this fallback URL:"), 1, 0),
+		);
+		this.contentContainer.addChild(new Text(theme.fg("accent", linkedUrl), 1, 0));
+		this.tui.requestRender();
+	}
+
+	/**
 	 * Show input for manual code/URL entry (for callback server providers)
 	 */
 	showManualInput(prompt: string): Promise<string> {

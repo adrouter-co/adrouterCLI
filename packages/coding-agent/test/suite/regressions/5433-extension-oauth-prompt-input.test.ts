@@ -72,25 +72,21 @@ describe("LoginDialogComponent OAuth prompts", () => {
 		expect(output).toContain("First prompt:");
 	});
 
-	test("opens both the sign-in page and the server-provided approval request", () => {
+	test("opens only the sign-in page and keeps the approval URL as a fallback", () => {
 		const dialog = createDialog();
 		const signInUrl = "https://app-staging.adrouter.co/developers?connect=cli";
 		const approvalUrl = "https://app-staging.adrouter.co/connect?code=ABCD-EFGH";
 
 		dialog.showAuth(signInUrl, "Sign in first");
-		dialog.showDeviceCode({
+		dialog.showAdRouterApproval({
 			userCode: "ABCD-EFGH",
 			verificationUri: "https://app-staging.adrouter.co/connect",
 			verificationUriComplete: approvalUrl,
 		});
 
-		expect(vi.mocked(openBrowser).mock.calls).toEqual([
-			[signInUrl, expect.any(Function)],
-			[approvalUrl, expect.any(Function)],
-		]);
-		vi.mocked(openBrowser).mock.calls[1]?.[1]?.(new Error("launcher unavailable"));
+		expect(vi.mocked(openBrowser).mock.calls).toEqual([[signInUrl, expect.any(Function)]]);
 		expect(renderDialog(dialog).join("\n")).toContain("ABCD-EFGH");
-		expect(renderDialog(dialog).join("\n")).toContain("could not be opened automatically");
+		expect(renderDialog(dialog).join("\n")).toContain(approvalUrl);
 	});
 
 	test("keeps previous manual input stable when a later prompt is active", async () => {

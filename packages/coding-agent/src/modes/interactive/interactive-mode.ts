@@ -5166,8 +5166,8 @@ export class InteractiveMode {
 					}
 				},
 				onDeviceCode: (info) => {
-					dialog.showDeviceCode(info);
-					dialog.showWaiting("Waiting for approval in AdRouter...");
+					dialog.showAdRouterApproval(info);
+					dialog.showWaiting("Waiting for approval in the signed-in AdRouter tab...");
 				},
 				onProgress: (message) => dialog.showProgress(message),
 			});

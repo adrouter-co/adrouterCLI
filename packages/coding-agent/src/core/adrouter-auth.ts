@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { hostname } from "node:os";
 import {
 	ADROUTER_CLIENT_KIND,
@@ -160,10 +161,10 @@ function originClass(origin: string): AdRouterAuthDiagnostics["originClass"] {
 	return host === "localhost" || host === "127.0.0.1" || host === "::1" ? "loopback" : "custom";
 }
 
-function signInUrlFor(origin: string): string {
+function signInUrlFor(origin: string, browserHandoffId: string): string {
 	const webAppOrigin = OFFICIAL_WEB_APP_ORIGINS[origin];
 	if (!webAppOrigin) throw new Error("AdRouter does not have a sign-in page configured for this hosted endpoint");
-	return `${webAppOrigin}/developers?connect=cli`;
+	return `${webAppOrigin}/developers?connect=cli#handoff=${encodeURIComponent(browserHandoffId)}`;
 }
 
 function validateBrowserUrl(value: string, apiOrigin: string): string {
@@ -322,6 +323,7 @@ export async function validateAndStoreAdRouterApiKey(
 async function createPendingEnrollment(
 	authStorage: AuthStorage,
 	origin: string,
+	browserHandoffId: string,
 	fetchImpl: typeof fetch,
 	signal?: AbortSignal,
 ): Promise<AdRouterPendingEnrollmentRecord> {
@@ -334,6 +336,7 @@ async function createPendingEnrollment(
 		public_key_jwk: publicJwk,
 		requested_scopes: [...ADROUTER_INSTALLATION_SCOPES],
 		storage_class: ADROUTER_STORAGE_CLASS,
+		browser_handoff_id: browserHandoffId,
 	});
 	const url = `${origin}${DEVICE_AUTHORIZATION_PATH}`;
 	const response = await signedProtocolRequest({
@@ -497,10 +500,12 @@ export async function enrollAdRouterInstallation(
 		result: undefined,
 		next: { installation: state.installation },
 	}));
-	if (!(await callbacks.confirm({ signInUrl: signInUrlFor(origin) }))) throw new Error("Login cancelled");
+	const browserHandoffId = randomUUID();
+	if (!(await callbacks.confirm({ signInUrl: signInUrlFor(origin, browserHandoffId) })))
+		throw new Error("Login cancelled");
 	let pending: AdRouterPendingEnrollmentRecord | undefined;
 	try {
-		pending = await createPendingEnrollment(authStorage, origin, fetchImpl, callbacks.signal);
+		pending = await createPendingEnrollment(authStorage, origin, browserHandoffId, fetchImpl, callbacks.signal);
 		callbacks.onDeviceCode({
 			userCode: pending.userCode,
 			verificationUri: pending.verificationUri,
