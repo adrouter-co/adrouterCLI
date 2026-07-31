@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.81.0-beta.15] - 2026-08-01
+
+### Changed
+
+- Repacked the private agent runtime for the Windows and same-tab installation-login beta.
+
 ## [0.81.0-beta.14] - 2026-07-31
 
 ### Changed

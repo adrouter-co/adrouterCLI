@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.81.0-beta.15] - 2026-08-01
+
+### Fixed
+
+- Open the AdRouter sign-in page in the default Windows browser through encoded, shell-free
+  PowerShell instead of opening Documents in Explorer.
+- Keep installation approval in the original signed-in browser tab, with a comparison code and
+  direct approval URL retained only as a manual fallback, while preserving clean retry and restart
+  behavior after failed or cancelled enrollment.
+
 ## [0.81.0-beta.14] - 2026-07-31
 
 ### Fixed
