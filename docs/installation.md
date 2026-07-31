@@ -13,9 +13,13 @@ This installs one public package. Its private `@adrouter/ai`, `@adrouter/tui`,
 and `@adrouter/agent-core` runtime packages are embedded in the CLI tarball and
 are not fetched as separate AdRouter registry packages.
 
-Hosted authentication is installation-bound. `/login adrouter` creates an Ed25519 key only after
-explicit confirmation, opens the user-approval page, and stores the private key plus rotating refresh
-credential with user-only file permissions. Access tokens are not persisted. This is classified as
+Hosted authentication is installation-bound. `/login adrouter` first opens and prints the AdRouter
+sign-in page. After the user confirms that browser sign-in is complete by typing `DONE`, the CLI
+creates an Ed25519 key, sends the installation request, and opens and prints the user-approval page.
+An already-open signed-in AdRouter tab receives the same approval request as a modal. Failed, denied,
+cancelled, or interrupted attempts remove that pending key and best-effort cancel server state, so
+restarting and running `/login adrouter` begins cleanly. The approved private key plus rotating refresh credential are stored
+with user-only file permissions. Access tokens are not persisted. This is classified as
 `file_protected`, not OS-keychain encrypted; use `/logout adrouter` before disposing of a machine and
 review remote installations in the WebUI if revocation could not be confirmed.
 

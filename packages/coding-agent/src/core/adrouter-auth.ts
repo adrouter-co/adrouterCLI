@@ -28,6 +28,7 @@ import type { AdRouterInstallationRecord, AdRouterPendingEnrollmentRecord, AuthS
 export { ADROUTER_PROVIDER_ID, DEFAULT_ADROUTER_API_URL };
 
 const DEVICE_AUTHORIZATION_PATH = "/v1/device/authorizations";
+const DEVICE_AUTHORIZATION_CANCEL_PATH = "/v1/device/authorizations/cancel";
 const TOKEN_PATH = "/v1/oauth/token";
 const PROFILE_PATH = "/v1/profile";
 const REVOKE_PATH = "/v1/installation/revoke";
@@ -41,7 +42,7 @@ export type AdRouterCredentialSource = "runtime" | "stored" | "environment" | "i
 
 export interface AdRouterEnrollmentCallbacks {
 	signal?: AbortSignal;
-	confirm(): Promise<boolean>;
+	confirm(info: { signInUrl: string }): Promise<boolean>;
 	onDeviceCode(info: {
 		userCode: string;
 		verificationUri: string;
@@ -50,6 +51,11 @@ export interface AdRouterEnrollmentCallbacks {
 	}): void;
 	onProgress?(message: string): void;
 }
+
+const OFFICIAL_WEB_APP_ORIGINS: Readonly<Record<string, string>> = {
+	"https://api-staging.adrouter.co": "https://app-staging.adrouter.co",
+	"https://api.adrouter.co": "https://app.adrouter.co",
+};
 
 export interface AdRouterAuthDiagnostics {
 	state: "unconfigured" | "pending" | "ready" | "expired" | "invalid";
@@ -93,23 +99,71 @@ function numberField(record: JsonRecord, ...names: string[]): number | undefined
 	return undefined;
 }
 
+class AdRouterProtocolError extends Error {
+	readonly code?: string;
+	readonly status: number;
+	readonly retryable: boolean;
+	readonly serverTime?: number;
+
+	constructor(message: string, input: { code?: string; status: number; retryable?: boolean; serverTime?: number }) {
+		super(message);
+		this.name = "AdRouterProtocolError";
+		this.code = input.code;
+		this.status = input.status;
+		this.retryable = input.retryable ?? false;
+		this.serverTime = input.serverTime;
+	}
+}
+
 function safeProtocolError(response: Response, body: JsonRecord, fallback: string): Error {
 	const code = stringField(body, "code", "error");
+	const serverDate = response.headers.get("date");
+	const parsedServerTime = serverDate ? Date.parse(serverDate) : Number.NaN;
+	const serverTime = Number.isFinite(parsedServerTime) ? parsedServerTime : undefined;
 	if (response.status === 426 || code === "client_upgrade_required") {
-		return new Error(
+		return new AdRouterProtocolError(
 			"This AdRouter installation requires a newer AdRouterCLI version. Update the package and try again.",
+			{ code, status: response.status, serverTime },
 		);
 	}
-	if (response.status === 401 || response.status === 403) {
-		return new Error("AdRouter installation authentication was rejected. Re-enrollment may be required.");
+	if (code === "invalid_dpop_proof") {
+		const drift = serverTime === undefined ? undefined : Math.abs(serverTime - Date.now());
+		const clockHint =
+			drift !== undefined && drift > 30_000
+				? " Your computer clock differs from the AdRouter server; enable automatic date and time sync, then retry."
+				: " Check that your computer date and time are set automatically, then retry.";
+		return new AdRouterProtocolError(`AdRouter rejected the signed installation proof.${clockHint}`, {
+			code,
+			status: response.status,
+			serverTime,
+		});
 	}
-	return new Error(`${fallback} (HTTP ${response.status})`);
+	const safeMessages: Readonly<Record<string, string>> = {
+		client_not_allowed: "This AdRouter client is not currently allowed.",
+		developer_required: "This AdRouter account does not have developer access.",
+		installation_not_allowed: "This AdRouter installation is no longer allowed. Run /login adrouter again.",
+		invalid_access_token: "This AdRouter installation credential is no longer valid. Run /login adrouter again.",
+		rate_limited: "AdRouter received too many login attempts. Wait a moment, then retry.",
+	};
+	const message = code ? safeMessages[code] : undefined;
+	return new AdRouterProtocolError(message ?? `${fallback} (HTTP ${response.status}${code ? `, ${code}` : ""})`, {
+		code,
+		status: response.status,
+		retryable: response.status === 429 || response.status >= 500,
+		serverTime,
+	});
 }
 
 function originClass(origin: string): AdRouterAuthDiagnostics["originClass"] {
 	if (isOfficialAdRouterApiUrl(origin)) return "official";
 	const host = new URL(origin).hostname;
 	return host === "localhost" || host === "127.0.0.1" || host === "::1" ? "loopback" : "custom";
+}
+
+function signInUrlFor(origin: string): string {
+	const webAppOrigin = OFFICIAL_WEB_APP_ORIGINS[origin];
+	if (!webAppOrigin) throw new Error("AdRouter does not have a sign-in page configured for this hosted endpoint");
+	return `${webAppOrigin}/developers?connect=cli`;
 }
 
 function validateBrowserUrl(value: string, apiOrigin: string): string {
@@ -377,66 +431,134 @@ async function redeemPendingEnrollment(
 	throw new Error("AdRouter installation approval expired; start again");
 }
 
+async function validateEnrollmentProfile(
+	pending: AdRouterPendingEnrollmentRecord,
+	access: AdRouterInstallationAccess,
+	fetchImpl: typeof fetch,
+	signal?: AbortSignal,
+): Promise<void> {
+	let nonce: string | undefined;
+	const response = await signedProtocolRequest({
+		fetchImpl,
+		privateJwk: pending.privateJwk,
+		clientVersion: pending.clientVersion,
+		method: "GET",
+		url: `${pending.origin}${PROFILE_PATH}`,
+		accessToken: access.accessToken,
+		nonce,
+		onNonce: (value) => {
+			nonce = value;
+		},
+		signal,
+	});
+	const result = await responseJson(response);
+	if (!response.ok) throw safeProtocolError(response, result, "AdRouter profile validation failed");
+}
+
+async function cancelPendingEnrollment(
+	pending: AdRouterPendingEnrollmentRecord,
+	fetchImpl: typeof fetch,
+): Promise<boolean> {
+	const signal = AbortSignal.timeout(5_000);
+	const body = encodeBody({
+		device_code: pending.deviceCode,
+		client_kind: ADROUTER_CLIENT_KIND,
+	});
+	try {
+		const response = await signedProtocolRequest({
+			fetchImpl,
+			privateJwk: pending.privateJwk,
+			clientVersion: pending.clientVersion,
+			method: "POST",
+			url: `${pending.origin}${DEVICE_AUTHORIZATION_CANCEL_PATH}`,
+			body,
+			signal,
+		});
+		await response.body?.cancel();
+		return response.ok;
+	} catch {
+		return false;
+	}
+}
+
 export async function enrollAdRouterInstallation(
 	authStorage: AuthStorage,
 	callbacks: AdRouterEnrollmentCallbacks,
 	fetchImpl: typeof fetch = fetch,
 ): Promise<AdRouterInstallationRecord> {
-	if (!(await callbacks.confirm())) throw new Error("Login cancelled");
 	const apiUrl = resolveAdRouterApiUrl(authStorage);
 	if (!isOfficialAdRouterApiUrl(apiUrl)) {
 		throw new Error("Installation enrollment is only used for official hosted AdRouter endpoints");
 	}
 	const origin = new URL(apiUrl).origin;
-	let pending = authStorage.getAdRouterPendingEnrollment();
-	if (!pending || pending.origin !== origin || pending.expiresAt <= Date.now()) {
-		if (pending) authStorage.clearAdRouterPendingEnrollment();
-		pending = await createPendingEnrollment(authStorage, origin, fetchImpl, callbacks.signal);
-	} else {
-		callbacks.onProgress?.("Resuming the pending AdRouter installation approval.");
-	}
-	callbacks.onDeviceCode({
-		userCode: pending.userCode,
-		verificationUri: pending.verificationUri,
-		verificationUriComplete: pending.verificationUriComplete,
-		expiresAt: pending.expiresAt,
-	});
-	const tokens = await redeemPendingEnrollment(pending, fetchImpl, callbacks.signal, callbacks.onProgress);
-	const installation: AdRouterInstallationRecord = {
-		type: "adrouter_installation",
-		version: 1,
-		privateJwk: pending.privateJwk,
-		refreshCredential: tokens.refreshCredential,
-		installationId: tokens.access.installationId,
-		origin,
-		scopes: [...ADROUTER_INSTALLATION_SCOPES],
-		refreshFamilyExpiresAt: tokens.refreshFamilyExpiresAt,
-		clientKind: ADROUTER_CLIENT_KIND,
-		clientVersion: VERSION,
-		storageClass: ADROUTER_STORAGE_CLASS,
-		displayName: pending.displayName,
-		keyThumbprint: adRouterJwkThumbprint(publicJwkFromPrivate(pending.privateJwk)),
-		createdAt: Date.now(),
-	};
+	// A new explicit login is the recovery boundary after a crash or hard quit.
+	// Remove any abandoned key before waiting for user confirmation.
+	await authStorage.withAdRouterAuthLock(async (state) => ({
+		result: undefined,
+		next: { installation: state.installation },
+	}));
+	if (!(await callbacks.confirm({ signInUrl: signInUrlFor(origin) }))) throw new Error("Login cancelled");
+	let pending: AdRouterPendingEnrollmentRecord | undefined;
 	try {
+		pending = await createPendingEnrollment(authStorage, origin, fetchImpl, callbacks.signal);
+		callbacks.onDeviceCode({
+			userCode: pending.userCode,
+			verificationUri: pending.verificationUri,
+			verificationUriComplete: pending.verificationUriComplete,
+			expiresAt: pending.expiresAt,
+		});
+		const tokens = await redeemPendingEnrollment(pending, fetchImpl, callbacks.signal, callbacks.onProgress);
+		const installation: AdRouterInstallationRecord = {
+			type: "adrouter_installation",
+			version: 1,
+			privateJwk: pending.privateJwk,
+			refreshCredential: tokens.refreshCredential,
+			installationId: tokens.access.installationId,
+			origin,
+			scopes: [...ADROUTER_INSTALLATION_SCOPES],
+			refreshFamilyExpiresAt: tokens.refreshFamilyExpiresAt,
+			clientKind: ADROUTER_CLIENT_KIND,
+			clientVersion: VERSION,
+			storageClass: ADROUTER_STORAGE_CLASS,
+			displayName: pending.displayName,
+			keyThumbprint: adRouterJwkThumbprint(publicJwkFromPrivate(pending.privateJwk)),
+			createdAt: Date.now(),
+		};
+		// Validate the candidate entirely in memory. A rejected candidate never
+		// replaces a previously working installation on disk.
+		await validateEnrollmentProfile(pending, tokens.access, fetchImpl, callbacks.signal);
+		const pendingDeviceCode = pending.deviceCode;
 		await authStorage.withAdRouterAuthLock(async (state) => {
-			if (state.pending?.deviceCode !== pending.deviceCode) {
+			if (state.pending?.deviceCode !== pendingDeviceCode) {
 				throw new Error("Enrollment state changed in another process; run /login adrouter again");
 			}
 			return { result: undefined, next: { installation } };
 		});
-	} catch {
+		const manager = new AdRouterInstallationAuth(authStorage, fetchImpl);
+		manager.seedAccess(tokens.access);
+		return installation;
+	} catch (error) {
 		try {
-			authStorage.clearAdRouterAuth();
+			await authStorage.withAdRouterAuthLock(async (state) => ({
+				result: undefined,
+				next: {
+					installation: state.installation,
+					pending: pending && state.pending?.deviceCode === pending.deviceCode ? undefined : state.pending,
+				},
+			}));
 		} catch {
-			// Preserve the safe re-enrollment result when storage remains unavailable.
+			// Preserve the original enrollment error when cleanup storage is unavailable.
 		}
-		throw new Error("AdRouter enrollment credentials could not be saved safely; re-enrollment is required");
+		if (pending) {
+			const cancelled = await cancelPendingEnrollment(pending, fetchImpl);
+			callbacks.onProgress?.(
+				cancelled
+					? "Removed the failed AdRouter authorization; the next login will start cleanly."
+					: "Removed the local login key. The next login will start cleanly.",
+			);
+		}
+		throw error;
 	}
-	const manager = new AdRouterInstallationAuth(authStorage, fetchImpl);
-	manager.seedAccess(tokens.access);
-	await manager.getProfile(origin, callbacks.signal);
-	return installation;
 }
 
 export class AdRouterInstallationAuth implements InstallationAuthProvider {
