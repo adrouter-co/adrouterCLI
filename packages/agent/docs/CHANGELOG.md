@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.81.0-beta.14] - 2026-07-31
+
+### Changed
+
+- Repacked the private agent runtime for the recoverable installation-login beta.
+
 ## [0.81.0-beta.13] - 2026-07-30
 
 ### Changed
