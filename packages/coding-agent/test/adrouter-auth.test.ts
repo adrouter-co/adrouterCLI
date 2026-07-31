@@ -152,8 +152,14 @@ describe("AdRouter installation authentication", () => {
 			});
 		});
 		const onDeviceCode = vi.fn();
+		let browserHandoffId = "";
 		const confirm = vi.fn(async ({ signInUrl }: { signInUrl: string }) => {
-			expect(signInUrl).toBe("https://app-staging.adrouter.co/developers?connect=cli");
+			const url = new URL(signInUrl);
+			expect(`${url.origin}${url.pathname}${url.search}`).toBe(
+				"https://app-staging.adrouter.co/developers?connect=cli",
+			);
+			browserHandoffId = new URLSearchParams(url.hash.slice(1)).get("handoff") ?? "";
+			expect(browserHandoffId).toMatch(/^[0-9a-f-]{36}$/);
 			expect(fetchMock).not.toHaveBeenCalled();
 			expect(authStorage.getAdRouterPendingEnrollment()).toBeUndefined();
 			return true;
@@ -185,6 +191,7 @@ describe("AdRouter installation authentication", () => {
 		const initiation = JSON.parse(new TextDecoder().decode(deviceCalls[1]?.[1]?.body as Uint8Array));
 		expect(initiation).toMatchObject({
 			client_kind: "cli",
+			browser_handoff_id: browserHandoffId,
 			public_key_jwk: { kty: "OKP", crv: "Ed25519", x: expect.any(String) },
 			requested_scopes: ["agent:turn", "profile:read"],
 			storage_class: "file_protected",
