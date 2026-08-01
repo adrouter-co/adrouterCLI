@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.81.0-beta.16] - 2026-08-01
+
+### Changed
+
+- Repacked the private agent runtime for the selectable installation-approval beta.
+
 ## [0.81.0-beta.15] - 2026-08-01
 
 ### Changed

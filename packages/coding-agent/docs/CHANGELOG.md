@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.81.0-beta.16] - 2026-08-01
+
+### Fixed
+
+- Replaced the typed `DONE` installation prompt with native Done and Quit selectors, then kept the
+  CLI in an animated approval state with clickable Open, Copy, and Quit recovery actions.
+- Removed misleading login-dialog Cancel and Submit hints unless those actions are actually bound,
+  and automatically finish enrollment when the dashboard approves the installation.
+
 ## [0.81.0-beta.15] - 2026-08-01
 
 ### Fixed

@@ -105,6 +105,7 @@ import { getCwdRelativePath } from "../../utils/paths.ts";
 import { killTrackedDetachedChildren } from "../../utils/shell.ts";
 import { ensureTool } from "../../utils/tools-manager.ts";
 import { AdRouterAdPanel } from "./components/adrouter-ad-panel.ts";
+import { AdRouterInstallationLoginComponent } from "./components/adrouter-installation-login.ts";
 import { renderAdRouterSettlementEntry } from "./components/adrouter-settlement-entry.ts";
 import { ArminComponent } from "./components/armin.ts";
 import { AssistantMessageComponent } from "./components/assistant-message.ts";
@@ -5130,19 +5131,14 @@ export class InteractiveMode {
 
 	private async showAdRouterInstallationLoginDialog(providerName: string): Promise<void> {
 		const previousModel = this.session.model;
-		const dialog = new LoginDialogComponent(
-			this.ui,
-			"adrouter",
-			() => {},
-			providerName,
-			"Connect this CLI to AdRouter",
-		);
+		const dialog = new AdRouterInstallationLoginComponent(this.ui);
 		this.editorContainer.clear();
 		this.editorContainer.addChild(dialog);
 		this.ui.setFocus(dialog);
 		this.ui.requestRender();
 
 		const restoreEditor = () => {
+			dialog.dispose();
 			this.editorContainer.clear();
 			this.editorContainer.addChild(this.editor);
 			this.ui.setFocus(this.editor);
@@ -5152,23 +5148,8 @@ export class InteractiveMode {
 		try {
 			await enrollAdRouterInstallation(this.session.modelRegistry.authStorage, {
 				signal: dialog.signal,
-				confirm: async ({ signInUrl }) => {
-					dialog.showAuth(
-						signInUrl,
-						"Sign in to your AdRouter account in the browser before continuing. If the browser does not open, use the URL above.",
-					);
-					while (true) {
-						const answer = await dialog.showPrompt(
-							"After the AdRouter website shows that you are signed in, type DONE to request installation approval:",
-						);
-						if (answer.trim().toLowerCase() === "done") return true;
-						dialog.showProgress("No approval request was sent. Sign in first, then type DONE exactly.");
-					}
-				},
-				onDeviceCode: (info) => {
-					dialog.showAdRouterApproval(info);
-					dialog.showWaiting("Waiting for approval in the signed-in AdRouter tab...");
-				},
+				confirm: ({ signInUrl }) => dialog.confirmSignIn(signInUrl),
+				onDeviceCode: (info) => dialog.showApproval(info),
 				onProgress: (message) => dialog.showProgress(message),
 			});
 			restoreEditor();
