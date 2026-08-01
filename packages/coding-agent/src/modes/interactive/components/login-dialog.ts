@@ -174,7 +174,9 @@ export class LoginDialogComponent extends Container implements Focusable {
 		this.contentContainer.addChild(new Spacer(1));
 		this.contentContainer.addChild(new Text(theme.fg("dim", prompt), 1, 0));
 		this.contentContainer.addChild(this.input);
-		this.contentContainer.addChild(new Text(helperHint("tui.select.cancel", "cancel"), 1, 0));
+		this.contentContainer.addChild(
+			new Text(`${helperHint("tui.input.submit", "submit")}  │  ${helperHint("tui.select.cancel", "cancel")}`, 1, 0),
+		);
 		this.tui.requestRender();
 
 		return new Promise((resolve, reject) => {
@@ -195,11 +197,7 @@ export class LoginDialogComponent extends Container implements Focusable {
 		}
 		this.contentContainer.addChild(this.input);
 		this.contentContainer.addChild(
-			new Text(
-				`${helperHint("tui.select.cancel", "cancel")}  │  ${helperHint("tui.select.confirm", "submit")}`,
-				1,
-				0,
-			),
+			new Text(`${helperHint("tui.input.submit", "submit")}  │  ${helperHint("tui.select.cancel", "cancel")}`, 1, 0),
 		);
 
 		this.input.setValue("");
