@@ -1,5 +1,5 @@
 /**
- * Custom Provider Example
+ * Custom Provider SDK Example
  *
  * Demonstrates registering a custom provider with:
  * - Custom API identifier ("custom-anthropic-api")
@@ -8,17 +8,9 @@
  * - API key support via environment variable
  * - Two model definitions
  *
- * Usage:
- *   # First install dependencies
- *   cd packages/coding-agent/examples/extensions/custom-provider && npm install
- *
- *   # With OAuth (run /login custom-anthropic first)
- *   pi -e ./packages/coding-agent/examples/extensions/custom-provider
- *
- *   # With API key
- *   CUSTOM_ANTHROPIC_API_KEY=sk-ant-... pi -e ./packages/coding-agent/examples/extensions/custom-provider
- *
- * Then use /model to select custom-anthropic/claude-sonnet-4-5
+ * Pass an explicit ModelRegistry.inMemory() instance to this helper, then
+ * inject that same registry into createAgentSession(). Provider registration
+ * is intentionally an SDK-only capability and is not available to extensions.
  */
 
 import {
@@ -41,7 +33,7 @@ import {
 	type ToolCall,
 	type ToolResultMessage,
 } from "@adrouter/ai";
-import type { ExtensionAPI } from "@adrouter/cli";
+import type { ModelRegistry } from "@adrouter/cli";
 import Anthropic from "@anthropic-ai/sdk";
 import type { ContentBlockParam, MessageCreateParamsStreaming } from "@anthropic-ai/sdk/resources/messages.js";
 
@@ -562,11 +554,11 @@ function streamCustomAnthropic(
 }
 
 // =============================================================================
-// Extension Entry Point
+// SDK Registration Helper
 // =============================================================================
 
-export default function (pi: ExtensionAPI) {
-	pi.registerProvider("custom-anthropic", {
+export function registerCustomAnthropicProvider(modelRegistry: ModelRegistry): void {
+	modelRegistry.registerProvider("custom-anthropic", {
 		baseUrl: "https://api.anthropic.com",
 		apiKey: "$CUSTOM_ANTHROPIC_API_KEY",
 		api: "custom-anthropic-api",

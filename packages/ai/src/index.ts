@@ -25,6 +25,13 @@ export * from "./auth/helpers.ts";
 export * from "./auth/types.ts";
 export * from "./images-models.ts";
 export * from "./models.ts";
+export {
+	ADROUTER_CATALOG_DIGEST,
+	ADROUTER_CATALOG_METADATA,
+	ADROUTER_CATALOG_SCHEMA_VERSION,
+	ADROUTER_HOSTED_LIMITS,
+	ADROUTER_MODELS,
+} from "./providers/adrouter.models.ts";
 export * from "./providers/faux.ts";
 export * from "./session-resources.ts";
 export * from "./types.ts";

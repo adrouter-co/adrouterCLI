@@ -7,8 +7,6 @@ AdRouterCLI distributes source copies of the following optional extensions in
 | Component | Version | Source | License |
 | --- | --- | --- | --- |
 | pi-subagents | 0.30.0 | https://github.com/nicobailon/pi-subagents | MIT |
-| pi-cache-optimizer | 2.6.16 | https://github.com/jiangge/pi-cache-optimizer | MIT |
-| pi-opencode-bridge | 0.2.1 | npm package source (repository metadata unavailable) | MIT |
 | pi-web-access | 0.13.0 | https://registry.npmjs.org/pi-web-access/-/pi-web-access-0.13.0.tgz | MIT |
 | BTW | `23017e9` | project-owner source: `~/antigravity/pi-stuff/btw` | Project-owner source; distribution authorized |
 | pi-opencode-tui-patch | 0.1.6 (`e687e69b`) | project-owner source: `~/antigravity/pi-stuff/pi-opencode-tui-patch` | Project-owner source; distribution authorized |

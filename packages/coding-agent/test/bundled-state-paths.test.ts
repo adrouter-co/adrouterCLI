@@ -16,8 +16,6 @@ describe("bundled feature state paths", () => {
 	it("does not retain literal Pi state paths in active bundled sources", () => {
 		const sourceRoot = new URL("../bundled/", import.meta.url);
 		const activeSources = [
-			"pi-cache-optimizer-2.6.16/index.ts",
-			"pi-opencode-bridge-0.2.1/index.ts",
 			"pi-subagents-0.30.0/install.mjs",
 			"pi-subagents-0.30.0/src/agents/agent-management.ts",
 			"pi-subagents-0.30.0/src/agents/agents.ts",

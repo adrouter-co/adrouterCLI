@@ -1,5 +1,6 @@
 import { Type } from "typebox";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { readAdRouterCatalog } from "../scripts/adrouter-catalog.ts";
 import {
 	ADROUTER_HOSTED_CONTEXT_WINDOW_TOKENS,
 	ADROUTER_HOSTED_MAX_INPUT_TOKENS,
@@ -9,7 +10,13 @@ import {
 import { getAdRouterMessageUpdate, getLatestAdRouterAds } from "../src/adrouter-events.ts";
 import { assertAdRouterHostedInputWithinLimit, stream } from "../src/api/adrouter.ts";
 import { clampThinkingLevel, getSupportedThinkingLevels } from "../src/models.ts";
-import { ADROUTER_MODELS } from "../src/providers/adrouter.models.ts";
+import {
+	ADROUTER_CATALOG_DIGEST,
+	ADROUTER_CATALOG_METADATA,
+	ADROUTER_CATALOG_SCHEMA_VERSION,
+	ADROUTER_HOSTED_LIMITS,
+	ADROUTER_MODELS,
+} from "../src/providers/adrouter.models.ts";
 import type { Model } from "../src/types.ts";
 import { isContextOverflow } from "../src/utils/overflow.ts";
 
@@ -452,28 +459,21 @@ describe("AdRouter provider", () => {
 	});
 
 	it("publishes the exact hosted catalog and maps only router-supported thinking levels", async () => {
-		const expectedModelIds = [
-			"agnes-2.0-flash",
-			"agnes-2.5-flash",
-			"agnes-2.5-pro",
-			"agnes-2.5-pro-alpha",
-			"deepseek-v4-flash",
-			"deepseek-v4-pro",
-			"mimo-v2.5",
-			"mimo-v2.5-pro",
-		] as const;
+		const catalog = readAdRouterCatalog();
+		const expectedModelIds = catalog.models.map(({ id }) => id);
+		expect(ADROUTER_CATALOG_SCHEMA_VERSION).toBe(catalog.schema_version);
+		expect(ADROUTER_CATALOG_DIGEST).toBe(catalog.catalog_digest);
 		expect(Object.keys(ADROUTER_MODELS)).toEqual(expectedModelIds);
-		expect(Object.values(ADROUTER_MODELS).map(({ name }) => name)).toEqual([
-			"AdRouter Agnes 2.0 Flash",
-			"AdRouter Agnes 2.5 Flash",
-			"AdRouter Agnes 2.5 Pro",
-			"AdRouter Agnes 2.5 Pro Alpha",
-			"AdRouter DeepSeek V4 Flash",
-			"AdRouter DeepSeek V4 Pro",
-			"AdRouter MiMo V2.5 Flash",
-			"AdRouter MiMo V2.5 Pro",
-		]);
-		for (const hostedModel of Object.values(ADROUTER_MODELS)) {
+		expect(Object.values(ADROUTER_MODELS).map(({ name }) => name)).toEqual(
+			catalog.models.map(({ display_name }) => `AdRouter ${display_name}`),
+		);
+		expect(ADROUTER_HOSTED_LIMITS).toEqual({
+			contextWindowTokens: 131_072,
+			maxInputTokens: 126_976,
+			maxOutputTokens: 4_096,
+		});
+		for (const descriptor of catalog.models) {
+			const hostedModel = ADROUTER_MODELS[descriptor.id];
 			expect(hostedModel).toMatchObject({
 				api: "adrouter-agent",
 				provider: "adrouter",
@@ -483,6 +483,14 @@ describe("AdRouter provider", () => {
 				cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
 				contextWindow: ADROUTER_HOSTED_CONTEXT_WINDOW_TOKENS,
 				maxTokens: ADROUTER_HOSTED_MAX_OUTPUT_TOKENS,
+			});
+			expect(ADROUTER_CATALOG_METADATA[descriptor.id]).toEqual({
+				provider: descriptor.provider,
+				modelClass: descriptor.model_class,
+				description: descriptor.description,
+				thinkingLevels: descriptor.thinking_levels,
+				defaultThinkingLevel: descriptor.default_thinking_level,
+				maxInputTokens: descriptor.max_input_tokens,
 			});
 		}
 
@@ -524,8 +532,8 @@ describe("AdRouter provider", () => {
 		}));
 		vi.stubGlobal("fetch", fetchMock);
 
-		for (const modelId of expectedModelIds) {
-			const hostedModel = ADROUTER_MODELS[modelId];
+		for (const descriptor of catalog.models) {
+			const hostedModel = ADROUTER_MODELS[descriptor.id];
 			for (const reasoning of getSupportedThinkingLevels(hostedModel)) {
 				fetchMock.mockClear();
 				await stream(
@@ -536,34 +544,25 @@ describe("AdRouter provider", () => {
 
 				const request = fetchMock.mock.calls[0]?.[1];
 				const body = parseRequestBody(request);
-				expect(body.model).toBe(modelId);
+				expect(body.model).toBe(descriptor.id);
 				expect(body.thinking_level).toBe(hostedModel.thinkingLevelMap[reasoning]);
 			}
 		}
 
-		// The agent runtime represents thinking off as an absent reasoning option. Keep non-Agnes
-		// provider compatibility while applying the Router descriptor defaults to Agnes.
-		for (const [modelId, expectedThinkingLevel] of [
-			["agnes-2.0-flash", "none"],
-			["agnes-2.5-flash", "none"],
-			["agnes-2.5-pro", "high"],
-			["agnes-2.5-pro-alpha", "high"],
-			["deepseek-v4-flash", "medium"],
-			["deepseek-v4-pro", "medium"],
-			["mimo-v2.5", "medium"],
-			["mimo-v2.5-pro", "medium"],
-		] as const) {
+		// The agent runtime represents an omitted reasoning option as undefined. The Router artifact
+		// owns the default for every known hosted model.
+		for (const descriptor of catalog.models) {
 			fetchMock.mockClear();
 			await stream(
-				{ ...ADROUTER_MODELS[modelId], baseUrl: "https://router.example.test" },
+				{ ...ADROUTER_MODELS[descriptor.id], baseUrl: "https://router.example.test" },
 				{ messages: [{ role: "user", content: "test", timestamp: Date.now() }] },
 				{ apiKey: "test-key", reasoning: undefined } as Parameters<typeof stream>[2],
 			).result();
 
 			const request = fetchMock.mock.calls[0]?.[1];
 			const body = parseRequestBody(request);
-			expect(body.model).toBe(modelId);
-			expect(body.thinking_level).toBe(expectedThinkingLevel);
+			expect(body.model).toBe(descriptor.id);
+			expect(body.thinking_level).toBe(descriptor.default_thinking_level);
 		}
 
 		fetchMock.mockClear();

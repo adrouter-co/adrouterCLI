@@ -97,8 +97,8 @@ describe("createAgentSession provider attribution headers", () => {
 
 		const authStorage = AuthStorage.create(join(agentDir, "auth.json"));
 		authStorage.setRuntimeApiKey(model.provider, "test-api-key");
-		const modelRegistry = ModelRegistry.create(authStorage, join(agentDir, "models.json"));
-		const registeredProviders = ["capture-provider"];
+		const modelRegistry = ModelRegistry.inMemory(authStorage);
+		const registeredProviders = ["capture-provider", model.provider];
 		let capturedOptions: SimpleStreamOptions | undefined;
 
 		modelRegistry.registerProvider("capture-provider", {
@@ -109,10 +109,13 @@ describe("createAgentSession provider attribution headers", () => {
 			},
 		});
 
-		if (options.providerHeaders) {
-			modelRegistry.registerProvider(model.provider, { headers: options.providerHeaders });
-			registeredProviders.push(model.provider);
-		}
+		modelRegistry.registerProvider(model.provider, {
+			api: model.api,
+			apiKey: "test-api-key",
+			baseUrl: model.baseUrl,
+			headers: options.providerHeaders,
+			models: [model],
+		});
 
 		const sessionManager = SessionManager.inMemory(cwd);
 		if (options.sessionId) {

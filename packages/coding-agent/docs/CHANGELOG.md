@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.81.0-beta.18] - 2026-08-02
+
+### Changed
+
+- Synchronized the official eight-model AdRouter catalog from the committed Router artifact and
+  locked the default CLI/SDK registry to that generated catalog.
+- Made custom provider registration an explicit `ModelRegistry.inMemory()` SDK capability; it is
+  no longer exposed to extensions, and executable `models.json` configuration is retired.
+- Retired the bundled cache optimizer and OpenCode bridge from source and packaged inventories.
+
 ## [0.81.0-beta.17] - 2026-08-02
 
 ### Added

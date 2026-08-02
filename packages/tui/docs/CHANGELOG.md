@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.81.0-beta.18] - 2026-08-02
+
+### Changed
+
+- Repacked the private terminal UI runtime for safe full-width sponsor rendering and stale-row
+  clearing.
+
 ## [0.81.0-beta.17] - 2026-08-02
 
 ### Changed

@@ -11,6 +11,7 @@ import {
 } from "../../../src/core/agent-session-runtime.ts";
 import { AuthStorage } from "../../../src/core/auth-storage.ts";
 import { SessionManager } from "../../../src/core/session-manager.ts";
+import { createFauxModelRegistry } from "../faux-model-registry.ts";
 
 describe("issue #2753 reload stale resource settings", () => {
 	const cleanups: Array<() => void> = [];
@@ -33,32 +34,15 @@ describe("issue #2753 reload stale resource settings", () => {
 		});
 		const authStorage = AuthStorage.inMemory();
 		authStorage.setRuntimeApiKey(faux.getModel().provider, "faux-key");
+		const modelRegistry = createFauxModelRegistry(faux, authStorage);
 
 		const createRuntime: CreateAgentSessionRuntimeFactory = async ({ cwd, sessionManager, sessionStartEvent }) => {
 			const services = await createAgentSessionServices({
 				cwd,
 				agentDir,
 				authStorage,
+				modelRegistry,
 				resourceLoaderOptions: {
-					extensionFactories: [
-						(pi) => {
-							pi.registerProvider(faux.getModel().provider, {
-								baseUrl: faux.getModel().baseUrl,
-								apiKey: "faux-key",
-								api: faux.api,
-								models: faux.models.map((registeredModel) => ({
-									id: registeredModel.id,
-									name: registeredModel.name,
-									api: registeredModel.api,
-									reasoning: registeredModel.reasoning,
-									input: registeredModel.input,
-									cost: registeredModel.cost,
-									contextWindow: registeredModel.contextWindow,
-									maxTokens: registeredModel.maxTokens,
-								})),
-							});
-						},
-					],
 					noSkills: true,
 					noThemes: true,
 				},

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { readdirSync, rmSync, writeFileSync } from "fs";
+import { readFileSync, readdirSync, rmSync, writeFileSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 import {
@@ -9,10 +9,7 @@ import {
 	CLOUDFLARE_AI_GATEWAY_OPENAI_BASE_URL,
 	CLOUDFLARE_WORKERS_AI_BASE_URL,
 } from "../src/api/cloudflare.ts";
-import {
-	ADROUTER_HOSTED_CONTEXT_WINDOW_TOKENS,
-	ADROUTER_HOSTED_MAX_OUTPUT_TOKENS,
-} from "../src/adrouter-config.ts";
+import { readAdRouterCatalog, renderAdRouterModelsModule } from "./adrouter-catalog.ts";
 import type { AnthropicMessagesCompat, Api, KnownProvider, Model, OpenAICompletionsCompat } from "../src/types.ts";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -1670,7 +1667,24 @@ async function loadModelsDevData(): Promise<Model<any>[]> {
 	}
 }
 
-async function generateModels() {
+async function generateModels(selectedProviderId?: string, check = false) {
+	const adrouterCatalog = readAdRouterCatalog();
+	const adrouterOutput = renderAdRouterModelsModule(adrouterCatalog);
+	const adrouterOutputPath = join(packageRoot, "src/providers/adrouter.models.ts");
+	if (selectedProviderId === "adrouter") {
+		if (check) {
+			const current = readFileSync(adrouterOutputPath, "utf8");
+			if (current !== adrouterOutput) throw new Error("AdRouter generated catalog is stale");
+			console.log(`OK: AdRouter generated catalog ${adrouterCatalog.catalog_digest} is current.`);
+		} else {
+			writeFileSync(adrouterOutputPath, adrouterOutput);
+			console.log("Generated 1 catalog under src/providers/");
+		}
+		console.log("Scoped generation left other provider catalogs and src/models.generated.ts unchanged.");
+		return;
+	}
+	if (check) throw new Error("--check requires --provider adrouter");
+
 	// Fetch models from both sources
 	// models.dev: Anthropic, Google, OpenAI, Groq, Cerebras
 	// OpenRouter: xAI and other providers (excluding Anthropic, Google, OpenAI)
@@ -2180,53 +2194,24 @@ async function generateModels() {
 		}));
 	allModels.push(...azureOpenAiModels);
 
-	const adrouterThinkingLevels = {
-		deepseek: {
-			off: "none",
-			minimal: null,
-			low: null,
-			medium: "medium",
-			high: "high",
-			xhigh: null,
-			max: null,
-		},
-		flash: {
-			off: "none",
-			minimal: null,
-			low: null,
-			medium: null,
-			high: "high",
-			xhigh: null,
-			max: null,
-		},
-		pro: {
-			off: null,
-			minimal: null,
-			low: null,
-			medium: null,
-			high: "high",
-			xhigh: null,
-			max: null,
-		},
-	} as const;
-	for (const model of [
-		{ id: "deepseek-v4-flash", name: "AdRouter DeepSeek V4 Flash", thinkingLevelMap: adrouterThinkingLevels.deepseek },
-		{ id: "deepseek-v4-pro", name: "AdRouter DeepSeek V4 Pro", thinkingLevelMap: adrouterThinkingLevels.deepseek },
-		{ id: "mimo-v2.5", name: "AdRouter MiMo V2.5 Flash", thinkingLevelMap: adrouterThinkingLevels.flash },
-		{ id: "mimo-v2.5-pro", name: "AdRouter MiMo V2.5 Pro", thinkingLevelMap: adrouterThinkingLevels.flash },
-		{ id: "agnes-2.0-flash", name: "AdRouter Agnes 2.0 Flash", thinkingLevelMap: adrouterThinkingLevels.flash },
-		{ id: "agnes-2.5-flash", name: "AdRouter Agnes 2.5 Flash", thinkingLevelMap: adrouterThinkingLevels.flash },
-		{ id: "agnes-2.5-pro", name: "AdRouter Agnes 2.5 Pro", thinkingLevelMap: adrouterThinkingLevels.pro },
-		{ id: "agnes-2.5-pro-alpha", name: "AdRouter Agnes 2.5 Pro Alpha", thinkingLevelMap: adrouterThinkingLevels.pro },
-	]) {
+	for (const descriptor of adrouterCatalog.models) {
+		const supported = new Set(descriptor.thinking_levels);
 		allModels.push({
-			id: model.id,
-			name: model.name,
+			id: descriptor.id,
+			name: `AdRouter ${descriptor.display_name}`,
 			api: "adrouter-agent",
 			provider: "adrouter",
 			baseUrl: "",
 			reasoning: true,
-			thinkingLevelMap: model.thinkingLevelMap,
+			thinkingLevelMap: {
+				off: supported.has("none") ? "none" : null,
+				minimal: null,
+				low: null,
+				medium: supported.has("medium") ? "medium" : null,
+				high: supported.has("high") ? "high" : null,
+				xhigh: null,
+				max: null,
+			},
 			input: ["text"],
 			cost: {
 				input: 0,
@@ -2234,8 +2219,8 @@ async function generateModels() {
 				cacheRead: 0,
 				cacheWrite: 0,
 			},
-			contextWindow: ADROUTER_HOSTED_CONTEXT_WINDOW_TOKENS,
-			maxTokens: ADROUTER_HOSTED_MAX_OUTPUT_TOKENS,
+			contextWindow: descriptor.context_window,
+			maxTokens: descriptor.max_output_tokens,
 		});
 	}
 
@@ -2301,9 +2286,8 @@ async function generateModels() {
 
 	const sortedProviderIds = Object.keys(providers).sort();
 	const providersDir = join(packageRoot, "src/providers");
-	const selectedProviderId = process.env.ADROUTER_MODEL_CATALOG_PROVIDER?.trim();
 	if (selectedProviderId && !providers[selectedProviderId]) {
-		throw new Error(`Unknown ADROUTER_MODEL_CATALOG_PROVIDER: ${selectedProviderId}`);
+		throw new Error(`Unknown model catalog provider: ${selectedProviderId}`);
 	}
 	const generatedProviderIds = selectedProviderId ? [selectedProviderId] : sortedProviderIds;
 
@@ -2318,6 +2302,10 @@ async function generateModels() {
 
 	// Per-provider catalogs (sorted for deterministic output)
 	for (const providerId of generatedProviderIds) {
+		if (providerId === "adrouter") {
+			writeFileSync(join(providersDir, "adrouter.models.ts"), adrouterOutput);
+			continue;
+		}
 		const models = providers[providerId];
 		let output = generatedHeader;
 		output += `import type { Model } from "../types.ts";\n\n`;
@@ -2361,5 +2349,28 @@ async function generateModels() {
 	}
 }
 
-// Run the generator
-generateModels().catch(console.error);
+function parseGeneratorArgs(args: string[]): { provider?: string; check: boolean } {
+	let provider = process.env.ADROUTER_MODEL_CATALOG_PROVIDER?.trim() || undefined;
+	let check = false;
+	for (let index = 0; index < args.length; index++) {
+		const argument = args[index];
+		if (argument === "--provider" && args[index + 1]) {
+			provider = args[++index];
+			continue;
+		}
+		if (argument === "--check") {
+			check = true;
+			continue;
+		}
+		throw new Error("Usage: node scripts/generate-models.ts [--provider <id>] [--check]");
+	}
+	return { provider, check };
+}
+
+try {
+	const options = parseGeneratorArgs(process.argv.slice(2));
+	await generateModels(options.provider, options.check);
+} catch (error) {
+	console.error(error instanceof Error ? error.message : String(error));
+	process.exitCode = 1;
+}

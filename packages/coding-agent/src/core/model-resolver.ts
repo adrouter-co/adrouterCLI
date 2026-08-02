@@ -3,10 +3,11 @@
  */
 
 import type { ThinkingLevel } from "@adrouter/agent-core";
-import { type Api, type KnownProvider, type Model, modelsAreEqual } from "@adrouter/ai";
+import { type Api, isOfficialAdRouterApiUrl, type KnownProvider, type Model, modelsAreEqual } from "@adrouter/ai";
 import chalk from "chalk";
 import { minimatch } from "minimatch";
 import { isValidThinkingLevel } from "../cli/args.ts";
+import { resolveAdRouterApiUrl } from "./adrouter-auth.ts";
 import { DEFAULT_THINKING_LEVEL } from "./defaults.ts";
 import type { ModelRegistry } from "./model-registry.ts";
 
@@ -175,6 +176,11 @@ function buildFallbackModel(provider: string, modelId: string, availableModels: 
 		id: modelId,
 		name: modelId,
 	};
+}
+
+function allowsCustomModelFallback(provider: string, modelRegistry: ModelRegistry): boolean {
+	if (typeof modelRegistry.isLocked !== "function" || !modelRegistry.isLocked()) return true;
+	return provider === "adrouter" && !isOfficialAdRouterApiUrl(resolveAdRouterApiUrl(modelRegistry.authStorage));
 }
 
 /**
@@ -380,7 +386,7 @@ export function resolveCliModel(options: {
 		return {
 			model: undefined,
 			warning: undefined,
-			error: "No models available. Check your installation or add models to models.json.",
+			error: "No models available. Check the AdRouter installation or supply an explicit in-memory SDK registry.",
 		};
 	}
 
@@ -496,7 +502,7 @@ export function resolveCliModel(options: {
 		}
 	}
 
-	if (provider) {
+	if (provider && allowsCustomModelFallback(provider, modelRegistry)) {
 		// Parse thinking level suffix from the pattern before building the fallback model,
 		// but only when --thinking is not explicitly provided.
 		// e.g. "zai-org/GLM-5.1-FP8:high" → modelId="zai-org/GLM-5.1-FP8", fallbackThinking="high"

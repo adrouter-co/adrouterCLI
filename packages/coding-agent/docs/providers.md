@@ -233,7 +233,7 @@ AI Gateway authentication uses `CLOUDFLARE_API_KEY` as `cf-aig-authorization`. U
 | Stored BYOK | Cloudflare token only | Cloudflare injects provider keys stored in the AI Gateway dashboard |
 | Inline BYOK | Cloudflare token plus upstream `Authorization` header | The request supplies the upstream provider key |
 
-For normal pi usage, prefer unified billing or stored BYOK. Inline BYOK requires configuring an additional upstream `Authorization` header for the Cloudflare AI Gateway provider, for example via a `models.json` provider/model override.
+For SDK usage, prefer unified billing or stored BYOK. Inline BYOK requires an explicitly mutable SDK registry with the additional upstream `Authorization` header configured programmatically.
 
 ### Cloudflare Workers AI
 
@@ -261,9 +261,9 @@ Or set `GOOGLE_APPLICATION_CREDENTIALS` to a service account key file.
 
 ## Custom Providers
 
-**Via models.json:** Add Ollama, LM Studio, vLLM, or any provider that speaks a supported API (OpenAI Completions, OpenAI Responses, Anthropic Messages, Google Generative AI). See [models.md](models.md).
-
-**Via extensions:** For providers that need custom API implementations or OAuth flows, create an extension. See [custom-provider.md](custom-provider.md) and [examples/extensions/custom-provider-gitlab-duo](../examples/extensions/custom-provider-gitlab-duo/).
+The official CLI exposes only AdRouter. SDK applications may inject a programmatically configured
+`ModelRegistry.inMemory()` for Ollama, LM Studio, vLLM, proxies, or custom API implementations. See
+[SDK-only custom providers](custom-provider.md).
 
 ## Resolution Order
 
@@ -272,4 +272,4 @@ When resolving credentials for a provider:
 1. CLI `--api-key` flag
 2. `auth.json` entry (API key or OAuth token)
 3. Environment variable
-4. Custom provider keys from `models.json`
+4. Programmatic configuration in an explicitly mutable SDK registry

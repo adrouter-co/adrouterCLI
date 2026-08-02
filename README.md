@@ -3,10 +3,13 @@
 # AdRouterCLI
 
 AdRouterCLI is a terminal coding agent that routes model requests through
-AdRouter. Version `0.81.0-beta.17` is an MIT-licensed public-source and npm
+AdRouter. Version `0.81.0-beta.18` is an MIT-licensed public-source and npm
 prerelease; hosted access remains invite-only. AdRouterCLI is derived from
 [Mario Zechner's upstream project](UPSTREAM.md), whose MIT license and
 attribution are preserved.
+
+See the [canonical product guide](docs/about.md) for Router/CLI responsibilities, the generated
+model catalog, authentication, streaming, sponsorship, diagnostics, installation, and logout.
 
 Sponsor content is display-only. It is rendered in the terminal and is never
 added to model messages, tool payloads, commands, or edits. The agent can read
@@ -45,11 +48,10 @@ and is never valid release or deployment evidence.
 1. Start `adrouter` inside the intended project.
 2. Accept the trust prompt only after reviewing the project-local `.adrouter`
    resources it may load.
-3. Run `/login adrouter`, sign in at the printed AdRouter website first, and type
-   `DONE` only after the website confirms you are signed in. The CLI then creates
-   a fresh installation key and opens the matching approval page. An already-open,
-   signed-in AdRouter tab also shows the request as a modal. If automatic browser
-   launch is unavailable, open the printed URL manually.
+3. Run `/login adrouter`, sign in at the opened AdRouter website, then choose the
+   native Done action. The CLI creates a fresh installation key and opens the matching approval
+   page. An already-open signed-in AdRouter tab also shows the request as a modal. Use Open or Copy
+   if automatic browser launch is unavailable; Quit cancels the flow.
 4. Approve only the installation you recognize. The CLI stores an Ed25519 private
    key and rotating refresh credential in its mode-0600 auth file; access tokens
    remain memory-only. This storage is `file_protected`, not OS-keychain encrypted.
@@ -167,8 +169,8 @@ belong in GitHub Issues; usage questions belong in GitHub Discussions. See
 Inspect the immutable source tag before installation:
 
 ```sh
-gh api repos/adrouter/adrouterCLI/git/ref/tags/v0.81.0-beta.17
-gh api repos/adrouter/adrouterCLI/tarball/v0.81.0-beta.17 > adrouterCLI-v0.81.0-beta.17.tar.gz
+gh api repos/adrouter/adrouterCLI/git/ref/tags/v0.81.0-beta.18
+gh api repos/adrouter/adrouterCLI/tarball/v0.81.0-beta.18 > adrouterCLI-v0.81.0-beta.18.tar.gz
 ```
 
 The release draft includes the single bundled npm tarball, its artifact

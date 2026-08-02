@@ -20,37 +20,6 @@
       "status": "vendored"
     },
     {
-      "name": "pi-cache-optimizer",
-      "version": "2.6.16",
-      "source_url": "https://github.com/jiangge/pi-cache-optimizer",
-      "license": "MIT",
-      "redistribution": {
-        "status": "cleared",
-        "basis": "MIT license distributed with the component"
-      },
-      "local_modifications": [
-        "Redirected cache statistics and models.json compatibility state to ADROUTER_CODING_AGENT_DIR or ~/.adrouter/agent."
-      ],
-      "update_procedure": "Download the exact npm package source, replace bundled/pi-cache-optimizer-2.6.16, preserve LICENSE, then run npm run check.",
-      "status": "vendored"
-    },
-    {
-      "name": "pi-opencode-bridge",
-      "version": "0.2.1",
-      "source_url": "https://registry.npmjs.org/pi-opencode-bridge/-/pi-opencode-bridge-0.2.1.tgz",
-      "license": "MIT",
-      "redistribution": {
-        "status": "cleared",
-        "basis": "MIT license distributed with the component"
-      },
-      "local_modifications": [
-        "Replaced personal Pi auth-file reads and writes with AdRouterCLI auth storage while retaining optional OpenCode auth discovery.",
-        "Removed the process-global registration guard so commands and providers register on every fresh AdRouterCLI extension runtime."
-      ],
-      "update_procedure": "Download the exact npm package tarball, replace bundled/pi-opencode-bridge-0.2.1, preserve LICENSE, then run npm run check.",
-      "status": "vendored"
-    },
-    {
       "name": "pi-web-access",
       "version": "0.13.0",
       "source_url": "https://registry.npmjs.org/pi-web-access/-/pi-web-access-0.13.0.tgz",

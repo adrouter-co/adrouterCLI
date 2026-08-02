@@ -129,16 +129,10 @@ export class ModelSelectorComponent extends Container implements Focusable {
 	private async loadModels(): Promise<void> {
 		let models: ModelItem[];
 
-		// Refresh to pick up any changes to models.json
+		// Refresh explicitly mutable SDK registries; the official registry is immutable.
 		this.modelRegistry.refresh();
 
-		// Check for models.json errors
-		const loadError = this.modelRegistry.getError();
-		if (loadError) {
-			this.errorMessage = loadError;
-		}
-
-		// Load available models (built-in models still work even if models.json failed)
+		// Load models with configured authentication.
 		try {
 			const availableModels = await this.modelRegistry.getAvailable();
 			models = availableModels.map((model: Model<any>) => ({

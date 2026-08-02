@@ -82,11 +82,14 @@ describe("createAgentSession stream options", () => {
 
 		const authStorage = AuthStorage.create(join(agentDir, "auth.json"));
 		authStorage.setRuntimeApiKey(model.provider, "test-api-key");
-		const modelRegistry = ModelRegistry.create(authStorage, join(agentDir, "models.json"));
+		const modelRegistry = ModelRegistry.inMemory(authStorage);
 		let capturedOptions: SimpleStreamOptions | undefined;
 
 		modelRegistry.registerProvider(model.provider, {
 			api,
+			baseUrl: model.baseUrl,
+			apiKey: "test-api-key",
+			models: [model],
 			streamSimple: (_model, _context, providerOptions) => {
 				capturedOptions = providerOptions;
 				return createDoneStream(api);

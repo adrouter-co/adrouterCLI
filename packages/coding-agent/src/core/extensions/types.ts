@@ -16,16 +16,10 @@ import type {
 	ToolExecutionMode,
 } from "@adrouter/agent-core";
 import type {
-	Api,
 	AssistantMessageEvent,
-	AssistantMessageEventStream,
-	Context,
 	ImageContent,
 	Model,
-	OAuthCredentials,
-	OAuthLoginCallbacks,
 	ProviderHeaders,
-	SimpleStreamOptions,
 	TextContent,
 	ToolResultMessage,
 } from "@adrouter/ai";
@@ -1321,146 +1315,8 @@ export interface ExtensionAPI {
 	/** Set thinking level (clamped to model capabilities). */
 	setThinkingLevel(level: ThinkingLevel): void;
 
-	// =========================================================================
-	// Provider Registration
-	// =========================================================================
-
-	/**
-	 * Register or override a model provider.
-	 *
-	 * If `models` is provided: replaces all existing models for this provider.
-	 * If only `baseUrl` is provided: overrides the URL for existing models.
-	 * If `oauth` is provided: registers OAuth provider for /login support.
-	 * If `streamSimple` is provided: registers a custom API stream handler.
-	 *
-	 * During initial extension load this call is queued and applied once the
-	 * runner has bound its context. After that it takes effect immediately, so
-	 * it is safe to call from command handlers or event callbacks without
-	 * requiring a `/reload`.
-	 *
-	 * @example
-	 * // Register a new provider with custom models
-	 * pi.registerProvider("my-proxy", {
-	 *   baseUrl: "https://proxy.example.com",
-	 *   apiKey: "$PROXY_API_KEY",
-	 *   api: "anthropic-messages",
-	 *   models: [
-	 *     {
-	 *       id: "claude-sonnet-4-20250514",
-	 *       name: "Claude 4 Sonnet (proxy)",
-	 *       reasoning: false,
-	 *       input: ["text", "image"],
-	 *       cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-	 *       contextWindow: 200000,
-	 *       maxTokens: 16384
-	 *     }
-	 *   ]
-	 * });
-	 *
-	 * @example
-	 * // Override baseUrl for an existing provider
-	 * pi.registerProvider("anthropic", {
-	 *   baseUrl: "https://proxy.example.com"
-	 * });
-	 *
-	 * @example
-	 * // Register provider with OAuth support
-	 * pi.registerProvider("corporate-ai", {
-	 *   baseUrl: "https://ai.corp.com",
-	 *   api: "openai-responses",
-	 *   models: [...],
-	 *   oauth: {
-	 *     name: "Corporate AI (SSO)",
-	 *     async login(callbacks) { ... },
-	 *     async refreshToken(credentials) { ... },
-	 *     getApiKey(credentials) { return credentials.access; }
-	 *   }
-	 * });
-	 */
-	registerProvider(name: string, config: ProviderConfig): void;
-
-	/**
-	 * Unregister a previously registered provider.
-	 *
-	 * Removes all models belonging to the named provider and restores any
-	 * built-in models that were overridden by it. Has no effect if the provider
-	 * is not currently registered.
-	 *
-	 * Like `registerProvider`, this takes effect immediately when called after
-	 * the initial load phase.
-	 *
-	 * @example
-	 * pi.unregisterProvider("my-proxy");
-	 */
-	unregisterProvider(name: string): void;
-
 	/** Shared event bus for extension communication. */
 	events: EventBus;
-}
-
-// ============================================================================
-// Provider Registration Types
-// ============================================================================
-
-/** Configuration for registering a provider via pi.registerProvider(). */
-export interface ProviderConfig {
-	/** Display name for the provider in UI. */
-	name?: string;
-	/** Base URL for the API endpoint. Required when defining models. */
-	baseUrl?: string;
-	/** API key literal, env interpolation ($ENV_VAR or ${ENV_VAR}), or leading !command. Required when defining models (unless oauth provided). */
-	apiKey?: string;
-	/** API type. Required at provider or model level when defining models. */
-	api?: Api;
-	/** Optional streamSimple handler for custom APIs. */
-	streamSimple?: (model: Model<Api>, context: Context, options?: SimpleStreamOptions) => AssistantMessageEventStream;
-	/** Custom headers to include in requests. */
-	headers?: Record<string, string>;
-	/** If true, adds Authorization: Bearer header with the resolved API key. */
-	authHeader?: boolean;
-	/** Models to register. If provided, replaces all existing models for this provider. */
-	models?: ProviderModelConfig[];
-	/** OAuth provider for /login support. The `id` is set automatically from the provider name. */
-	oauth?: {
-		/** Display name for the provider in login UI. */
-		name: string;
-		/** Run the login flow, return credentials to persist. */
-		login(callbacks: OAuthLoginCallbacks): Promise<OAuthCredentials>;
-		/** Refresh expired credentials, return updated credentials to persist. */
-		refreshToken(credentials: OAuthCredentials): Promise<OAuthCredentials>;
-		/** Convert credentials to API key string for the provider. */
-		getApiKey(credentials: OAuthCredentials): string;
-		/** Optional: modify models for this provider (e.g., update baseUrl based on credentials). */
-		modifyModels?(models: Model<Api>[], credentials: OAuthCredentials): Model<Api>[];
-	};
-}
-
-/** Configuration for a model within a provider. */
-export interface ProviderModelConfig {
-	/** Model ID (e.g., "claude-sonnet-4-20250514"). */
-	id: string;
-	/** Display name (e.g., "Claude 4 Sonnet"). */
-	name: string;
-	/** API type override for this model. */
-	api?: Api;
-	/** API endpoint URL override for this model. */
-	baseUrl?: string;
-	/** Whether the model supports extended thinking. */
-	reasoning: boolean;
-	/** Maps pi thinking levels to provider/model-specific values; null marks a level unsupported. */
-	thinkingLevelMap?: Model<Api>["thinkingLevelMap"];
-	/** Supported input types. */
-	input: ("text" | "image")[];
-	/** Per-million-token cost rates and optional request-wide input pricing tiers. */
-	cost: Model<Api>["cost"];
-	/** Maximum context window size in tokens. */
-	contextWindow: number;
-	/** Maximum output tokens. */
-	maxTokens: number;
-	/** Custom headers for this model. */
-	headers?: Record<string, string>;
-	/** OpenAI compatibility settings. */
-	compat?: Model<Api>["compat"];
 }
 
 /** Extension factory function type. Supports both sync and async initialization. */
@@ -1545,20 +1401,10 @@ export type SetLabelHandler = (entryId: string, label: string | undefined) => vo
  */
 export interface ExtensionRuntimeState {
 	flagValues: Map<string, boolean | string>;
-	/** Provider registrations queued during extension loading, processed when runner binds */
-	pendingProviderRegistrations: Array<{ name: string; config: ProviderConfig; extensionPath: string }>;
 	/** Throws when this extension instance is stale after runtime replacement. */
 	assertActive: () => void;
 	/** Marks this extension instance as stale after runtime replacement or reload. */
 	invalidate: (message?: string) => void;
-	/**
-	 * Register or unregister a provider.
-	 *
-	 * Before bindCore(): queues registrations / removes from queue.
-	 * After bindCore(): calls ModelRegistry directly for immediate effect.
-	 */
-	registerProvider: (name: string, config: ProviderConfig, extensionPath?: string) => void;
-	unregisterProvider: (name: string, extensionPath?: string) => void;
 }
 
 /**

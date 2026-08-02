@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.81.0-beta.18] - 2026-08-02
+
+### Changed
+
+- Repacked the private agent runtime for the locked Router-synchronized AdRouter registry.
+
 ## [0.81.0-beta.17] - 2026-08-02
 
 ### Changed

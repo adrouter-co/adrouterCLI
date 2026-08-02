@@ -7,14 +7,14 @@ import { join } from "node:path";
 
 const PRIVATE_PACKAGES = ["@adrouter/agent-core", "@adrouter/ai", "@adrouter/tui"];
 export const EXPECTED_ADROUTER_MODEL_IDS = [
-	"agnes-2.0-flash",
-	"agnes-2.5-flash",
-	"agnes-2.5-pro",
-	"agnes-2.5-pro-alpha",
 	"deepseek-v4-flash",
 	"deepseek-v4-pro",
 	"mimo-v2.5",
 	"mimo-v2.5-pro",
+	"agnes-2.0-flash",
+	"agnes-2.5-flash",
+	"agnes-2.5-pro",
+	"agnes-2.5-pro-alpha",
 ];
 
 function assert(condition, message) {
@@ -76,7 +76,7 @@ export async function verifyInstalledRuntime({ packageRoot, project, agentDir, e
 		).href
 	);
 	assert(
-		JSON.stringify(Object.keys(installedCatalog.ADROUTER_MODELS).sort()) ===
+		JSON.stringify(Object.keys(installedCatalog.ADROUTER_MODELS)) ===
 			JSON.stringify(EXPECTED_ADROUTER_MODEL_IDS),
 		"Installed AdRouter catalog does not contain the exact expected model IDs",
 	);
