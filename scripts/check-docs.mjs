@@ -29,16 +29,26 @@ for (const path of markdown) {
 }
 
 const rootReadme = readFileSync("README.md", "utf8");
-const adrouterModelIds = [
-	"agnes-2.0-flash",
-	"agnes-2.5-flash",
-	"agnes-2.5-pro",
-	"agnes-2.5-pro-alpha",
-	"deepseek-v4-flash",
-	"deepseek-v4-pro",
-	"mimo-v2.5",
-	"mimo-v2.5-pro",
-];
+const catalog = JSON.parse(readFileSync("packages/ai/catalog/adrouter-model-catalog.v1.json", "utf8"));
+const adrouterModelIds = catalog.models.map((model) => model.id);
+const formatInteger = (value) => new Intl.NumberFormat("en-US").format(value);
+const modelTable = [
+	"| Model ID | Display name | Provider | Class | Description | Thinking modes | Default | Context | Max input | Max output |",
+	"| --- | --- | --- | --- | --- | --- | --- | ---: | ---: | ---: |",
+	...catalog.models.map(
+		(model) =>
+			`| \`${model.id}\` | ${model.display_name} | ${model.provider} | ${model.model_class} | ${model.description} | ${model.thinking_levels.join(", ")} | ${model.default_thinking_level} | ${formatInteger(model.context_window)} | ${formatInteger(model.max_input_tokens)} | ${formatInteger(model.max_output_tokens)} |`,
+	),
+].join("\n");
+const tableStart = "<!-- BEGIN ADROUTER MODEL TABLE -->";
+const tableEnd = "<!-- END ADROUTER MODEL TABLE -->";
+const about = readFileSync("docs/about.md", "utf8");
+const expectedTable = `${tableStart}\n${modelTable}\n${tableEnd}`;
+const actualTable = about.match(/<!-- BEGIN ADROUTER MODEL TABLE -->[\s\S]*?<!-- END ADROUTER MODEL TABLE -->/)?.[0];
+if (actualTable !== expectedTable) failures.push("docs/about.md: generated model table differs from vendored catalog");
+if (!about.includes(`\`${catalog.catalog_digest}\``)) {
+	failures.push("docs/about.md: catalog digest differs from vendored catalog");
+}
 for (const path of [
 	"README.md",
 	"docs/installation.md",
@@ -66,6 +76,23 @@ for (const command of [
 }
 for (const invalid of ["adrouter-profile create", "adrouter-profile use"]) {
 	if (rootReadme.includes(invalid)) failures.push(`README.md: invalid profile command remains: ${invalid}`);
+}
+
+const activeDocumentation = [
+	...markdown.filter(
+		(path) =>
+			!/(?:^|[\\/])(?:PLAN|UPSTREAM|CHANGELOG)\.md$/.test(path) &&
+			!/[\\/]historical[\\/]/.test(path) &&
+			!/[\\/]provenance[\\/]/.test(path),
+	),
+	"packages/coding-agent/bundled/adroutercli/skills/adroutercli/docs/SKILL.md",
+];
+for (const path of activeDocumentation) {
+	const text = readFileSync(path, "utf8");
+	if (/\bmodels\.json\b/.test(text)) failures.push(`${path}: active documentation still teaches models.json`);
+	if (/\bpi\.(?:registerProvider|unregisterProvider)\s*\(/.test(text)) {
+		failures.push(`${path}: active documentation still teaches extension provider registration`);
+	}
 }
 
 const cliManifest = JSON.parse(readFileSync("packages/coding-agent/package.json", "utf8"));

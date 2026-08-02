@@ -3,6 +3,9 @@
 `@adrouter/cli` provides the `adrouter` terminal coding agent and the
 `adrouter-profile` profile manager.
 
+The [canonical product guide](https://github.com/adrouter/adrouterCLI/blob/main/docs/about.md)
+defines the official catalog, authentication boundary, streaming lifecycle, and sponsor behavior.
+
 Install the public beta with Node.js 22.19 or newer:
 
 ```sh
@@ -12,7 +15,7 @@ adrouter --json doctor
 ```
 
 Start `adrouter` in a trusted project, then use `/login adrouter` with an
-individual beta key. Sponsor content is display-only and is never inserted into
+approved browser installation. Sponsor content is display-only and is never inserted into
 model messages, tool payloads, commands, or edits.
 
 Profiles use the implemented `set`, `list`, `apply`, and `restore` interface:

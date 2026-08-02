@@ -388,7 +388,9 @@ async function runTuiBenchmarkRun({ runtime, runIndex, measuredIndex, options, p
 	const child = spawn(command.executable, command.args, {
 		cwd: packageDir,
 		env: createBenchmarkEnv(options, isolatedAgentDir),
-		stdio: ["inherit", "ignore", "pipe"],
+		// Preserve the controlling terminal on stdout so the child selects
+		// interactive mode and can report the first-usable TUI benchmark mark.
+		stdio: ["inherit", "inherit", "pipe"],
 		shell: process.platform === "win32" && runtime === "bun",
 	});
 
