@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.81.0-beta.18] - 2026-08-02
+
+### Changed
+
+- Generated the AdRouter runtime catalog, model metadata, thinking defaults, and hosted limits
+  from the validated Router-owned catalog artifact.
+
 ## [0.81.0-beta.17] - 2026-08-02
 
 ### Added

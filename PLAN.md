@@ -906,17 +906,17 @@ runtime behavior.
 
 - [x] Re-query npm dist-tags, exact beta.17 publication, remote main, and beta.17 tag state.
 - [x] Determine that beta.17 is immutable and select `0.81.0-beta.18`.
-- [ ] Restore valid GitHub CLI authentication with repository write/workflow permission.
-- [ ] Confirm the protected `npm-publish` environment has a current scoped `NPM_TOKEN`; do not
+- [x] Restore valid GitHub CLI authentication with repository write/workflow permission.
+- [x] Confirm the protected `npm-publish` environment has a current scoped `NPM_TOKEN`; do not
       print, copy, or store the token locally.
-- [ ] Commit the completed implementation on its existing branch so none of the verified work is
+- [x] Commit the completed implementation on its existing branch so none of the verified work is
       lost or mixed with unrelated changes.
-- [ ] Create `codex/release-0.81.0-beta.18` from current remote main and apply the implementation
+- [x] Create `codex/release-0.81.0-beta.18` from current remote main and apply the implementation
       commit, resolving only the known squash-merge ancestry difference.
-- [ ] Update the root and four workspace versions, internal exact dependency pins, package lock,
+- [x] Update the root and four workspace versions, internal exact dependency pins, package lock,
       coding-agent shrinkwrap, README source-verification examples, changelog release heading, and
       `release-manifest.json` to beta.18 with beta.17 as `supersedes`.
-- [ ] Regenerate only documented deterministic release inputs and verify no runtime source changes
+- [x] Regenerate only documented deterministic release inputs and verify no runtime source changes
       were introduced by version preparation.
 - [ ] Commit and push the release branch, open a pull request, wait for all six-platform CI jobs,
       and merge only if every required check is green.
@@ -968,15 +968,25 @@ git diff --check
 - `npm view @adrouter/cli dist-tags`: passed; `candidate` is beta.17 and public `beta`/`latest` are beta.13
 - `npm view @adrouter/cli@0.81.0-beta.17`: passed; immutable beta.17 exists
 - `git ls-remote`: passed; remote main and beta.17 tag both point to `2d5344f82a775bcd89e38de18614d8a7eaf373ed`
-- `gh auth status --hostname github.com`: blocked; saved GitHub token is invalid
-- `npm whoami`: blocked; local npm client is unauthenticated, which is acceptable only if the
-  protected workflow environment has its required token
+- `gh auth status --hostname github.com`: passed after browser reauthentication; authenticated
+  account has `ADMIN` repository permission and `repo`/`workflow` scopes
+- `gh secret list --env npm-publish`: passed; `NPM_TOKEN` is configured without reading its value
+- `npm whoami`: local client remains unauthenticated by design; publication uses only the protected
+  workflow environment token
+- `npm run check` under Node.js 22.19.0: passed
+- `npm run check:release-readiness` under Node.js 22.19.0: passed
+- `npm run test:isolated` under Node.js 22.19.0: passed; AI 514, agent 182, and CLI 1492 tests
+  passed, with the TUI node:test suite also passing
+- `node scripts/ci-package-smoke.mjs` under Node.js 22.19.0: passed for beta.18
 
 ### Findings / Notes
 
 - The repository has no `RELEASE.md`; `docs/releasing.md` is the active release procedure.
-- Node.js 25.9.0 is currently active. Release gates and workflow execution must use the documented
-  Node.js 22.19.0 runtime.
+- Node.js 25.9.0 remains the interactive shell default, but every beta.18 release gate and metadata
+  generation command explicitly used the installed Node.js 22.19.0 runtime.
+- The first isolated-suite attempt omitted `/opt/homebrew/bin` from the narrowed release `PATH`, so
+  the existing `fd` regression could not find its required binary. The focused regression and full
+  suite passed after restoring the documented prerequisite; no source change was needed.
 
 ---
 
