@@ -23,7 +23,7 @@ if (process.env.MY_ANTHROPIC_KEY) {
 	authStorage.setRuntimeApiKey("anthropic", process.env.MY_ANTHROPIC_KEY);
 }
 
-// Model registry with no custom models.json
+// Explicit mutable registry for non-AdRouter SDK models.
 const modelRegistry = ModelRegistry.inMemory(authStorage);
 
 const model = getModel("anthropic", "claude-sonnet-4-5");

@@ -35,15 +35,9 @@ function sanitizeStatusText(text: string): string {
 		.trim();
 }
 
-const CACHE_STATUS_KEY = "pi-cache-stats";
-
 function collectExtensionStatuses(footerData: ReadonlyFooterDataProvider): string[] {
 	const statusParts = Array.from(footerData.getExtensionStatuses().entries())
-		.sort(([a], [b]) => {
-			if (a === CACHE_STATUS_KEY) return b === CACHE_STATUS_KEY ? 0 : -1;
-			if (b === CACHE_STATUS_KEY) return 1;
-			return a.localeCompare(b);
-		})
+		.sort(([a], [b]) => a.localeCompare(b))
 		.map(([, text]) => sanitizeStatusText(text))
 		.filter(Boolean);
 	if (areExperimentalFeaturesEnabled()) statusParts.push("• xp");

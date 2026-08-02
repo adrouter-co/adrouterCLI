@@ -78,7 +78,10 @@ for (const file of files) {
 }
 
 const adrouterModels = readFileSync("packages/ai/src/providers/adrouter.models.ts", "utf8");
-if (/["'`]deepseek["'`]/.test(adrouterModels)) failures.push("AdRouter provider exposes the retired deepseek alias");
+const runtimeAdRouterModels = adrouterModels.split("export const ADROUTER_MODELS =", 2)[1] ?? "";
+if (/provider:\s*["'`]deepseek["'`]/.test(runtimeAdRouterModels)) {
+	failures.push("AdRouter provider exposes the retired deepseek alias");
+}
 
 const privacy = readFileSync("docs/privacy.md", "utf8");
 for (const commitment of [

@@ -221,8 +221,6 @@ if (!metadataOnly) {
 	const manifest = readJson("docs/bundled-sources.json");
 	const expectedBundleRecords = [
 		"BTW",
-		"pi-cache-optimizer",
-		"pi-opencode-bridge",
 		"pi-opencode-tui-patch",
 		"pi-subagents",
 		"pi-web-access",
@@ -239,8 +237,6 @@ if (!metadataOnly) {
 	const expectedBundleDirectories = [
 		"adroutercli",
 		"btw-23017e9",
-		"pi-cache-optimizer-2.6.16",
-		"pi-opencode-bridge-0.2.1",
 		"pi-subagents-0.30.0",
 		"pi-web-access-0.13.0",
 	];

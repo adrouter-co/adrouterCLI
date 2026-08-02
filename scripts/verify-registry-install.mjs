@@ -163,8 +163,6 @@ function verifyDownloadedTarball(tarballPath) {
 		join("dist", "cli.js"),
 		join("dist", "profile-cli.js"),
 		join("dist", "bundled", "pi-subagents-0.30.0", "src", "extension", "index.ts"),
-		join("dist", "bundled", "pi-cache-optimizer-2.6.16", "index.ts"),
-		join("dist", "bundled", "pi-opencode-bridge-0.2.1", "index.ts"),
 		join("dist", "bundled", "btw-23017e9", "index.ts"),
 		join("dist", "bundled", "pi-web-access-0.13.0", "dist", "index.js"),
 	]) {

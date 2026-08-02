@@ -51,8 +51,6 @@ describe("DefaultResourceLoader", () => {
 			expect(errors).toEqual([]);
 			expect(extensions.map((extension) => extension.path.replaceAll("\\", "/").split("/bundled/")[1])).toEqual([
 				"pi-subagents-0.30.0/src/extension/index.ts",
-				"pi-cache-optimizer-2.6.16/index.ts",
-				"pi-opencode-bridge-0.2.1/index.ts",
 				"btw-23017e9/index.ts",
 				"pi-web-access-0.13.0/dist/index.js",
 			]);
@@ -77,10 +75,6 @@ describe("DefaultResourceLoader", () => {
 			});
 
 			await loader.reload();
-			const reloadedOpenCode = loader
-				.getExtensions()
-				.extensions.find((extension) => extension.path.includes("pi-opencode-bridge"));
-			expect([...reloadedOpenCode!.commands.keys()].sort()).toEqual(["opencode-go-key", "opencode-status"]);
 			expect(loader.getBundledFeatureReport().ready).toBe(true);
 		});
 
@@ -339,7 +333,7 @@ export default function(pi) {
 
 			const sessionManager = SessionManager.inMemory();
 			const authStorage = AuthStorage.create(join(tempDir, "auth.json"));
-			const modelRegistry = ModelRegistry.create(authStorage);
+			const modelRegistry = ModelRegistry.inMemory(authStorage);
 			const runner = new ExtensionRunner(
 				extensionsResult.extensions,
 				extensionsResult.runtime,
@@ -783,7 +777,7 @@ export default function(pi: ExtensionAPI) {
 
 			const sessionManager = SessionManager.inMemory();
 			const authStorage = AuthStorage.create(join(tempDir, "auth-explicit.json"));
-			const modelRegistry = ModelRegistry.create(authStorage);
+			const modelRegistry = ModelRegistry.inMemory(authStorage);
 			const runner = new ExtensionRunner(
 				extensionsResult.extensions,
 				extensionsResult.runtime,

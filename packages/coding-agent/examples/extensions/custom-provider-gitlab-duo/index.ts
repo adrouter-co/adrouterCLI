@@ -1,12 +1,12 @@
 /**
- * GitLab Duo Provider Extension
+ * GitLab Duo Provider SDK Example
  *
  * Provides access to GitLab Duo AI models (Claude and GPT) through GitLab's AI Gateway.
  * Delegates to pi-ai's built-in Anthropic and OpenAI streaming implementations.
  *
- * Usage:
- *   pi -e ./packages/coding-agent/examples/extensions/custom-provider-gitlab-duo
- *   # Then /login gitlab-duo, or set GITLAB_TOKEN=glpat-...
+ * Pass an explicit ModelRegistry.inMemory() instance to this helper, then
+ * inject that same registry into createAgentSession(). Provider registration
+ * is intentionally an SDK-only capability and is not available to extensions.
  */
 
 import {
@@ -22,7 +22,7 @@ import {
 	type SimpleStreamOptions,
 	type ThinkingLevelMap,
 } from "@adrouter/ai/compat";
-import type { ExtensionAPI } from "@adrouter/cli";
+import type { ModelRegistry } from "@adrouter/cli";
 
 // =============================================================================
 // Constants
@@ -375,11 +375,11 @@ export function streamGitLabDuo(
 }
 
 // =============================================================================
-// Extension Entry Point
+// SDK Registration Helper
 // =============================================================================
 
-export default function (pi: ExtensionAPI) {
-	pi.registerProvider("gitlab-duo", {
+export function registerGitLabDuoProvider(modelRegistry: ModelRegistry): void {
+	modelRegistry.registerProvider("gitlab-duo", {
 		baseUrl: AI_GATEWAY_URL,
 		apiKey: "$GITLAB_TOKEN",
 		api: "gitlab-duo-api",
