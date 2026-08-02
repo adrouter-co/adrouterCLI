@@ -99,7 +99,7 @@ describe("formatCwdForFooter", () => {
 });
 
 describe("footer session metrics", () => {
-	it("collects cost and puts pi-cache-optimizer status first", () => {
+	it("collects cost and sorts extension statuses by key", () => {
 		const statuses = new Map([
 			["z-status", "other"],
 			["pi-cache-stats", "OpenAI cache 3/10 · 0.002M/0.005M tok (40%)"],
@@ -153,7 +153,7 @@ describe("FooterComponent status continuation", () => {
 		const lines = footer.render(24);
 
 		expect(lines).toHaveLength(1);
-		expect(stripAnsi(lines[0]!)).toMatch(/^cache status {2}first s/);
+		expect(stripAnsi(lines[0]!)).toMatch(/^first status {2}cache/);
 		expect(visibleWidth(lines[0]!)).toBeLessThanOrEqual(24);
 	});
 
