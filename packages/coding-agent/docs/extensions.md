@@ -177,39 +177,21 @@ export default function (pi: ExtensionAPI) {
 
 Extensions are loaded via [jiti](https://github.com/unjs/jiti), so TypeScript works without compilation.
 
-If the factory returns a `Promise`, pi awaits it before continuing startup. That means async initialization completes before `session_start`, before `resources_discover`, and before provider registrations queued via `pi.registerProvider()` are flushed.
+If the factory returns a `Promise`, AdRouterCLI awaits it before continuing startup. Async initialization therefore completes before `session_start` and `resources_discover`.
 
 ### Async factory functions
 
-Use an async factory for one-time startup work such as fetching remote configuration or dynamically discovering available models.
+Use an async factory for one-time startup work such as fetching remote configuration.
 
 ```typescript
 import type { ExtensionAPI } from "@adrouter/cli";
 
 export default async function (pi: ExtensionAPI) {
-  const response = await fetch("http://localhost:1234/v1/models");
-  const payload = (await response.json()) as {
-    data: Array<{
-      id: string;
-      name?: string;
-      context_window?: number;
-      max_tokens?: number;
-    }>;
-  };
-
-  pi.registerProvider("local-openai", {
-    baseUrl: "http://localhost:1234/v1",
-    apiKey: "$LOCAL_OPENAI_API_KEY",
-    api: "openai-completions",
-    models: payload.data.map((model) => ({
-      id: model.id,
-      name: model.name ?? model.id,
-      reasoning: false,
-      input: ["text"],
-      cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-      contextWindow: model.context_window ?? 128000,
-      maxTokens: model.max_tokens ?? 4096,
-    })),
+  const response = await fetch("http://localhost:1234/extension-config");
+  const config = await response.json();
+  pi.registerCommand("remote-status", {
+    description: "Show status from extension configuration",
+    handler: async (_args, ctx) => ctx.ui.notify(String(config.status), "info"),
   });
 }
 ```
@@ -1670,90 +1652,11 @@ pi.events.on("my:event", (data) => { ... });
 pi.events.emit("my:event", { ... });
 ```
 
-### pi.registerProvider(name, config)
+### Provider boundary
 
-Register or override a model provider dynamically. Useful for proxies, custom endpoints, or team-wide model configurations.
-
-Calls made during the extension factory function are queued and applied once the runner initialises. Calls made after that — for example from a command handler following a user setup flow — take effect immediately without requiring a `/reload`.
-
-If you need to discover models from a remote endpoint, prefer an async extension factory over deferring the fetch to `session_start`. pi waits for the factory before startup continues, so the registered models are available immediately, including to `pi --list-models`.
-
-```typescript
-// Register a new provider with custom models
-pi.registerProvider("my-proxy", {
-  name: "My Proxy",
-  baseUrl: "https://proxy.example.com",
-  apiKey: "$PROXY_API_KEY",  // env var reference
-  api: "anthropic-messages",
-  models: [
-    {
-      id: "claude-sonnet-4-20250514",
-      name: "Claude 4 Sonnet (proxy)",
-      reasoning: false,
-      input: ["text", "image"],
-      cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-      contextWindow: 200000,
-      maxTokens: 16384
-    }
-  ]
-});
-
-// Override baseUrl for an existing provider (keeps all models)
-pi.registerProvider("anthropic", {
-  baseUrl: "https://proxy.example.com"
-});
-
-// Register provider with OAuth support for /login
-pi.registerProvider("corporate-ai", {
-  baseUrl: "https://ai.corp.com",
-  api: "openai-responses",
-  models: [...],
-  oauth: {
-    name: "Corporate AI (SSO)",
-    async login(callbacks) {
-      // Custom OAuth flow
-      callbacks.onAuth({ url: "https://sso.corp.com/..." });
-      const code = await callbacks.onPrompt({ message: "Enter code:" });
-      return { refresh: code, access: code, expires: Date.now() + 3600000 };
-    },
-    async refreshToken(credentials) {
-      // Refresh logic
-      return credentials;
-    },
-    getApiKey(credentials) {
-      return credentials.access;
-    }
-  }
-});
-```
-
-**Config options:**
-- `name` - Display name for the provider in UI such as `/login`.
-- `baseUrl` - API endpoint URL. Required when defining models.
-- `apiKey` - API key literal, environment interpolation (`$ENV_VAR` or `${ENV_VAR}`), or leading `!command`. Required when defining models (unless `oauth` provided). `$$` escapes `$`, and `$!` escapes a literal `!` without triggering command execution.
-- `api` - API type: `"anthropic-messages"`, `"openai-completions"`, `"openai-responses"`, etc.
-- `headers` - Custom headers to include in requests.
-- `authHeader` - If true, adds `Authorization: Bearer` header automatically.
-- `models` - Array of model definitions. If provided, replaces all existing models for this provider. Model definitions can set `baseUrl` to override the provider endpoint for that model.
-- `oauth` - OAuth provider config for `/login` support. When provided, the provider appears in the login menu.
-- `streamSimple` - Custom streaming implementation for non-standard APIs.
-
-See [custom-provider.md](custom-provider.md) for advanced topics: custom streaming APIs, OAuth details, model definition reference.
-
-### pi.unregisterProvider(name)
-
-Remove a previously registered provider and its models. Built-in models that were overridden by the provider are restored. Has no effect if the provider was not registered.
-
-Like `registerProvider`, this takes effect immediately when called after the initial load phase, so a `/reload` is not required.
-
-```typescript
-pi.registerCommand("my-setup-teardown", {
-  description: "Remove the custom proxy provider",
-  handler: async (_args, _ctx) => {
-    pi.unregisterProvider("my-proxy");
-  },
-});
-```
+Extensions cannot register, replace, or remove model providers. Official sessions use the locked
+AdRouter catalog. Embedding applications that need non-AdRouter models must use the explicit
+[SDK-only custom provider](custom-provider.md) path and inject a mutable registry themselves.
 
 ## State Management
 
@@ -2736,9 +2639,9 @@ All examples in [examples/extensions/](../examples/extensions/).
 | `snake.ts` | Snake game | `registerCommand`, `ui.custom`, keyboard handling |
 | `space-invaders.ts` | Space Invaders game | `registerCommand`, `ui.custom` |
 | `doom-overlay/` | Doom in overlay | `ui.custom` with overlay |
-| **Providers** |||
-| `custom-provider-anthropic/` | Custom Anthropic proxy | `registerProvider` |
-| `custom-provider-gitlab-duo/` | GitLab Duo integration | `registerProvider` with OAuth |
+| **SDK registration helpers** |||
+| `custom-provider-anthropic/` | Programmatic Anthropic provider helper | Explicit mutable SDK registry |
+| `custom-provider-gitlab-duo/` | Programmatic GitLab Duo provider helper | Explicit mutable SDK registry |
 | **Messages & Communication** |||
 | `message-renderer.ts` | Custom message rendering | `registerMessageRenderer`, `sendMessage` |
 | `entry-renderer.ts` | TUI-only custom entry rendering | `registerEntryRenderer`, `appendEntry` |

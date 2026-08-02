@@ -6,8 +6,8 @@
 
 import { AuthStorage, createAgentSession, ModelRegistry, SessionManager } from "@adrouter/cli";
 
-// Default: AuthStorage uses ~/.pi/agent/auth.json
-// ModelRegistry loads built-in + custom models from ~/.pi/agent/models.json
+// Default: AuthStorage uses the configured AdRouter agent directory.
+// ModelRegistry.create returns the locked official AdRouter catalog.
 const authStorage = AuthStorage.create();
 const modelRegistry = ModelRegistry.create(authStorage);
 
@@ -21,7 +21,7 @@ defaultAuthSession.dispose();
 
 // Custom auth storage location
 const customAuthStorage = AuthStorage.create("/tmp/my-app/auth.json");
-const customModelRegistry = ModelRegistry.create(customAuthStorage, "/tmp/my-app/models.json");
+const customModelRegistry = ModelRegistry.create(customAuthStorage);
 
 const { session: customAuthSession } = await createAgentSession({
 	sessionManager: SessionManager.inMemory(),
@@ -31,22 +31,21 @@ const { session: customAuthSession } = await createAgentSession({
 console.log("Session with custom auth storage location");
 customAuthSession.dispose();
 
-// Runtime API key override (not persisted to disk)
+// Explicit mutable registry for SDK-only non-AdRouter provider use.
+const simpleRegistry = ModelRegistry.inMemory(authStorage);
 authStorage.setRuntimeApiKey("anthropic", "sk-my-temp-key");
 const { session: runtimeKeySession } = await createAgentSession({
 	sessionManager: SessionManager.inMemory(),
 	authStorage,
-	modelRegistry,
+	modelRegistry: simpleRegistry,
 });
-console.log("Session with runtime API key override");
+console.log("Session with SDK-only mutable registry and runtime API key override");
 runtimeKeySession.dispose();
 
-// No models.json - only built-in models
-const simpleRegistry = ModelRegistry.inMemory(authStorage);
 const { session: builtInModelsSession } = await createAgentSession({
 	sessionManager: SessionManager.inMemory(),
 	authStorage,
 	modelRegistry: simpleRegistry,
 });
-console.log("Session with only built-in models");
+console.log("Session with mutable built-in model catalog");
 builtInModelsSession.dispose();

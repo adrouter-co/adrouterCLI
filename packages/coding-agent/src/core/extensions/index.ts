@@ -108,9 +108,6 @@ export type {
 	ProjectTrustEventDecision,
 	ProjectTrustEventResult,
 	ProjectTrustHandler,
-	// Provider Registration
-	ProviderConfig,
-	ProviderModelConfig,
 	ReadToolCallEvent,
 	ReadToolResultEvent,
 	// Commands

@@ -27,24 +27,6 @@ export const BUNDLED_EXTENSION_CONTRACTS: BundledExtensionContract[] = [
 		handlers: ["session_start", "session_shutdown", "tool_result"],
 	},
 	{
-		name: "pi-cache-optimizer",
-		relativePath: ["pi-cache-optimizer-2.6.16", "index.ts"],
-		commands: ["cache-optimizer"],
-		handlers: [
-			"after_provider_response",
-			"before_agent_start",
-			"before_provider_request",
-			"message_end",
-			"model_select",
-			"session_start",
-		],
-	},
-	{
-		name: "pi-opencode-bridge",
-		relativePath: ["pi-opencode-bridge-0.2.1", "index.ts"],
-		commands: ["opencode-go-key", "opencode-status"],
-	},
-	{
 		name: "btw",
 		relativePath: ["btw-23017e9", "index.ts"],
 		commands: ["btw"],

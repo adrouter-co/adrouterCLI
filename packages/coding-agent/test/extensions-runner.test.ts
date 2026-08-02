@@ -9,12 +9,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AuthStorage } from "../src/core/auth-storage.ts";
 import { createExtensionRuntime, discoverAndLoadExtensions, loadExtensions } from "../src/core/extensions/loader.ts";
 import { ExtensionRunner, emitProjectTrustEvent } from "../src/core/extensions/runner.ts";
-import type {
-	ExtensionActions,
-	ExtensionContextActions,
-	ExtensionUIContext,
-	ProviderConfig,
-} from "../src/core/extensions/types.ts";
+import type { ExtensionActions, ExtensionContextActions, ExtensionUIContext } from "../src/core/extensions/types.ts";
 import { KeybindingsManager, type KeyId } from "../src/core/keybindings.ts";
 import { ModelRegistry } from "../src/core/model-registry.ts";
 import { SessionManager } from "../src/core/session-manager.ts";
@@ -32,43 +27,12 @@ describe("ExtensionRunner", () => {
 		fs.mkdirSync(extensionsDir);
 		sessionManager = SessionManager.inMemory();
 		const authStorage = AuthStorage.create(path.join(tempDir, "auth.json"));
-		modelRegistry = ModelRegistry.create(authStorage);
+		modelRegistry = ModelRegistry.inMemory(authStorage);
 	});
 
 	afterEach(() => {
 		fs.rmSync(tempDir, { recursive: true, force: true });
 	});
-
-	const providerModelConfig: ProviderConfig = {
-		baseUrl: "https://provider.test/v1",
-		apiKey: "provider-test-key",
-		api: "openai-completions",
-		models: [
-			{
-				id: "instant-model",
-				name: "Instant Model",
-				reasoning: false,
-				input: ["text"],
-				cost: {
-					input: 1,
-					output: 2,
-					cacheRead: 0.1,
-					cacheWrite: 1.25,
-					tiers: [
-						{
-							inputTokensAbove: 272000,
-							input: 2,
-							output: 3,
-							cacheRead: 0.2,
-							cacheWrite: 2.5,
-						},
-					],
-				},
-				contextWindow: 128000,
-				maxTokens: 4096,
-			},
-		],
-	};
 
 	const extensionActions: ExtensionActions = {
 		sendMessage: () => {},
@@ -813,78 +777,6 @@ describe("ExtensionRunner", () => {
 				details: { source: "ext1" },
 				isError: true,
 			});
-		});
-	});
-
-	describe("provider registration", () => {
-		it("bindCore ignores invalid queued registrations and reports extension error", () => {
-			const runtime = createExtensionRuntime();
-			runtime.registerProvider(
-				"broken-provider",
-				{
-					streamSimple: (() => {
-						throw new Error("should not run");
-					}) as any,
-				},
-				"/tmp/broken-extension.ts",
-			);
-
-			const runner = new ExtensionRunner([], runtime, tempDir, sessionManager, modelRegistry);
-			const errors: string[] = [];
-			runner.onError((error) => errors.push(`${error.extensionPath}: ${error.error}`));
-
-			expect(() => runner.bindCore(extensionActions, extensionContextActions)).not.toThrow();
-			expect(errors).toEqual([
-				'/tmp/broken-extension.ts: Provider broken-provider: "api" is required when registering streamSimple.',
-			]);
-			expect(() => modelRegistry.refresh()).not.toThrow();
-		});
-
-		it("pre-bind unregister removes all queued registrations for a provider", () => {
-			const runtime = createExtensionRuntime();
-
-			runtime.registerProvider("queued-provider", providerModelConfig);
-			runtime.registerProvider("queued-provider", {
-				...providerModelConfig,
-				models: [
-					{
-						id: "instant-model-2",
-						name: "Instant Model 2",
-						reasoning: false,
-						input: ["text"],
-						cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-						contextWindow: 128000,
-						maxTokens: 4096,
-					},
-				],
-			});
-			expect(runtime.pendingProviderRegistrations).toHaveLength(2);
-
-			runtime.unregisterProvider("queued-provider");
-			expect(runtime.pendingProviderRegistrations).toHaveLength(0);
-		});
-
-		it("post-bind register and unregister take effect immediately", () => {
-			const runtime = createExtensionRuntime();
-			const runner = new ExtensionRunner([], runtime, tempDir, sessionManager, modelRegistry);
-
-			runner.bindCore(extensionActions, extensionContextActions);
-			expect(runtime.pendingProviderRegistrations).toHaveLength(0);
-
-			runtime.registerProvider("instant-provider", providerModelConfig);
-			expect(runtime.pendingProviderRegistrations).toHaveLength(0);
-			expect(modelRegistry.find("instant-provider", "instant-model")?.cost.tiers).toEqual([
-				{
-					inputTokensAbove: 272000,
-					input: 2,
-					output: 3,
-					cacheRead: 0.2,
-					cacheWrite: 2.5,
-				},
-			]);
-
-			runtime.unregisterProvider("instant-provider");
-			expect(modelRegistry.find("instant-provider", "instant-model")).toBeUndefined();
 		});
 	});
 
