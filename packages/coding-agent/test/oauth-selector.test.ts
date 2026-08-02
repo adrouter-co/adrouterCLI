@@ -100,40 +100,4 @@ describe("OAuthSelectorComponent", () => {
 		expect(output).toContain("✓ env: OLLAMA_API_KEY");
 		expect(output).not.toContain("unconfigured");
 	});
-
-	it("shows models.json API key auth as configured", () => {
-		const authStorage = AuthStorage.inMemory();
-		const selector = new OAuthSelectorComponent(
-			"login",
-			authStorage,
-			[{ id: "local-proxy", name: "local-proxy", authType: "api_key" }],
-			() => {},
-			() => {},
-			() => ({ configured: true, source: "models_json_key" }),
-		);
-
-		const output = stripAnsi(selector.render(120).join("\n"));
-
-		expect(output).toContain("local-proxy");
-		expect(output).toContain("✓ key in models.json");
-		expect(output).not.toContain("unconfigured");
-	});
-
-	it("shows models.json command auth as configured", () => {
-		const authStorage = AuthStorage.inMemory();
-		const selector = new OAuthSelectorComponent(
-			"login",
-			authStorage,
-			[{ id: "op-proxy", name: "op-proxy", authType: "api_key" }],
-			() => {},
-			() => {},
-			() => ({ configured: true, source: "models_json_command" }),
-		);
-
-		const output = stripAnsi(selector.render(120).join("\n"));
-
-		expect(output).toContain("op-proxy");
-		expect(output).toContain("✓ command in models.json");
-		expect(output).not.toContain("unconfigured");
-	});
 });

@@ -3,8 +3,6 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ENV_AGENT_DIR } from "../src/config.ts";
-import { AuthStorage } from "../src/core/auth-storage.ts";
-import { ModelRegistry } from "../src/core/model-registry.ts";
 import { runMigrations } from "../src/migrations.ts";
 
 describe("config value env var syntax migration", () => {
@@ -79,13 +77,9 @@ describe("config value env var syntax migration", () => {
 		withAgentDir(agentDir, () => expect(() => runMigrations(agentDir)).not.toThrow());
 
 		expect(fs.readFileSync(modelsPath, "utf-8")).toBe(content);
-		const registry = ModelRegistry.create(AuthStorage.create(path.join(agentDir, "auth.json")), modelsPath);
-		const loadError = registry.getError();
-		expect(loadError).toContain("Failed to parse models.json");
-		expect(loadError).toContain(`File: ${modelsPath}`);
 	});
 
-	it("leaves uppercase models.json API key and header values unchanged", async () => {
+	it("leaves uppercase models.json API key and header values unchanged", () => {
 		const agentDir = createAgentDir();
 		const envKeys = ["CUSTOM_API_KEY", "HEADER_API_KEY", "MODEL_API_KEY", "OVERRIDE_API_KEY"];
 		const savedEnv: Record<string, string | undefined> = {};
@@ -147,23 +141,6 @@ describe("config value env var syntax migration", () => {
 			expect(provider.models?.[0]?.headers?.["x-model-key"]).toBe("MODEL_API_KEY");
 			expect(provider.modelOverrides?.["model-b"]?.headers?.["x-override-key"]).toBe("OVERRIDE_API_KEY");
 			expect(logSpy).not.toHaveBeenCalled();
-
-			const registry = ModelRegistry.create(
-				AuthStorage.create(path.join(agentDir, "auth.json")),
-				path.join(agentDir, "models.json"),
-			);
-			const model = registry.find("custom-provider", "model-a");
-			expect(model).toBeDefined();
-			expect(await registry.getApiKeyForProvider("custom-provider")).toBe("CUSTOM_API_KEY");
-			expect(await registry.getApiKeyAndHeaders(model!)).toMatchObject({
-				ok: true,
-				apiKey: "CUSTOM_API_KEY",
-				headers: {
-					"x-api-key": "HEADER_API_KEY",
-					"x-literal": "literal",
-					"x-model-key": "MODEL_API_KEY",
-				},
-			});
 		} finally {
 			for (const key of envKeys) {
 				if (savedEnv[key] === undefined) {

@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { getModel } from "@adrouter/ai/compat";
+import { ADROUTER_MODELS } from "@adrouter/ai";
 import { Type } from "typebox";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { DefaultResourceLoader } from "../src/core/resource-loader.ts";
@@ -57,7 +57,7 @@ describe("AgentSession dynamic tool registration", () => {
 		const { session } = await createAgentSession({
 			cwd: tempDir,
 			agentDir,
-			model: getModel("anthropic", "claude-sonnet-4-5")!,
+			model: ADROUTER_MODELS["deepseek-v4-flash"],
 			settingsManager,
 			sessionManager,
 			resourceLoader,
@@ -107,7 +107,7 @@ describe("AgentSession dynamic tool registration", () => {
 		const { session } = await createAgentSession({
 			cwd: tempDir,
 			agentDir,
-			model: getModel("anthropic", "claude-sonnet-4-5")!,
+			model: ADROUTER_MODELS["deepseek-v4-flash"],
 			settingsManager,
 			sessionManager,
 			resourceLoader,
@@ -167,7 +167,7 @@ describe("AgentSession dynamic tool registration", () => {
 		const { session } = await createAgentSession({
 			cwd: tempDir,
 			agentDir,
-			model: getModel("anthropic", "claude-sonnet-4-5")!,
+			model: ADROUTER_MODELS["deepseek-v4-flash"],
 			settingsManager,
 			sessionManager,
 			resourceLoader,

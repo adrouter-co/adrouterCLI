@@ -1,5 +1,7 @@
 import type { Model } from "@adrouter/ai";
-import { describe, expect, test, vi } from "vitest";
+import { afterEach, describe, expect, test, vi } from "vitest";
+import { AuthStorage } from "../src/core/auth-storage.ts";
+import { ModelRegistry } from "../src/core/model-registry.ts";
 import {
 	defaultModelPerProvider,
 	findInitialModel,
@@ -8,6 +10,13 @@ import {
 	resolveModelScope,
 	resolveModelScopeWithDiagnostics,
 } from "../src/core/model-resolver.ts";
+
+const originalAdRouterApiUrl = process.env.ADROUTER_API_URL;
+
+afterEach(() => {
+	if (originalAdRouterApiUrl === undefined) delete process.env.ADROUTER_API_URL;
+	else process.env.ADROUTER_API_URL = originalAdRouterApiUrl;
+});
 
 // Mock models for testing
 const mockModels: Model<"anthropic-messages">[] = [
@@ -258,6 +267,30 @@ describe("resolveModelScopeWithDiagnostics", () => {
 });
 
 describe("resolveCliModel", () => {
+	test("rejects unknown AdRouter IDs on the locked official endpoint", () => {
+		delete process.env.ADROUTER_API_URL;
+		const result = resolveCliModel({
+			cliProvider: "adrouter",
+			cliModel: "unknown-hosted-model",
+			modelRegistry: ModelRegistry.create(AuthStorage.inMemory()),
+		});
+
+		expect(result.model).toBeUndefined();
+		expect(result.error).toContain("not found");
+	});
+
+	test("retains unknown AdRouter IDs for an explicit custom endpoint", () => {
+		process.env.ADROUTER_API_URL = "http://127.0.0.1:8787";
+		const result = resolveCliModel({
+			cliProvider: "adrouter",
+			cliModel: "custom-loopback-model",
+			modelRegistry: ModelRegistry.create(AuthStorage.inMemory()),
+		});
+
+		expect(result.error).toBeUndefined();
+		expect(result.model).toMatchObject({ provider: "adrouter", id: "custom-loopback-model" });
+	});
+
 	test("resolves --model provider/id without --provider", () => {
 		const registry = {
 			getAll: () => allModels,

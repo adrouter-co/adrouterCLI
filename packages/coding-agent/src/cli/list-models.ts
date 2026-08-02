@@ -4,7 +4,6 @@
 
 import type { Api, Model } from "@adrouter/ai";
 import { fuzzyFilter } from "@adrouter/tui";
-import chalk from "chalk";
 import { formatNoModelsAvailableMessage } from "../core/auth-guidance.ts";
 import type { ModelRegistry } from "../core/model-registry.ts";
 
@@ -27,12 +26,9 @@ function formatTokenCount(count: number): string {
  * List available models, optionally filtered by search pattern
  */
 export async function listModels(modelRegistry: ModelRegistry, searchPattern?: string): Promise<void> {
-	const loadError = modelRegistry.getError();
-	if (loadError) {
-		console.error(chalk.yellow(`Warning: errors loading models.json:\n${loadError}`));
-	}
-
-	const models = modelRegistry.getAvailable();
+	// The locked product catalog is useful before login and must remain fully
+	// listable offline. Mutable SDK registries retain configured-auth filtering.
+	const models = modelRegistry.isLocked() ? modelRegistry.getAll() : modelRegistry.getAvailable();
 
 	if (models.length === 0) {
 		console.log(formatNoModelsAvailableMessage());
@@ -50,11 +46,9 @@ export async function listModels(modelRegistry: ModelRegistry, searchPattern?: s
 		return;
 	}
 
-	// Sort by provider, then by model id
+	// Sort providers while preserving registry/catalog order within each provider.
 	filteredModels.sort((a, b) => {
-		const providerCmp = a.provider.localeCompare(b.provider);
-		if (providerCmp !== 0) return providerCmp;
-		return a.id.localeCompare(b.id);
+		return a.provider.localeCompare(b.provider);
 	});
 
 	// Calculate column widths

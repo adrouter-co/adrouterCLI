@@ -1,9 +1,10 @@
 import { join } from "node:path";
 import { Agent, type AgentMessage, type ThinkingLevel } from "@adrouter/agent-core";
+import { isOfficialAdRouterApiUrl } from "@adrouter/ai";
 import { clampThinkingLevel, type Message, type Model, streamSimple } from "@adrouter/ai/compat";
 import { getAgentDir } from "../config.ts";
 import { resolvePath } from "../utils/paths.ts";
-import { AdRouterInstallationAuth } from "./adrouter-auth.ts";
+import { AdRouterInstallationAuth, resolveAdRouterApiUrl } from "./adrouter-auth.ts";
 import { AgentSession } from "./agent-session.ts";
 import { formatNoModelsAvailableMessage } from "./auth-guidance.ts";
 import { AuthStorage } from "./auth-storage.ts";
@@ -40,7 +41,7 @@ export interface CreateAgentSessionOptions {
 
 	/** Auth storage for credentials. Default: AuthStorage.create(agentDir/auth.json) */
 	authStorage?: AuthStorage;
-	/** Model registry. Default: ModelRegistry.create(authStorage, agentDir/models.json) */
+	/** Model registry. Default: the locked official AdRouter registry. */
 	modelRegistry?: ModelRegistry;
 
 	/** Model to use. Default: from settings, else first available */
@@ -130,6 +131,46 @@ function getDefaultAgentDir(): string {
 	return getAgentDir();
 }
 
+function canonicalizeSessionModel(model: Model<any>, registry: ModelRegistry): Model<any> {
+	const registered = registry.find(model.provider, model.id);
+	if (registered) {
+		if (registry.isLocked() && !hasCanonicalRuntimeProperties(model, registered)) {
+			throw new Error(
+				`Model "${model.provider}/${model.id}" alters the official AdRouter catalog. Pass the model returned by the active registry.`,
+			);
+		}
+		return registered;
+	}
+	if (
+		registry.isLocked() &&
+		model.provider === "adrouter" &&
+		!isOfficialAdRouterApiUrl(resolveAdRouterApiUrl(registry.authStorage))
+	) {
+		const base = registry.find("adrouter", "deepseek-v4-flash");
+		if (!base) throw new Error("The official AdRouter base model is unavailable");
+		return { ...base, id: model.id, name: model.name || model.id };
+	}
+	throw new Error(
+		`Model "${model.provider}/${model.id}" is not registered. Use ModelRegistry.inMemory() and register the model explicitly.`,
+	);
+}
+
+function hasCanonicalRuntimeProperties(candidate: Model<any>, canonical: Model<any>): boolean {
+	return (
+		candidate.name === canonical.name &&
+		candidate.api === canonical.api &&
+		candidate.baseUrl === canonical.baseUrl &&
+		candidate.reasoning === canonical.reasoning &&
+		candidate.contextWindow === canonical.contextWindow &&
+		candidate.maxTokens === canonical.maxTokens &&
+		JSON.stringify(candidate.input) === JSON.stringify(canonical.input) &&
+		JSON.stringify(candidate.cost) === JSON.stringify(canonical.cost) &&
+		JSON.stringify(candidate.thinkingLevelMap) === JSON.stringify(canonical.thinkingLevelMap) &&
+		JSON.stringify(candidate.headers) === JSON.stringify(canonical.headers) &&
+		JSON.stringify(candidate.compat) === JSON.stringify(canonical.compat)
+	);
+}
+
 /**
  * Create an AgentSession with the specified options.
  *
@@ -172,10 +213,14 @@ export async function createAgentSession(options: CreateAgentSessionOptions = {}
 
 	// Use provided or create AuthStorage and ModelRegistry
 	const authPath = options.agentDir ? join(agentDir, "auth.json") : undefined;
-	const modelsPath = options.agentDir ? join(agentDir, "models.json") : undefined;
 	const authStorage = options.authStorage ?? options.modelRegistry?.authStorage ?? AuthStorage.create(authPath);
 	const adrouterAuth = new AdRouterInstallationAuth(authStorage);
-	const modelRegistry = options.modelRegistry ?? ModelRegistry.create(authStorage, modelsPath);
+	const modelRegistry = options.modelRegistry ?? ModelRegistry.create(authStorage);
+	const requestedModel = options.model ? canonicalizeSessionModel(options.model, modelRegistry) : undefined;
+	const scopedModels = options.scopedModels?.map((scoped) => ({
+		...scoped,
+		model: canonicalizeSessionModel(scoped.model, modelRegistry),
+	}));
 
 	const settingsManager = options.settingsManager ?? SettingsManager.create(cwd, agentDir);
 	const sessionManager = options.sessionManager ?? SessionManager.create(cwd, getDefaultSessionDir(cwd, agentDir));
@@ -191,7 +236,7 @@ export async function createAgentSession(options: CreateAgentSessionOptions = {}
 	const hasExistingSession = existingSession.messages.length > 0;
 	const hasThinkingEntry = sessionManager.getBranch().some((entry) => entry.type === "thinking_level_change");
 
-	let model = options.model;
+	let model = requestedModel;
 	let modelFallbackMessage: string | undefined;
 
 	// If session has data, try to restore model from it
@@ -390,7 +435,7 @@ export async function createAgentSession(options: CreateAgentSessionOptions = {}
 		sessionManager,
 		settingsManager,
 		cwd,
-		scopedModels: options.scopedModels,
+		scopedModels,
 		resourceLoader,
 		customTools: options.customTools,
 		modelRegistry,
