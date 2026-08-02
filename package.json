@@ -16,9 +16,12 @@
 	"scripts": {
 		"clean": "npm run clean --workspaces",
 		"build": "cd packages/tui && npm run build && cd ../ai && npm run build && cd ../agent && npm run build && cd ../coding-agent && npm run build",
-		"check": "biome check --error-on-warnings . && npm run check:pinned-deps && npm run check:ts-imports && npm run check:shrinkwrap && npm run check:public-boundary && npm run check:branding && npm run check:docs && npm run check:release-metadata && tsgo --noEmit && npm run check:browser-smoke",
+		"check": "biome check --error-on-warnings . && npm run catalog:check && npm run check:pinned-deps && npm run check:ts-imports && npm run check:shrinkwrap && npm run check:public-boundary && npm run check:branding && npm run check:docs && npm run check:release-metadata && tsgo --noEmit && npm run check:browser-smoke",
 		"format": "biome check --write .",
 		"check:browser-smoke": "node scripts/check-browser-smoke.mjs",
+		"catalog:sync": "node scripts/sync-adrouter-catalog.mjs",
+		"catalog:generate": "node packages/ai/scripts/generate-models.ts --provider adrouter",
+		"catalog:check": "node --test scripts/adrouter-catalog.test.mjs && node scripts/sync-adrouter-catalog.mjs --check",
 		"check:pinned-deps": "node scripts/check-pinned-deps.mjs",
 		"check:shrinkwrap": "node scripts/generate-coding-agent-shrinkwrap.mjs --check",
 		"check:branding": "node scripts/check-adrouter-branding.mjs",

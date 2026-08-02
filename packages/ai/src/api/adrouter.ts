@@ -18,6 +18,7 @@ import {
 	publishAdRouterAds,
 } from "../adrouter-events.ts";
 import { areAdRouterAdsEnabled } from "../adrouter-settings.ts";
+import { ADROUTER_CATALOG_METADATA } from "../providers/adrouter.models.ts";
 import type {
 	Api,
 	AssistantMessage,
@@ -514,13 +515,10 @@ function createErrorStream(model: Model<Api>, error: unknown): AssistantMessageE
 	return stream;
 }
 
-const AGNES_FLASH_MODELS = new Set(["agnes-2.0-flash", "agnes-2.5-flash"]);
-const AGNES_PRO_MODELS = new Set(["agnes-2.5-pro", "agnes-2.5-pro-alpha"]);
-
 function mapThinkingLevel(modelId: string, value: unknown): "none" | "medium" | "high" {
 	if (value === undefined) {
-		if (AGNES_FLASH_MODELS.has(modelId)) return "none";
-		if (AGNES_PRO_MODELS.has(modelId)) return "high";
+		const metadata = ADROUTER_CATALOG_METADATA[modelId as keyof typeof ADROUTER_CATALOG_METADATA];
+		return metadata?.defaultThinkingLevel ?? "medium";
 	}
 	if (value === "off" || value === "minimal") return "none";
 	if (value === "high" || value === "xhigh" || value === "max") return "high";
