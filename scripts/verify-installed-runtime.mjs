@@ -7,7 +7,9 @@ import { join } from "node:path";
 
 const PRIVATE_PACKAGES = ["@adrouter/agent-core", "@adrouter/ai", "@adrouter/tui"];
 export const EXPECTED_ADROUTER_MODEL_IDS = [
+	"agnes-2.0-flash",
 	"agnes-2.5-flash",
+	"agnes-2.5-pro",
 	"agnes-2.5-pro-alpha",
 	"deepseek-v4-flash",
 	"deepseek-v4-pro",

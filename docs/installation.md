@@ -23,9 +23,10 @@ with user-only file permissions. Access tokens are not persisted. This is classi
 `file_protected`, not OS-keychain encrypted; use `/logout adrouter` before disposing of a machine and
 review remote installations in the WebUI if revocation could not be confirmed.
 
-The installed AdRouter model catalog is usable offline and contains `deepseek-v4-flash`,
-`deepseek-v4-pro`, `mimo-v2.5`, `mimo-v2.5-pro`, `agnes-2.5-flash`, and
-`agnes-2.5-pro-alpha`. All six use a 131,072-token total context with a 4,096-token output cap.
+The installed AdRouter model catalog is usable offline and contains `agnes-2.0-flash`,
+`agnes-2.5-flash`, `agnes-2.5-pro`, `agnes-2.5-pro-alpha`, `deepseek-v4-flash`,
+`deepseek-v4-pro`, `mimo-v2.5`, and `mimo-v2.5-pro`. All eight use a 131,072-token total context
+with a 4,096-token output cap.
 Hosted discovery may validate that contract but must not silently expand it and delay local compaction.
 
 The doctor result must report `"installation":{"kind":"packaged","deployable":true}`

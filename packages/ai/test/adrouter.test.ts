@@ -453,7 +453,9 @@ describe("AdRouter provider", () => {
 
 	it("publishes the exact hosted catalog and maps only router-supported thinking levels", async () => {
 		const expectedModelIds = [
+			"agnes-2.0-flash",
 			"agnes-2.5-flash",
+			"agnes-2.5-pro",
 			"agnes-2.5-pro-alpha",
 			"deepseek-v4-flash",
 			"deepseek-v4-pro",
@@ -462,7 +464,9 @@ describe("AdRouter provider", () => {
 		] as const;
 		expect(Object.keys(ADROUTER_MODELS)).toEqual(expectedModelIds);
 		expect(Object.values(ADROUTER_MODELS).map(({ name }) => name)).toEqual([
+			"AdRouter Agnes 2.0 Flash",
 			"AdRouter Agnes 2.5 Flash",
+			"AdRouter Agnes 2.5 Pro",
 			"AdRouter Agnes 2.5 Pro Alpha",
 			"AdRouter DeepSeek V4 Flash",
 			"AdRouter DeepSeek V4 Pro",
@@ -497,17 +501,19 @@ describe("AdRouter provider", () => {
 			expect(ADROUTER_MODELS[modelId].thinkingLevelMap).toEqual(deepseekAliases);
 			expect(getSupportedThinkingLevels(ADROUTER_MODELS[modelId])).toEqual(["off", "medium", "high"]);
 		}
-		for (const modelId of ["mimo-v2.5", "mimo-v2.5-pro", "agnes-2.5-flash"] as const) {
+		for (const modelId of ["mimo-v2.5", "mimo-v2.5-pro", "agnes-2.0-flash", "agnes-2.5-flash"] as const) {
 			expect(ADROUTER_MODELS[modelId].thinkingLevelMap).toEqual(flashAliases);
 			expect(getSupportedThinkingLevels(ADROUTER_MODELS[modelId])).toEqual(["off", "high"]);
 			for (const unsupported of ["minimal", "low", "medium", "xhigh", "max"] as const) {
 				expect(clampThinkingLevel(ADROUTER_MODELS[modelId], unsupported)).toBe("high");
 			}
 		}
-		expect(ADROUTER_MODELS["agnes-2.5-pro-alpha"].thinkingLevelMap).toEqual(proAliases);
-		expect(getSupportedThinkingLevels(ADROUTER_MODELS["agnes-2.5-pro-alpha"])).toEqual(["high"]);
-		for (const unsupported of ["off", "minimal", "low", "medium", "xhigh", "max"] as const) {
-			expect(clampThinkingLevel(ADROUTER_MODELS["agnes-2.5-pro-alpha"], unsupported)).toBe("high");
+		for (const modelId of ["agnes-2.5-pro", "agnes-2.5-pro-alpha"] as const) {
+			expect(ADROUTER_MODELS[modelId].thinkingLevelMap).toEqual(proAliases);
+			expect(getSupportedThinkingLevels(ADROUTER_MODELS[modelId])).toEqual(["high"]);
+			for (const unsupported of ["off", "minimal", "low", "medium", "xhigh", "max"] as const) {
+				expect(clampThinkingLevel(ADROUTER_MODELS[modelId], unsupported)).toBe("high");
+			}
 		}
 
 		const fetchMock = vi.fn(async (_input: unknown, _init?: RequestInit) => ({
@@ -534,6 +540,52 @@ describe("AdRouter provider", () => {
 				expect(body.thinking_level).toBe(hostedModel.thinkingLevelMap[reasoning]);
 			}
 		}
+
+		// The agent runtime represents thinking off as an absent reasoning option. Keep non-Agnes
+		// provider compatibility while applying the Router descriptor defaults to Agnes.
+		for (const [modelId, expectedThinkingLevel] of [
+			["agnes-2.0-flash", "none"],
+			["agnes-2.5-flash", "none"],
+			["agnes-2.5-pro", "high"],
+			["agnes-2.5-pro-alpha", "high"],
+			["deepseek-v4-flash", "medium"],
+			["deepseek-v4-pro", "medium"],
+			["mimo-v2.5", "medium"],
+			["mimo-v2.5-pro", "medium"],
+		] as const) {
+			fetchMock.mockClear();
+			await stream(
+				{ ...ADROUTER_MODELS[modelId], baseUrl: "https://router.example.test" },
+				{ messages: [{ role: "user", content: "test", timestamp: Date.now() }] },
+				{ apiKey: "test-key", reasoning: undefined } as Parameters<typeof stream>[2],
+			).result();
+
+			const request = fetchMock.mock.calls[0]?.[1];
+			const body = parseRequestBody(request);
+			expect(body.model).toBe(modelId);
+			expect(body.thinking_level).toBe(expectedThinkingLevel);
+		}
+
+		fetchMock.mockClear();
+		await stream(
+			{ ...model, id: "custom-adrouter-model", baseUrl: "http://127.0.0.1:8787" },
+			{ messages: [{ role: "user", content: "test", timestamp: Date.now() }] },
+			{ apiKey: "test-key", reasoning: undefined } as Parameters<typeof stream>[2],
+		).result();
+		const customBody = parseRequestBody(fetchMock.mock.calls[0]?.[1]);
+		expect(customBody.model).toBe("custom-adrouter-model");
+		expect(customBody.thinking_level).toBe("medium");
+
+		process.env.ADROUTER_MODEL_ROUTE = "agnes-2.5-pro";
+		fetchMock.mockClear();
+		await stream(
+			{ ...ADROUTER_MODELS["deepseek-v4-flash"], baseUrl: "https://router.example.test" },
+			{ messages: [{ role: "user", content: "test", timestamp: Date.now() }] },
+			{ apiKey: "test-key", reasoning: undefined } as Parameters<typeof stream>[2],
+		).result();
+		const routedBody = parseRequestBody(fetchMock.mock.calls[0]?.[1]);
+		expect(routedBody.model).toBe("agnes-2.5-pro");
+		expect(routedBody.thinking_level).toBe("high");
 	});
 
 	it("accepts the deprecated minimum-tier variable without interpreting it", async () => {

@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.81.0-beta.17] - 2026-08-02
+
+### Changed
+
+- Repacked the private agent runtime with regression coverage for Agnes thinking-off propagation.
+
 ## [0.81.0-beta.16] - 2026-08-01
 
 ### Changed

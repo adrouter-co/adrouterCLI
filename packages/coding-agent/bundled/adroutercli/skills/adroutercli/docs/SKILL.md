@@ -10,7 +10,7 @@ Use this skill for AdRouterCLI runtime operation, local backend diagnosis, profi
 ## Run modes
 
 - Normal: `adrouter` starts the interactive coding agent in the current workspace.
-- Live: set `ADROUTER_API_URL`, `ADROUTER_API_KEY`, `ADROUTER_RUNTIME_MODE=live`, and `ADROUTER_AD_MODE=live`, then select one of `deepseek-v4-flash`, `deepseek-v4-pro`, `mimo-v2.5`, `mimo-v2.5-pro`, `agnes-2.5-flash`, or `agnes-2.5-pro-alpha` with `--provider adrouter --model <id>`.
+- Live: set `ADROUTER_API_URL`, `ADROUTER_API_KEY`, `ADROUTER_RUNTIME_MODE=live`, and `ADROUTER_AD_MODE=live`, then select one of `agnes-2.0-flash`, `agnes-2.5-flash`, `agnes-2.5-pro`, `agnes-2.5-pro-alpha`, `deepseek-v4-flash`, `deepseek-v4-pro`, `mimo-v2.5`, or `mimo-v2.5-pro` with `--provider adrouter --model <id>`.
 - Mock: configure the backend for mock execution; ad routing and display remain testable with canned model output.
 - Profile: create with `adrouter-profile set <name> --provider <provider> --model <model>`, apply with `adrouter-profile apply <name>`, and undo the project overlay with `adrouter-profile restore`. `adrouter --profile <name>` applies the same overlay explicitly. Plain `adrouter` applies no profile.
 - Web access: bundled tools are `web_search` and `fetch_content`; invoke `/skill:librarian` for research workflows. Configuration is `ADROUTER_CODING_AGENT_DIR/web-search.json`, defaulting to `~/.adrouter/agent/web-search.json`.
@@ -19,7 +19,7 @@ Use this skill for AdRouterCLI runtime operation, local backend diagnosis, profi
 
 ## Troubleshooting
 
-The local backend and CLI use `ADROUTER_API_KEY`; provider credentials for DeepSeek, MiMo, and Agnes remain backend-only. Never reuse or print credentials. A healthy mock backend does not prove live provider auth works. Confirm `/health`, then `/v1/models`, then run a minimal prompt with the selected model. Supported IDs are `deepseek-v4-flash`, `deepseek-v4-pro`, `mimo-v2.5`, `mimo-v2.5-pro`, `agnes-2.5-flash`, and `agnes-2.5-pro-alpha`; `deepseek` is a rejected legacy alias.
+The local backend and CLI use `ADROUTER_API_KEY`; provider credentials for DeepSeek, MiMo, and Agnes remain backend-only. Never reuse or print credentials. A healthy mock backend does not prove live provider auth works. Confirm `/health`, then `/v1/models`, then run a minimal prompt with the selected model. Supported IDs are `agnes-2.0-flash`, `agnes-2.5-flash`, `agnes-2.5-pro`, `agnes-2.5-pro-alpha`, `deepseek-v4-flash`, `deepseek-v4-pro`, `mimo-v2.5`, and `mimo-v2.5-pro`; `deepseek` is a rejected legacy alias.
 
 Inspect isolated state under `~/.adrouter/agent` and project `.adrouter`. Profiles live under `ADROUTER_PROFILES_DIR` or `~/.adrouter/profiles`. Do not read or migrate personal state from other coding agents.
 

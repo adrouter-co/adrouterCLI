@@ -2214,7 +2214,9 @@ async function generateModels() {
 		{ id: "deepseek-v4-pro", name: "AdRouter DeepSeek V4 Pro", thinkingLevelMap: adrouterThinkingLevels.deepseek },
 		{ id: "mimo-v2.5", name: "AdRouter MiMo V2.5 Flash", thinkingLevelMap: adrouterThinkingLevels.flash },
 		{ id: "mimo-v2.5-pro", name: "AdRouter MiMo V2.5 Pro", thinkingLevelMap: adrouterThinkingLevels.flash },
+		{ id: "agnes-2.0-flash", name: "AdRouter Agnes 2.0 Flash", thinkingLevelMap: adrouterThinkingLevels.flash },
 		{ id: "agnes-2.5-flash", name: "AdRouter Agnes 2.5 Flash", thinkingLevelMap: adrouterThinkingLevels.flash },
+		{ id: "agnes-2.5-pro", name: "AdRouter Agnes 2.5 Pro", thinkingLevelMap: adrouterThinkingLevels.pro },
 		{ id: "agnes-2.5-pro-alpha", name: "AdRouter Agnes 2.5 Pro Alpha", thinkingLevelMap: adrouterThinkingLevels.pro },
 	]) {
 		allModels.push({
