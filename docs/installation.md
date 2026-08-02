@@ -14,7 +14,7 @@ and `@adrouter/agent-core` runtime packages are embedded in the CLI tarball and
 are not fetched as separate AdRouter registry packages.
 
 Hosted authentication is installation-bound. `/login adrouter` first opens and prints the AdRouter
-sign-in page. After the user confirms that browser sign-in is complete by typing `DONE`, the CLI
+sign-in page. After the user confirms that browser sign-in is complete with the native Done action, the CLI
 creates an Ed25519 key, sends the installation request, and opens and prints the user-approval page.
 An already-open signed-in AdRouter tab receives the same approval request as a modal. Failed, denied,
 cancelled, or interrupted attempts remove that pending key and best-effort cancel server state, so
