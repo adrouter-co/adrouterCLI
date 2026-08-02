@@ -78,12 +78,14 @@ adrouter --provider adrouter --model agnes-2.5-pro-alpha
 DeepSeek Flash and Pro advertise thinking off, medium, and high. MiMo Flash/Pro and Agnes Flash
 advertise off and high. Agnes 2.5 Pro and Pro Alpha are high-only.
 
-All hosted models use a 131,072-token total context contract with at most 4,096 output tokens and
-126,976 input tokens. With default settings, AdRouterCLI estimates system, message, tool-schema, and
-tool-result context and compacts proactively above about 114,688 tokens. If the Router still returns
-the structured `input_limit_exceeded` error before any response event, the CLI compacts and retries
-that logical turn once. It never replays a turn after an ad, text, thinking, tool call, settlement,
-or completion event has been consumed.
+Hosted limits are model-specific: total context is 524,288 or 1,048,576 tokens, maximum input ranges
+from 458,752 to 917,504, and maximum output ranges from 65,536 to 196,608. The exact tuple for every
+model is in the [generated catalog table](docs/about.md#official-model-catalog). Router still defaults
+an omitted output request and a new account ceiling to 4,096 tokens. AdRouterCLI estimates system,
+message, tool-schema, and tool-result context and compacts proactively at the lower of the selected
+model's input maximum and its context window minus the 16,384-token reserve. If the Router still
+returns `input_limit_exceeded` before any response event, the CLI compacts and retries that logical
+turn once. It never replays after an ad, text, thinking, tool call, settlement, or completion event.
 
 ## Profiles
 
