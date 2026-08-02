@@ -1,9 +1,11 @@
+import { ADROUTER_HOSTED_LIMITS } from "./providers/adrouter.models.ts";
+
 export const ADROUTER_PROVIDER_ID = "adrouter";
 export const DEFAULT_ADROUTER_API_URL = "https://api-staging.adrouter.co";
 export const OFFICIAL_ADROUTER_API_ORIGINS = ["https://api-staging.adrouter.co", "https://api.adrouter.co"] as const;
-export const ADROUTER_HOSTED_CONTEXT_WINDOW_TOKENS = 131_072;
-export const ADROUTER_HOSTED_MAX_INPUT_TOKENS = 126_976;
-export const ADROUTER_HOSTED_MAX_OUTPUT_TOKENS = 4096;
+export const ADROUTER_HOSTED_CONTEXT_WINDOW_TOKENS = ADROUTER_HOSTED_LIMITS.contextWindowTokens;
+export const ADROUTER_HOSTED_MAX_INPUT_TOKENS = ADROUTER_HOSTED_LIMITS.maxInputTokens;
+export const ADROUTER_HOSTED_MAX_OUTPUT_TOKENS = ADROUTER_HOSTED_LIMITS.maxOutputTokens;
 export const ADROUTER_HOSTED_COMPACTION_RESERVE_TOKENS = 16_384;
 export const ADROUTER_HOSTED_PROACTIVE_INPUT_TOKENS =
 	ADROUTER_HOSTED_CONTEXT_WINDOW_TOKENS - ADROUTER_HOSTED_COMPACTION_RESERVE_TOKENS;
