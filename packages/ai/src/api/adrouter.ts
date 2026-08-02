@@ -514,7 +514,14 @@ function createErrorStream(model: Model<Api>, error: unknown): AssistantMessageE
 	return stream;
 }
 
-function mapThinkingLevel(value: unknown): "none" | "medium" | "high" {
+const AGNES_FLASH_MODELS = new Set(["agnes-2.0-flash", "agnes-2.5-flash"]);
+const AGNES_PRO_MODELS = new Set(["agnes-2.5-pro", "agnes-2.5-pro-alpha"]);
+
+function mapThinkingLevel(modelId: string, value: unknown): "none" | "medium" | "high" {
+	if (value === undefined) {
+		if (AGNES_FLASH_MODELS.has(modelId)) return "none";
+		if (AGNES_PRO_MODELS.has(modelId)) return "high";
+	}
 	if (value === "off" || value === "minimal") return "none";
 	if (value === "high" || value === "xhigh" || value === "max") return "high";
 	return "medium";
@@ -600,10 +607,11 @@ function buildRouterBody(
 			code: "invalid_runtime_mode",
 		});
 	}
+	const routerModel = resolveRouterModel(model);
 
 	const body: Record<string, unknown> = {
-		model: resolveRouterModel(model),
-		thinking_level: mapThinkingLevel(extendedOptions?.reasoning),
+		model: routerModel,
+		thinking_level: mapThinkingLevel(routerModel, extendedOptions?.reasoning),
 		context: {
 			...context,
 			messages: normalizeMessagesForRouter(model, context.messages),

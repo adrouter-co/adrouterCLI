@@ -32,12 +32,13 @@ workflows, and `git status --short --branch`. Use Node.js 22.19+ and the checked
 
 ## Models and product invariants
 
-The hosted catalog is generated from `scripts/generate-models.ts`. Never hand-edit generated
+The hosted catalog is generated from `packages/ai/scripts/generate-models.ts`. Never hand-edit generated
 `adrouter.models.ts` files; regenerate and verify all copies. Exact models are:
 
 - `deepseek-v4-flash`, `deepseek-v4-pro`
 - `mimo-v2.5`, `mimo-v2.5-pro`
-- `agnes-2.5-flash`, `agnes-2.5-pro-alpha`
+- `agnes-2.0-flash`, `agnes-2.5-flash`
+- `agnes-2.5-pro`, `agnes-2.5-pro-alpha`
 
 Preserve the registry's per-model reasoning modes and the 131,072 total / 126,976 input / 4,096
 output token contract. Do not restore old two-model or 1M-context assumptions.

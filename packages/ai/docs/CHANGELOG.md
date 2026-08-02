@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.81.0-beta.17] - 2026-08-02
+
+### Added
+
+- Added generated AdRouter catalog entries for Agnes 2.0 Flash and Agnes 2.5 Pro with their exact
+  hosted thinking-level capabilities.
+
+### Fixed
+
+- Mapped absent reasoning to the model-supported default for Agnes Flash and Pro requests without
+  changing DeepSeek, MiMo, or other provider defaults.
+
 ## [0.81.0-beta.16] - 2026-08-01
 
 ### Changed

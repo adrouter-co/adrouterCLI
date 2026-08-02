@@ -987,14 +987,17 @@ describe("agentLoop with AgentMessage", () => {
 			tools: [tool],
 		};
 		let convertedSecondTurnSystemPrompt = "";
+		let secondTurnReasoning: unknown = "not-called";
 		let prepared = false;
 		const config: AgentLoopConfig = {
 			model: createModel(),
+			reasoning: "high",
 			convertToLlm: identityConverter,
 			prepareNextTurn: async ({ context: currentContext }) => {
 				if (prepared) return undefined;
 				prepared = true;
 				return {
+					thinkingLevel: "off",
 					context: {
 						systemPrompt: "second prompt",
 						messages: currentContext.messages.slice(),
@@ -1005,32 +1008,39 @@ describe("agentLoop with AgentMessage", () => {
 		};
 
 		let llmCalls = 0;
-		const stream = agentLoop([createUserMessage("echo something")], context, config, undefined, (_model, ctx) => {
-			llmCalls++;
-			if (llmCalls === 2) {
-				convertedSecondTurnSystemPrompt = ctx.systemPrompt ?? "";
-			}
-			const mockStream = new MockAssistantStream();
-			queueMicrotask(() => {
-				if (llmCalls === 1) {
-					mockStream.push({
-						type: "done",
-						reason: "toolUse",
-						message: createAssistantMessage(
-							[{ type: "toolCall", id: "tool-1", name: "echo", arguments: { value: "hello" } }],
-							"toolUse",
-						),
-					});
-				} else {
-					mockStream.push({
-						type: "done",
-						reason: "stop",
-						message: createAssistantMessage([{ type: "text", text: "done" }]),
-					});
+		const stream = agentLoop(
+			[createUserMessage("echo something")],
+			context,
+			config,
+			undefined,
+			(_model, ctx, options) => {
+				llmCalls++;
+				if (llmCalls === 2) {
+					convertedSecondTurnSystemPrompt = ctx.systemPrompt ?? "";
+					secondTurnReasoning = options?.reasoning;
 				}
-			});
-			return mockStream;
-		});
+				const mockStream = new MockAssistantStream();
+				queueMicrotask(() => {
+					if (llmCalls === 1) {
+						mockStream.push({
+							type: "done",
+							reason: "toolUse",
+							message: createAssistantMessage(
+								[{ type: "toolCall", id: "tool-1", name: "echo", arguments: { value: "hello" } }],
+								"toolUse",
+							),
+						});
+					} else {
+						mockStream.push({
+							type: "done",
+							reason: "stop",
+							message: createAssistantMessage([{ type: "text", text: "done" }]),
+						});
+					}
+				});
+				return mockStream;
+			},
+		);
 
 		for await (const _event of stream) {
 			// consume
@@ -1038,6 +1048,7 @@ describe("agentLoop with AgentMessage", () => {
 
 		expect(llmCalls).toBe(2);
 		expect(convertedSecondTurnSystemPrompt).toBe("second prompt");
+		expect(secondTurnReasoning).toBeUndefined();
 	});
 
 	it("should stop after the current turn when shouldStopAfterTurn returns true", async () => {

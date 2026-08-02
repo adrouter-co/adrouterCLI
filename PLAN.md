@@ -1,56 +1,65 @@
-# Plan: Release AdRouterCLI 0.81.0-beta.11 with the TUI refresh
+# Plan: Expand the Agnes catalog and fix AdRouter thinking defaults
 
 ## Goal
 
-Port the intended TUI refresh onto the current public main branch, retain the public-beta blue `❯`
-input prompt, and publish the exact reviewed package as `@adrouter/cli@0.81.0-beta.11` to npm
-`beta`/`latest` and as a GitHub prerelease.
+Add `agnes-2.0-flash` and `agnes-2.5-pro` to the generated AdRouterCLI catalog and make absent
+reasoning map to the Router-supported default for Agnes models without changing DeepSeek, MiMo,
+other providers, or custom model behavior.
 
 ## Context
 
-- The public baseline is `0.81.0-beta.10`; npm `beta` and `latest` both resolve to it and GitHub
-  `main` is `8798e6dcba114a4ccdb5b002582226e15a405e5f`.
-- The intended TUI edits exist in a dirty checkout based on beta.6. They must be ported selectively
-  onto current `main`, not published or copied wholesale.
-- Beta.11 is unused on npm and GitHub as of 2026-07-29.
-- The source workspaces version in lockstep, but only `@adrouter/cli` is public.
+- Staging Router readiness and `GET /v1/models` were rechecked on 2026-08-02.
+- Staging exposes eight configured models with 131,072 total, 126,976 input, and 4,096 output
+  tokens.
+- Agnes 2.0/2.5 Flash support `none` and `high`, defaulting to `none`.
+- Agnes 2.5 Pro and Pro Alpha support only `high`, defaulting to `high`.
+- The agent runtime intentionally represents thinking off as `reasoning: undefined`; the current
+  AdRouter transport incorrectly maps every absent value to `medium`.
+- The checkout began clean at `3de0cf70e3ac5a2c70b94e97e472a1cda549b254`, one commit ahead of
+  `origin/main`.
 
 ## Research Summary
 
-- `docs/releasing.md`, the release manifest, and protected workflows require an exact immutable
-  candidate, two-cohort authentication acceptance, six anonymous installed-runtime jobs, and only
-  then movement of npm `beta`/`latest` plus publication of the GitHub prerelease.
-- Current public beta uses `panelColor("border", "❯ ")`; this exact blue prompt must remain.
-- The old dirty tree predates beta.8-beta.10 runtime behavior, including context recovery and
-  transcript-selection input yielding, so visual changes must preserve current-main logic.
+- `packages/ai/scripts/generate-models.ts` is the authoritative static AdRouter catalog source.
+- `packages/ai/src/providers/adrouter.models.ts` is generated; the aggregate generated module only
+  imports provider catalogs and may remain byte-identical.
+- CLI model selection clamps unsupported thinking levels before the transport. The AdRouter request
+  mapper still needs model-aware defaults for the runtime's absent-reasoning representation.
+- Installed-runtime and documentation checks keep independent exact-catalog lists that must remain
+  synchronized.
+- No new dependency, persisted-state migration, public TypeScript API, or Router schema is needed.
 
 ## Constraints
 
-- Preserve user-owned `.pi/` and all unrelated dirty-checkout changes by working in a clean worktree.
-- Preserve public commands, configuration, authentication, server contracts, persisted state,
-  sponsor isolation, trust, approvals, and current-main runtime behavior.
-- Use Node.js 22.19 or newer and the documented release workflow.
-- Introduce no new dependencies and make only the requested TUI, test, plan, and release-metadata
-  changes.
-- Publish under `candidate` first; do not move `beta` or `latest` before every protected gate passes.
-- Never reuse, overwrite, retag, or unpublish an immutable version.
+- Preserve existing user-facing behavior except for the requested Agnes catalog and thinking fix.
+- Keep the implementation small, reviewable, reversible, and provider-scoped.
+- Preserve DeepSeek mappings and its absent-value `medium` fallback.
+- Preserve MiMo mappings and its existing absent-value `medium` fallback.
+- Preserve official installation proof, custom/loopback bearer separation, workspace trust,
+  approvals, bounded streaming, and sponsor isolation.
+- Generate provider catalogs through the checked-in generator; never hand-edit generated files.
+- Use Node.js 22.19 or newer and the checked-in npm lockfile.
+- Do not introduce dependencies or change versions, tags, npm dist-tags, GitHub releases, remote
+  secrets, or deployed services.
 
 ## Out of Scope
 
-- Stable `0.81.0`, native standalone archives, backend deployment, or another client release.
-- API, authentication, command, configuration, storage, or dependency changes.
-- Unrelated UI redesign or opportunistic cleanup.
+- Router, WebUI, Desktop Agent, OpenCode, infrastructure, database, or deployment changes.
+- npm publication, Git tagging, GitHub release operations, or release metadata changes.
+- Global reasoning semantics, configuration formats, `settings.json`, or `models.json`.
+- Unrelated cleanup, refactors, or documentation rewrites.
 
 ## Reversibility
 
-- Keep the TUI and release metadata changes reviewable on branches based on current `main`.
-- Before npm publication, revert or amend through ordinary pull-request changes.
-- After candidate publication, fix forward with the next unused beta and leave public channels on
-  beta.10 if acceptance fails.
+- Keep transport, generated catalog, tests, and documentation changes separable in the diff.
+- Add model IDs and narrow fallbacks without removing existing models or interfaces.
+- Retain existing generic mapping behavior for every non-Agnes model.
+- A normal source revert restores the six-model catalog; there are no data migrations or external
+  mutations to undo.
 
 ---
 
-## Step A: Port the TUI refresh onto current main
+## Step A: Implement the AdRouter transport and generated catalog
 
 ### Status
 
@@ -58,63 +67,61 @@ input prompt, and publish the exact reviewed package as `@adrouter/cli@0.81.0-be
 
 ### Objective
 
-Recreate the intended responsive TUI presentation while preserving every current-main behavior.
+Make the request wire format follow the finalized Agnes descriptors and expose the exact eight-model
+hosted catalog.
 
 ### Tasks
 
-- [x] Port the metadata footer, path formatting, input framing, consistent key hints, sponsor panel,
-      selectors, dialogs, loader, and responsive startup-header changes.
-- [x] Keep the input prompt as the public-beta blue `❯` and preserve continuation-row alignment.
-- [x] Preserve transcript-selection yielding and all beta.8-beta.10 runtime behavior.
-- [x] Add or update focused rendering, width, path, hint, sponsor, and selector tests.
+- [x] Recheck staging readiness and the public model descriptors.
+- [x] Resolve the outgoing Router model ID once and use it for both the request and thinking mapper.
+- [x] Map absent reasoning to `none` for Agnes Flash and `high` for Agnes Pro variants.
+- [x] Preserve the existing fallback and explicit mappings for every other model.
+- [x] Add both new models to the generator and regenerate the AdRouter provider catalog.
 
 ### Relevant Files
 
-- `packages/coding-agent/src/modes/interactive/components/`
-- `packages/coding-agent/src/modes/interactive/interactive-mode.ts`
-- `packages/coding-agent/test/`
+- `packages/ai/src/api/adrouter.ts`
+- `packages/ai/scripts/generate-models.ts`
+- `packages/ai/src/providers/adrouter.models.ts`
 
 ### Expected Changes
 
-- create: `packages/coding-agent/src/modes/interactive/components/path-display.ts`
-- create: focused path and keybinding-hint tests
-- modify: TUI components and focused tests
+- modify: AdRouter request mapping and generated eight-model catalog
 
 ### Do Not Modify
 
-- Authentication, provider transport, commands, tools, sessions, persisted formats, or sponsor data
-  boundaries.
-- Private local state such as `.pi/`.
+- `packages/agent/src/agent-loop.ts` runtime semantics
+- `packages/ai/src/models.generated.ts` by hand
+- Other provider catalogs or global reasoning helpers
 
 ### Commands
 
 ```bash
-npm test --workspace @adrouter/cli -- test/custom-editor-render.test.ts test/footer-width.test.ts test/adrouter-ad-panel.test.ts test/keybinding-hints.test.ts test/path-display.test.ts test/responsive-startup-header.test.ts test/session-selector-rename.test.ts
-npm run check
+ADROUTER_MODEL_CATALOG_PROVIDER=adrouter npm --prefix packages/ai run generate-models
 ```
 
 ### Acceptance Criteria
 
-- [x] The input begins with the blue Unicode `❯` used by beta.10.
-- [x] Layout remains within narrow terminal widths and path rendering handles Unix and Windows paths.
-- [x] Current-main transcript-selection input behavior is retained.
-- [x] Focused tests and the normal repository check pass.
-- [x] No unintended files are changed.
+- [x] The generated catalog contains the exact eight model IDs and finalized thinking maps.
+- [x] Agnes Flash absent reasoning serializes as `none`.
+- [x] Agnes Pro absent reasoning serializes as `high`.
+- [x] DeepSeek, MiMo, unknown, and custom model fallback behavior is unchanged.
+- [x] Only the scoped generated provider catalog changes.
 
 ### Validation Results
 
-- Focused tests: passed 7 files and 32 tests on 2026-07-29.
-- `npm run check`: passed on 2026-07-29.
+- Staging `/health/ready`: passed on 2026-08-02.
+- Staging `/v1/models`: passed exact eight-model descriptor check on 2026-08-02.
+- Scoped model generation: passed on 2026-08-02; unrelated live provider fetches were unavailable,
+  and scoped generation left other catalogs plus `src/models.generated.ts` unchanged.
 
 ### Findings / Notes
 
-- The earlier dirty tree's focused tests passed 26 tests, but that stale baseline is not release
-  evidence.
-- The port preserves current-main transcript-selection yielding and all non-visual runtime paths.
+- The mapping must follow `ADROUTER_MODEL_ROUTE` when that override selects the outgoing model.
 
 ---
 
-## Step B: Review and merge the implementation
+## Step B: Add regression and catalog coverage
 
 ### Status
 
@@ -122,120 +129,116 @@ npm run check
 
 ### Objective
 
-Land the TUI refresh through a reviewed feature pull request with the required platform CI.
+Lock the actual request-body behavior and prove the agent's off-to-undefined convention remains
+provider-owned.
 
 ### Tasks
 
-- [x] Review the complete diff for stale-baseline regressions and generated/private files.
-- [x] Commit and push the feature branch, open a pull request, and wait for required CI.
-- [x] Merge only after all required checks pass.
+- [x] Expand exact ID, name, limits, and thinking-map assertions to eight models.
+- [x] Inspect serialized request bodies for every supported thinking mode.
+- [x] Cover absent reasoning for Agnes Flash/Pro, DeepSeek, and MiMo explicitly.
+- [x] Cover routed-model override behavior.
+- [x] Add an agent-loop regression showing off still becomes `reasoning: undefined` on a next turn.
 
 ### Relevant Files
 
-- `.github/workflows/ci.yml`
-- TUI files and tests listed in Step A
+- `packages/ai/test/adrouter.test.ts`
+- `packages/agent/test/agent-loop.test.ts`
 
 ### Expected Changes
 
-- modify: Git history through the reviewed feature pull request
+- modify: focused AI transport/catalog tests and agent-loop regression coverage
 
 ### Do Not Modify
 
-- Protected workflows or repository secrets unless a verified release blocker requires it.
+- Global agent reasoning behavior
+- Tests for unrelated providers
 
 ### Commands
 
 ```bash
-git diff --check
-git status --short
-gh pr checks --watch
+npm test --workspace @adrouter/ai -- adrouter.test.ts
+npm test --workspace @adrouter/agent-core -- agent-loop.test.ts
 ```
 
 ### Acceptance Criteria
 
-- [x] The feature pull request is reviewed and merged into current `main`.
-- [x] Required six-platform CI is green.
-- [x] The merged source contains the public-beta blue `❯` and all intended TUI tests.
+- [x] Request tests inspect the actual `thinking_level` JSON field.
+- [x] Agnes 2.0/2.5 Flash cover absent/off and high.
+- [x] Agnes 2.5 Pro/Pro Alpha cover absent/high and high-only clamping.
+- [x] DeepSeek absent/off/medium/high behavior is unchanged.
+- [x] MiMo absent/off/high behavior is explicitly unchanged.
+- [x] Focused AI and agent tests pass.
 
 ### Validation Results
 
-- Feature PR #43 checks: all security and six platform jobs passed on 2026-07-29.
+- Focused AI tests: passed 1 file and 26 tests on 2026-08-02.
+- Focused agent tests: passed 1 file and 20 tests on 2026-08-02.
 
 ### Findings / Notes
 
-- PR #43 merged as `152266eaba60d2126af2c3f3c8e8d026f2e1d1c6`.
+- MiMo's absent-value `medium` behavior is intentionally retained as a compatibility constraint even
+  though its advertised modes remain off/high.
 
 ---
 
-## Step C: Prepare and tag the immutable beta.11 release
+## Step C: Synchronize exact-catalog checks and documentation
 
 ### Status
 
-`in_progress`
+`done`
 
 ### Objective
 
-Create and merge a metadata-only release change, then tag its exact commit.
+Keep source, installed-package verification, offline listing, repository instructions, and
+user-facing documentation on the same eight-model contract.
 
 ### Tasks
 
-- [x] Recheck that beta.11 is unused across npm, Git refs, releases, and workflow state.
-- [x] Synchronize all workspace versions, lock/shrinkwrap output, manifest, README, and changelogs
-      using repository release tooling.
-- [x] Set candidate and final npm tags so accepted beta.11 replaces beta.10 on `beta` and `latest`.
-- [ ] Run clean-checkout release gates on Node.js 22.19+, merge the release PR, and tag its exact
-      merged commit as `v0.81.0-beta.11`.
-- [ ] Verify `release-tag.yml` creates and attests the exact draft GitHub prerelease artifacts.
+- [x] Update installed-runtime and documentation exact-catalog assertions.
+- [x] Add the package README to enforced catalog documentation checks.
+- [x] Update every active hosted-model list in instructions, README/docs, and the bundled CLI skill.
+- [x] Add unreleased AI and coding-agent changelog entries.
+- [x] Confirm stale six-model or two-model product claims no longer remain outside historical notes.
 
 ### Relevant Files
 
-- `package.json`
-- `packages/*/package.json`
-- `package-lock.json`
-- `packages/coding-agent/npm-shrinkwrap.json`
-- `release-manifest.json`
-- `README.md`
-- `CHANGELOG.md`
-- `packages/*/CHANGELOG.md`
+- `scripts/verify-installed-runtime.mjs`
+- `scripts/check-docs.mjs`
+- Active Markdown documentation and bundled AdRouterCLI skill documentation
 
 ### Expected Changes
 
-- modify: version and release metadata only
+- modify: exact-catalog verification, active model documentation, and unreleased changelogs
 
 ### Do Not Modify
 
-- Runtime source after the accepted feature merge.
-- Used npm versions, tags, or GitHub releases.
+- Historical changelog entries
+- Package versions, release manifest, lockfile, or workflows
 
 ### Commands
 
 ```bash
-npm ci --ignore-scripts
-npm run build
-npm run check
-npm run test:isolated
-npm run check:release-readiness
-node scripts/ci-package-smoke.mjs
+npm run check:docs
+rg -n "six models|six-model|exact six|only two DeepSeek" .
 ```
 
 ### Acceptance Criteria
 
-- [x] All four workspaces and generated release metadata agree on beta.11.
-- [x] Every pre-tag gate passes from a clean Node.js 22.19+ checkout.
-- [ ] The release PR is merged and its exact commit is tagged once.
-- [ ] The draft prerelease contains the exact attested staged tarball and required assets.
+- [x] All enforced documents contain both new model IDs.
+- [x] Installed/offline verification expects the exact ordered eight-model list.
+- [x] Active documentation describes the correct thinking capabilities and token limits.
+- [x] Historical release notes remain historically accurate.
+- [x] Documentation checks pass.
 
 ### Validation Results
 
-- Node.js `v22.19.0` clean install, build, check, isolated tests, release readiness, and packaged
-  smoke: passed on 2026-07-29.
-- Tag workflow: not run.
+- Documentation check: passed across 97 Markdown files on 2026-08-02.
+- Stale active-claim search: passed on 2026-08-02; prior six-model changelog text remains historical.
 
 ### Findings / Notes
 
-- If beta.11 becomes occupied before tagging, select and record the lowest unused higher beta.
-- The first isolated-test attempt was stopped because the filesystem/network sandbox blocked local
-  mock HTTP servers. The rerun with loopback access passed all workspaces with credentials stripped.
+- Changelog statements about the prior six-model beta are historical and should not be rewritten.
 
 ---
 
@@ -243,80 +246,126 @@ node scripts/ci-package-smoke.mjs
 
 ### Status
 
-`todo`
+`done`
 
 ### Objective
 
-Promote the exact candidate through authentication acceptance and six-platform verification, then
-verify public npm/GitHub state and remove temporary credentials.
+Validate the source and production-faithful package before publishing or deploying anything.
 
 ### Tasks
 
-- [ ] Confirm protected environments and a short-lived package-scoped `NPM_TOKEN` are ready.
-- [ ] Run `publish-candidate` and verify exact npm metadata and integrity without moving final tags.
-- [ ] Complete and upload redacted authentication acceptance on two distinct OS/architecture cohorts.
-- [ ] Run `finalize-release`, approve protected deployments, and require all six anonymous runtime
-      jobs before channel movement.
-- [ ] Verify npm `beta` and `latest`, removal of `candidate`, deprecation of beta.10, and the public
-      GitHub prerelease/assets/attestations.
-- [ ] Revoke the temporary npm token, delete the environment secret, review the final diff/state,
-      and record remaining risks.
+- [x] Run focused tests, build, full repository check, and packaged-runtime smoke.
+- [x] Verify the isolated offline command returns the exact eight-model catalog.
+- [x] Run the authorized staging Agnes smoke matrix if an approved staging installation is locally
+  available without exposing credentials.
+- [x] Parse all staging JSON/NDJSON events and reject structured errors even when exit status is zero,
+  or document the identity prerequisite when the matrix cannot start.
+- [x] Review the final diff and working-tree status for unintended or generated artifacts.
 
 ### Relevant Files
 
-- `.github/workflows/release-tag.yml`
-- `.github/workflows/promote-release.yml`
-- `release-manifest.json`
-- redacted `authentication-acceptance.json` release asset
+- Source, tests, scripts, and docs changed by Steps A-C
+- Temporary staging harness and state outside the repository, if staging auth is available
 
 ### Expected Changes
 
-- modify: external npm dist-tags/deprecation and GitHub prerelease state through protected workflows
-- delete: temporary npm environment secret after successful verification
+- modify: `PLAN.md` statuses and validation results only
+- create: temporary uncommitted smoke state outside the repository, removed after use
 
 ### Do Not Modify
 
-- Published tarball contents or integrity.
-- Credential-bearing local files or logs.
+- Hosted configuration, remote secrets, or release state before explicit authorization
+- Personal CLI state or credential-bearing files
 
 ### Commands
 
 ```bash
-npm view @adrouter/cli@0.81.0-beta.11 version dist.integrity dist.tarball --json
-npm view @adrouter/cli dist-tags --json
-gh release view v0.81.0-beta.11 --repo adrouter/adrouterCLI
+npm run build
+npm run check
+node scripts/ci-package-smoke.mjs
+git diff --check
+git status --short --branch
 ```
 
 ### Acceptance Criteria
 
-- [ ] The exact accepted beta.11 tarball is on npm `beta` and `latest`; `candidate` is absent.
-- [ ] Six installed-runtime jobs and both authentication cohorts pass.
-- [ ] GitHub beta.11 is a public prerelease with complete verified assets and attestations.
-- [ ] Temporary credentials are revoked and removed without exposing their values.
-- [ ] No release blocker remains; follow-up monitoring is recorded.
+- [x] Focused tests, build, `npm run check`, and package smoke pass.
+- [x] Packaged `adrouter --offline --list-models adrouter` returns all eight exact IDs.
+- [x] Staging checks either pass the approved matrix or are documented as skipped for unavailable
+  installation identity.
+- [x] Authenticated staging settlement assertions are explicitly skipped because no approved
+  installation identity is configured; no false success is recorded from exit status alone.
+- [x] Focused provider tests preserve sponsor data outside messages, tools, commands, and edits.
+- [x] Before release authorization, the implementation diff contained no release/deployment,
+  dependency, version, or unrelated changes.
 
 ### Validation Results
 
-- Candidate promotion: not run.
-- Authentication acceptance: not run.
-- Final promotion and public verification: not run.
+- Build: passed on 2026-08-02.
+- Full check: passed on 2026-08-02.
+- Package smoke: passed on 2026-08-02 after using a disposable npm cache and a bounded registry
+  retry; the initial user-cache permissions failure and registry timeout did not affect source.
+- Staging authenticated smoke: skipped on 2026-08-02 because redacted doctor reported
+  `auth.available: false` and an unconfigured installation. Public readiness/catalog checks passed.
+- Pre-release diff review: passed on 2026-08-02; release manifests, versions, lockfiles, workflows,
+  tags, npm state, and GitHub release state were unchanged at that checkpoint.
 
 ### Findings / Notes
 
-- None yet.
+- Staging smoke requires an existing user-approved installation. No credential discovery or hosted
+  mutation will be attempted to manufacture one.
+
+---
+
+## Step E: Stage and promote beta.17
+
+### Status
+
+`in_progress`
+
+### Objective
+
+Release the reviewed Agnes changes as the immutable `0.81.0-beta.17` candidate, then promote npm
+and GitHub only after the protected acceptance gates pass.
+
+### Tasks
+
+- [x] Receive explicit authorization for npm/GitHub release operations.
+- [x] Re-query GitHub/npm state and confirm beta.17 is unused.
+- [x] Prepare lockstep beta.17 versions, release metadata, public notes, and packaged shrinkwrap.
+- [x] Pass build, checks, isolated tests, release readiness, and packaged-runtime smoke locally.
+- [ ] Commit, push, and pass the six-platform release CI on the exact beta.17 source.
+- [ ] Tag the exact accepted commit and verify the attested draft GitHub prerelease.
+- [ ] Publish the exact staged tarball under npm `candidate`.
+- [ ] Complete and upload redacted authentication acceptance for two distinct cohorts.
+- [ ] Run the protected finalizer and verify npm `beta`/`latest`, candidate removal, and the public
+  GitHub prerelease.
+
+### Constraints
+
+- Use only protected workflows for npm publication and GitHub release publication.
+- Never print, copy, or commit npm, GitHub, or AdRouter credentials.
+- Fix forward with a higher beta if any immutable candidate or tag fails.
+
+### Validation Results
+
+- GitHub authentication and repository admin/write/workflow permission: verified on 2026-08-02.
+- Beta.17 npm version, Git tag, and GitHub release: confirmed unused on 2026-08-02.
+- Build, full check, isolated tests, release readiness, and packaged beta.17 smoke: passed on
+  2026-08-02. The sandboxed isolated-test attempt failed only on denied loopback/DNS; the permitted
+  rerun passed 73 AI, 16 agent, and 175 CLI test files plus the TUI suite.
 
 ---
 
 ## Follow-up Work
 
-- Monitor beta.11 for packaging, authentication, rendering, and upgrade regressions during its soak.
-- Promote a stable release only after the documented beta soak and cross-platform packaged-user runs.
+- Coordinate other clients only if their independently owned catalogs require the same contract.
 
 ## Decision Log
 
 | Date | Decision | Rationale | Impact |
 | --- | --- | --- | --- |
-| 2026-07-29 | Release as `0.81.0-beta.11` | Beta.10 is public and beta.11 is unused. | New immutable prerelease. |
-| 2026-07-29 | Preserve the public beta blue `❯` | The user explicitly selected the current public-beta arrow. | Input prompt remains familiar and tested. |
-| 2026-07-29 | Port onto current `main` in a clean worktree | The dirty implementation branch predates beta.8-beta.10. | Avoids stale runtime regressions and preserves user files. |
-| 2026-07-29 | Promote through `candidate` before `beta`/`latest` | Required by release policy and immutable recovery rules. | Final channels move only after exact-package acceptance. |
+| 2026-08-02 | Scope absent-value overrides to exact Agnes IDs | Fixes Agnes without changing global provider semantics | DeepSeek, MiMo, and custom fallbacks remain unchanged |
+| 2026-08-02 | Keep Agnes Pro and Pro Alpha high-only | Matches the finalized Router descriptor | Unsupported CLI selections continue to clamp to high |
+| 2026-08-02 | Preserve MiMo absent reasoning as `medium` | Explicit compatibility choice from planning | Regression tests lock the existing behavior |
+| 2026-08-02 | Release as `0.81.0-beta.17` through protected workflows | User explicitly authorized npm/GitHub deployment; beta.17 is unused | Candidate publication precedes final channel movement |

@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.81.0-beta.17] - 2026-08-02
+
+### Added
+
+- Exposed Agnes 2.0 Flash and Agnes 2.5 Pro in offline model listing and packaged-runtime
+  verification.
+
+### Fixed
+
+- Sent thinking off as Router `none` for Agnes Flash while preserving high-only Agnes Pro behavior
+  and the existing DeepSeek and MiMo mappings.
+
 ## [0.81.0-beta.16] - 2026-08-01
 
 ### Fixed

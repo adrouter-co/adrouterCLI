@@ -4,6 +4,24 @@
 import type { Model } from "../types.ts";
 
 export const ADROUTER_MODELS = {
+	"agnes-2.0-flash": {
+		id: "agnes-2.0-flash",
+		name: "AdRouter Agnes 2.0 Flash",
+		api: "adrouter-agent",
+		provider: "adrouter",
+		baseUrl: "",
+		reasoning: true,
+		thinkingLevelMap: {"off":"none","minimal":null,"low":null,"medium":null,"high":"high","xhigh":null,"max":null},
+		input: ["text"],
+		cost: {
+			input: 0,
+			output: 0,
+			cacheRead: 0,
+			cacheWrite: 0,
+		},
+		contextWindow: 131072,
+		maxTokens: 4096,
+	} satisfies Model<"adrouter-agent">,
 	"agnes-2.5-flash": {
 		id: "agnes-2.5-flash",
 		name: "AdRouter Agnes 2.5 Flash",
@@ -12,6 +30,24 @@ export const ADROUTER_MODELS = {
 		baseUrl: "",
 		reasoning: true,
 		thinkingLevelMap: {"off":"none","minimal":null,"low":null,"medium":null,"high":"high","xhigh":null,"max":null},
+		input: ["text"],
+		cost: {
+			input: 0,
+			output: 0,
+			cacheRead: 0,
+			cacheWrite: 0,
+		},
+		contextWindow: 131072,
+		maxTokens: 4096,
+	} satisfies Model<"adrouter-agent">,
+	"agnes-2.5-pro": {
+		id: "agnes-2.5-pro",
+		name: "AdRouter Agnes 2.5 Pro",
+		api: "adrouter-agent",
+		provider: "adrouter",
+		baseUrl: "",
+		reasoning: true,
+		thinkingLevelMap: {"off":null,"minimal":null,"low":null,"medium":null,"high":"high","xhigh":null,"max":null},
 		input: ["text"],
 		cost: {
 			input: 0,

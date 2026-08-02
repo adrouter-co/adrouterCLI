@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.81.0-beta.17] - 2026-08-02
+
+### Changed
+
+- Repacked the private terminal UI runtime for the expanded Agnes model catalog beta.
+
 ## [0.81.0-beta.16] - 2026-08-01
 
 ### Changed
