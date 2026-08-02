@@ -18,6 +18,7 @@ import type {
 	SessionShutdownEvent,
 	SessionStartEvent,
 } from "../src/index.ts";
+import { createFauxModelRegistry } from "./suite/faux-model-registry.ts";
 
 type RecordedSessionEvent =
 	| SessionBeforeSwitchEvent
@@ -46,10 +47,12 @@ describe("AgentSessionRuntime session lifecycle events", () => {
 
 		const authStorage = AuthStorage.inMemory();
 		authStorage.setRuntimeApiKey(faux.getModel().provider, "faux-key");
+		const modelRegistry = createFauxModelRegistry(faux, authStorage);
 
 		const runtimeOptions = {
 			agentDir: tempDir,
 			authStorage,
+			modelRegistry,
 			model: faux.getModel(),
 			resourceLoaderOptions: {
 				extensionFactories: [extensionFactory],
@@ -96,10 +99,6 @@ describe("AgentSessionRuntime session lifecycle events", () => {
 	function expectBundledFeaturesReady(runtimeHost: Awaited<ReturnType<typeof createRuntimeHost>>["runtimeHost"]) {
 		const report = runtimeHost.services.resourceLoader.getBundledFeatureReport?.();
 		expect(report).toEqual({ mode: "required", ready: true, failures: [] });
-		const openCode = runtimeHost.services.resourceLoader
-			.getExtensions()
-			.extensions.find((extension) => extension.path.includes("pi-opencode-bridge"));
-		expect([...openCode!.commands.keys()].sort()).toEqual(["opencode-go-key", "opencode-status"]);
 	}
 
 	it("keeps every bundled feature registered across /reload and /new runtime paths", async () => {

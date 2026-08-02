@@ -129,7 +129,7 @@ function createRuntimeHost(options: { withAuth: boolean; responseDelayMs: number
 	const sessionManager = SessionManager.inMemory();
 	const settingsManager = SettingsManager.create(tempDir, tempDir);
 	const authStorage = AuthStorage.create(join(tempDir, "auth.json"));
-	const modelRegistry = ModelRegistry.create(authStorage, tempDir);
+	const modelRegistry = ModelRegistry.inMemory(authStorage);
 	if (options.withAuth) {
 		authStorage.setRuntimeApiKey("anthropic", "test-key");
 	}

@@ -36,7 +36,7 @@ describe("AgentSession auto-compaction queue resume", () => {
 		settingsManager = SettingsManager.create(tempDir, tempDir);
 		const authStorage = AuthStorage.create(join(tempDir, "auth.json"));
 		authStorage.setRuntimeApiKey("anthropic", "test-key");
-		const modelRegistry = ModelRegistry.create(authStorage, tempDir);
+		const modelRegistry = ModelRegistry.inMemory(authStorage);
 
 		session = new AgentSession({
 			agent,

@@ -878,11 +878,6 @@ export class InteractiveMode {
 			this.showWarning(`Migrated credentials to auth.json: ${migratedProviders.join(", ")}`);
 		}
 
-		const modelsJsonError = this.session.modelRegistry.getError();
-		if (modelsJsonError) {
-			this.showError(`models.json error: ${modelsJsonError}`);
-		}
-
 		if (modelFallbackMessage) {
 			this.showWarning(modelFallbackMessage);
 		}
@@ -4718,7 +4713,8 @@ export class InteractiveMode {
 
 	private getLoginProviderOptions(authType?: "oauth" | "api_key"): AuthSelectorProvider[] {
 		const authStorage = this.session.modelRegistry.authStorage;
-		const oauthProviders = authStorage.getOAuthProviders();
+		const modelProviders = new Set(this.session.modelRegistry.getAll().map((model) => model.provider));
+		const oauthProviders = authStorage.getOAuthProviders().filter((provider) => modelProviders.has(provider.id));
 		const oauthProviderIds = new Set(oauthProviders.map((provider) => provider.id));
 		const options: AuthSelectorProvider[] = oauthProviders.map((provider) => ({
 			id: provider.id,
@@ -4726,7 +4722,6 @@ export class InteractiveMode {
 			authType: "oauth",
 		}));
 
-		const modelProviders = new Set(this.session.modelRegistry.getAll().map((model) => model.provider));
 		for (const providerId of modelProviders) {
 			if (!isApiKeyLoginProvider(providerId, oauthProviderIds)) {
 				continue;
@@ -4744,9 +4739,11 @@ export class InteractiveMode {
 
 	private getLogoutProviderOptions(): AuthSelectorProvider[] {
 		const authStorage = this.session.modelRegistry.authStorage;
+		const modelProviders = new Set(this.session.modelRegistry.getAll().map((model) => model.provider));
 		const options: AuthSelectorProvider[] = [];
 
 		for (const providerId of authStorage.list()) {
+			if (!modelProviders.has(providerId)) continue;
 			const credential = authStorage.get(providerId);
 			if (!credential) {
 				continue;
@@ -4924,7 +4921,7 @@ export class InteractiveMode {
 		const providerOptions = this.getLogoutProviderOptions();
 		if (providerOptions.length === 0) {
 			this.showStatus(
-				"No stored credentials to remove. /logout only removes credentials saved by /login; environment variables and models.json config are unchanged.",
+				"No stored credentials to remove. /logout only removes credentials saved by /login; environment variables are unchanged.",
 			);
 			return;
 		}
@@ -4982,7 +4979,7 @@ export class InteractiveMode {
 				message =
 					providerOption.authType === "oauth"
 						? `Logged out of ${providerOption.name}`
-						: `Removed stored API key for ${providerOption.name}. Environment variables and models.json config are unchanged.`;
+						: `Removed stored API key for ${providerOption.name}. Environment variables are unchanged.`;
 			}
 			this.session.modelRegistry.refresh();
 			await this.updateAvailableProviderCount();
@@ -5376,10 +5373,6 @@ export class InteractiveMode {
 				showDiagnosticsWhenQuiet: true,
 			});
 			const savedImplicitProjectTrust = this.maybeSaveImplicitProjectTrustAfterReload();
-			const modelsJsonError = this.session.modelRegistry.getError();
-			if (modelsJsonError) {
-				this.showError(`models.json error: ${modelsJsonError}`);
-			}
 			this.showStatus(
 				savedImplicitProjectTrust
 					? "Reloaded keybindings, extensions, skills, prompts, themes, and context files; saved project trust"

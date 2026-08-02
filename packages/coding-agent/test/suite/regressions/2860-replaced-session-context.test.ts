@@ -13,6 +13,7 @@ import {
 import { AuthStorage } from "../../../src/core/auth-storage.ts";
 import { SessionManager } from "../../../src/core/session-manager.ts";
 import type { ExtensionAPI, ExtensionCommandContext, ExtensionFactory } from "../../../src/index.ts";
+import { createFauxModelRegistry } from "../faux-model-registry.ts";
 
 function getText(message: AgentSession["messages"][number]): string {
 	if (!("content" in message)) {
@@ -46,33 +47,16 @@ describe("regression #2860: replaced session callbacks", () => {
 
 		const authStorage = AuthStorage.inMemory();
 		authStorage.setRuntimeApiKey(faux.getModel().provider, "faux-key");
+		const modelRegistry = createFauxModelRegistry(faux, authStorage);
 
 		const createRuntime: CreateAgentSessionRuntimeFactory = async ({ cwd, sessionManager, sessionStartEvent }) => {
 			const services = await createAgentSessionServices({
 				cwd,
 				agentDir: tempDir,
 				authStorage,
+				modelRegistry,
 				resourceLoaderOptions: {
-					extensionFactories: [
-						(pi: ExtensionAPI) => {
-							pi.registerProvider(faux.getModel().provider, {
-								baseUrl: faux.getModel().baseUrl,
-								apiKey: "faux-key",
-								api: faux.api,
-								models: faux.models.map((registeredModel) => ({
-									id: registeredModel.id,
-									name: registeredModel.name,
-									api: registeredModel.api,
-									reasoning: registeredModel.reasoning,
-									input: registeredModel.input,
-									cost: registeredModel.cost,
-									contextWindow: registeredModel.contextWindow,
-									maxTokens: registeredModel.maxTokens,
-								})),
-							});
-							extensionFactory(pi);
-						},
-					],
+					extensionFactories: [extensionFactory],
 					noSkills: true,
 					noPromptTemplates: true,
 					noThemes: true,
