@@ -67,7 +67,6 @@ if (!readFileSync("packages/ai/docs/README.md", "utf8").includes("ADROUTER_HOSTE
 	failures.push("packages/ai/docs/README.md: model-keyed hosted limits export is undocumented");
 }
 for (const path of [
-	"README.md",
 	"docs/installation.md",
 	"docs/usage.md",
 	"docs/troubleshooting.md",
@@ -83,16 +82,29 @@ for (const command of [
 	"npm install --global --ignore-scripts @adrouter/cli@beta",
 	"adrouter --version",
 	"adrouter --json doctor",
-	"adrouter-profile set work --provider adrouter --model deepseek-v4-flash",
-	"adrouter-profile list",
-	"adrouter-profile apply work --dry-run --no-launch",
-	"adrouter-profile restore",
+	"/login adrouter",
+	"/ads",
+	"/logout adrouter",
 	"npm uninstall --global @adrouter/cli",
+	'rm -rf "$HOME/.adrouter"',
+	'Remove-Item -Recurse -Force "$HOME\\.adrouter"',
 ]) {
 	if (!rootReadme.includes(command)) failures.push(`README.md: missing tested command example: ${command}`);
 }
 for (const invalid of ["adrouter-profile create", "adrouter-profile use"]) {
 	if (rootReadme.includes(invalid)) failures.push(`README.md: invalid profile command remains: ${invalid}`);
+}
+
+const packageReadme = readFileSync("packages/coding-agent/README.md", "utf8");
+for (const command of [
+	"adrouter-profile set work --provider adrouter --model deepseek-v4-flash",
+	"adrouter-profile list",
+	"adrouter-profile apply work --dry-run --no-launch",
+	"adrouter-profile restore",
+]) {
+	if (!packageReadme.includes(command)) {
+		failures.push(`packages/coding-agent/README.md: missing tested profile command example: ${command}`);
+	}
 }
 
 const activeDocumentation = [

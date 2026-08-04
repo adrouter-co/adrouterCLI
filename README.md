@@ -1,191 +1,118 @@
-![AdRouter banner](images/logo.png)
+<p align="center">
+  <a href="https://adrouter.co">
+    <img src="images/adrouterCLI_title.png" alt="AdRouterCLI" width="100%">
+  </a>
+</p>
 
-# AdRouterCLI
+<h1 align="center">AdRouterCLI</h1>
 
-AdRouterCLI is a terminal coding agent that routes model requests through
-AdRouter. Version `0.81.0-beta.19` is an MIT-licensed public-source and npm
-prerelease; hosted access remains invite-only. AdRouterCLI is derived from
-[Mario Zechner's upstream project](UPSTREAM.md), whose MIT license and
-attribution are preserved.
+<p align="center">
+  <a href="https://www.npmjs.com/package/@adrouter/cli"><img src="https://img.shields.io/npm/v/%40adrouter%2Fcli/beta?label=npm%20beta" alt="npm beta version"></a>
+  <a href="https://github.com/adrouter/adrouterCLI/actions/workflows/ci.yml"><img src="https://github.com/adrouter/adrouterCLI/actions/workflows/ci.yml/badge.svg" alt="CI status"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT license"></a>
+</p>
 
-See the [canonical product guide](docs/about.md) for Router/CLI responsibilities, the generated
-model catalog, authentication, streaming, sponsorship, diagnostics, installation, and logout.
+<p align="center">
+  A terminal coding agent that connects your project to AdRouter.
+</p>
 
-Sponsor content is display-only. It is rendered in the terminal and is never
-added to model messages, tool payloads, commands, or edits. The agent can read
-files and propose or execute commands, so accept trust prompts only for
-workspaces you recognize and review command approvals.
+AdRouterCLI is public source and distributed as an npm beta. Hosted AdRouter sign-in is currently
+invite-only. The CLI runs on macOS, Linux, and Windows with Node.js 22.19 or newer.
 
-## Install and platform support
+## Install
 
-Node.js 22.19 or newer is required. npm is the only beta distribution channel.
-The six-platform CI matrix must pass before a release can continue.
-
-| Installation | macOS arm64 | macOS x64 | Linux arm64 | Linux x64 | Windows arm64 | Windows x64 |
-| --- | --- | --- | --- | --- | --- | --- |
-| npm on Node.js 22.19+ | Supported | Supported | Supported | Supported | Supported | Supported |
-| Signed standalone archive | Unavailable | Unavailable | Unavailable | Unavailable | Unavailable | Unavailable |
+Install the current public beta, then confirm that the CLI is ready:
 
 ```sh
 npm install --global --ignore-scripts @adrouter/cli@beta
 adrouter --version
-adrouter --help
-```
-
-Unsigned native keyboard helpers are omitted. macOS modifier detection is
-limited to terminal input events, and Windows Shift+Tab depends on the
-terminal's escape-sequence support. The JavaScript fallback remains available.
-Do not download standalone archives: all six entries in
-[`release-manifest.json`](release-manifest.json) are blocked until
-matching-platform certification and signing are available.
-
-Maintainers can install a production-faithful staged tarball from a checkout
-with `npm run install:local`. `npm run link:dev` is reserved for development
-and is never valid release or deployment evidence.
-
-## First login, trust, and ads
-
-1. Start `adrouter` inside the intended project.
-2. Accept the trust prompt only after reviewing the project-local `.adrouter`
-   resources it may load.
-3. Run `/login adrouter`, sign in at the opened AdRouter website, then choose the
-   native Done action. The CLI creates a fresh installation key and opens the matching approval
-   page. An already-open signed-in AdRouter tab also shows the request as a modal. Use Open or Copy
-   if automatic browser launch is unavailable; Quit cancels the flow.
-4. Approve only the installation you recognize. The CLI stores an Ed25519 private
-   key and rotating refresh credential in its mode-0600 auth file; access tokens
-   remain memory-only. This storage is `file_protected`, not OS-keychain encrypted.
-5. Run `/ads` to inspect sponsorship status or opt out immediately. Use `/logout
-   adrouter` to attempt remote revocation and always remove local installation secrets.
-
-Failed, denied, cancelled, and interrupted login attempts remove the pending private key and ask
-the server to cancel abandoned enrollment state. A later `/login adrouter`, including after `/quit`
-and restart, always creates a clean approval request even when server cleanup was unreachable.
-
-The hosted beta routes eight models:
-
-```sh
-adrouter --provider adrouter --model deepseek-v4-flash
-adrouter --provider adrouter --model deepseek-v4-pro
-adrouter --provider adrouter --model mimo-v2.5
-adrouter --provider adrouter --model mimo-v2.5-pro
-adrouter --provider adrouter --model agnes-2.0-flash
-adrouter --provider adrouter --model agnes-2.5-flash
-adrouter --provider adrouter --model agnes-2.5-pro
-adrouter --provider adrouter --model agnes-2.5-pro-alpha
-```
-
-DeepSeek Flash and Pro advertise thinking off, medium, and high. MiMo Flash/Pro and Agnes Flash
-advertise off and high. Agnes 2.5 Pro and Pro Alpha are high-only.
-
-Hosted limits are model-specific: total context is 524,288 or 1,048,576 tokens, maximum input ranges
-from 458,752 to 917,504, and maximum output ranges from 65,536 to 196,608. The exact tuple for every
-model is in the [generated catalog table](docs/about.md#official-model-catalog). Router still defaults
-an omitted output request and a new account ceiling to 4,096 tokens. AdRouterCLI estimates system,
-message, tool-schema, and tool-result context and compacts proactively at the lower of the selected
-model's input maximum and its context window minus the 16,384-token reserve. If the Router still
-returns `input_limit_exceeded` before any response event, the CLI compacts and retries that logical
-turn once. It never replays after an ad, text, thinking, tool call, settlement, or completion event.
-
-## Profiles
-
-`adrouter-profile` supports only `set`, `list`, `apply`, and `restore`.
-Profiles live outside projects; applying one backs up the managed project
-settings before writing `.adrouter/`.
-
-```sh
-adrouter-profile set work --provider adrouter --model deepseek-v4-flash
-adrouter-profile list
-adrouter-profile apply work --dry-run --no-launch
-adrouter-profile apply work --no-launch
-adrouter-profile restore
-```
-
-Use `--cwd <path>` with `apply` or `restore` to target another workspace.
-
-## Configuration and local data
-
-Global agent state is stored under `~/.adrouter/agent`, profiles under
-`~/.adrouter/profiles`, and trusted project configuration under `.adrouter/`.
-The main environment variables are:
-
-- `ADROUTER_API_URL`: hosted gateway URL.
-- `ADROUTER_API_KEY`: explicit bearer compatibility for loopback or non-official
-  custom routers only. Official hosted origins require an approved installation.
-- `ADROUTER_AD_MODE=live|mock|off`: sponsorship display mode.
-- `ADROUTER_MODEL_ROUTE`: default hosted model route.
-- `ADROUTER_CODING_AGENT_DIR`: explicit global state override.
-- `ADROUTER_PROFILES_DIR`: explicit profile storage override.
-
-See [configuration](docs/configuration.md) for precedence and the complete
-schema. No beta release changes the command names, configuration format,
-hosted API, or persisted state.
-
-## Diagnostics and troubleshooting
-
-The JSON doctor output reports configuration, router reachability, and redacted
-installation/refresh/signing state without printing keys, tokens, codes, nonces,
-proofs, or full fingerprints:
-
-```sh
 adrouter --json doctor
-adrouter --offline --list-models adrouter
-adrouter-profile list
 ```
 
-If startup fails, confirm Node.js is at least 22.19, verify the global npm bin
-directory is on `PATH`, rerun doctor, and try `--offline` to separate local
-startup from gateway access. See [troubleshooting](docs/troubleshooting.md) for
-terminal, authentication, trust, model, profile, and connectivity guidance.
+## Use
 
-## Updates, backup, and uninstallation
+Start AdRouterCLI from the project you want to work on:
 
 ```sh
-npm install --global --ignore-scripts @adrouter/cli@beta
-tar -czf adrouter-state-backup.tar.gz -C "$HOME" .adrouter
+cd /path/to/your/project
+adrouter
+```
+
+On your first run:
+
+1. Review the workspace trust prompt. Trust only projects you recognize.
+2. Run `/login adrouter` and approve the installation in the browser window that opens.
+3. Describe the task you want completed, and review command or file-change approvals before
+   accepting them.
+4. Run `/ads` to view sponsorship status or opt out.
+
+After signing in once, you can also run a non-interactive task:
+
+```sh
+adrouter --provider adrouter --model deepseek-v4-flash --print "Explain this project"
+```
+
+Sponsor content is display-only. It is never added to model messages, tool payloads, commands, or
+edits.
+
+## Uninstall or delete
+
+First, sign out inside AdRouterCLI so it can revoke the installation and remove its local
+credentials:
+
+```text
+/logout adrouter
+```
+
+Then uninstall the command from your shell:
+
+```sh
 npm uninstall --global @adrouter/cli
 ```
 
-The backup contains installation and provider secrets; store it as sensitive
-credential material. Uninstalling the package does not delete `~/.adrouter`. Remove that directory
-only when you also intend to delete local sessions, profiles, credentials, and
-trust decisions.
+Uninstalling the npm package keeps your local sessions, profiles, settings, credentials, and trust
+decisions in `~/.adrouter`. To permanently delete that local state too, run the command for your
+platform after uninstalling.
 
-## Privacy and security
-
-Conversation and tool context transit the hosted gateway and selected model
-provider to produce a response. AdRouter does not persist prompts, model output,
-or tool payloads in application logs or its usage ledger. Account, quota,
-routing, sponsorship, settlement, and audit metadata may be retained as
-described in the [beta privacy notice](docs/privacy.md). Send privacy questions
-to `privacy@adrouter.co` only after the tester invitation confirms that the
-mailbox is operational.
-
-Report vulnerabilities through GitHub private vulnerability reporting, not a
-public issue. See [SECURITY.md](SECURITY.md). Reproducible non-sensitive defects
-belong in GitHub Issues; usage questions belong in GitHub Discussions. See
-[SUPPORT.md](SUPPORT.md) and [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md).
-
-## Source verification and attribution
-
-Inspect the immutable source tag before installation:
+macOS or Linux:
 
 ```sh
-gh api repos/adrouter/adrouterCLI/git/ref/tags/v0.81.0-beta.19
-gh api repos/adrouter/adrouterCLI/tarball/v0.81.0-beta.19 > adrouterCLI-v0.81.0-beta.19.tar.gz
+rm -rf "$HOME/.adrouter"
 ```
 
-The release draft includes the single bundled npm tarball, its artifact
-manifest, a CycloneDX SBOM, bundled-source inventory, third-party notices, and
-checksums. The tarball and release metadata must have GitHub artifact
-attestations before npm publication.
+Windows PowerShell:
 
-- [Upstream provenance](UPSTREAM.md)
-- [MIT license](LICENSE)
-- [Third-party notices](THIRD_PARTY_NOTICES.md)
-- [Bundled-source inventory](docs/bundled-sources.json)
-- [Architecture and data flow](docs/architecture.md)
-- [Contributing](CONTRIBUTING.md)
-- [Maintainer development](docs/development.md)
-- [Release and recovery process](docs/releasing.md)
-- [Incident response](docs/incidents.md)
+```powershell
+Remove-Item -Recurse -Force "$HOME\.adrouter"
+```
+
+This full cleanup cannot be undone. It does not remove project-local `.adrouter/` folders or data
+stored in custom directories configured with AdRouter environment variables; review and remove
+those separately only if you no longer need them.
+
+## Documentation
+
+- [Installation and updates](docs/installation.md)
+- [First run and usage](docs/usage.md)
+- [Models and how AdRouterCLI works](docs/about.md)
+- [Configuration and local data](docs/configuration.md)
+- [Troubleshooting](docs/troubleshooting.md)
+- [Privacy](docs/privacy.md)
+- [Security policy](SECURITY.md)
+- [Support](SUPPORT.md)
+
+## Development and contributing
+
+```sh
+npm ci
+npm run check
+```
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for contribution guidelines and
+[docs/development.md](docs/development.md) for the maintainer workflow.
+
+## License and attribution
+
+AdRouterCLI is released under the [MIT License](LICENSE). It is derived from [Pi](https://github.com/badlogic/pi-mono)
+by Mario Zechner; the [upstream provenance](UPSTREAM.md), attribution, and third-party notices are
+preserved.
