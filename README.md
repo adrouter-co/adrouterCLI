@@ -3,7 +3,7 @@
 # AdRouterCLI
 
 AdRouterCLI is a terminal coding agent that routes model requests through
-AdRouter. Version `0.81.0-beta.19` is an MIT-licensed public-source and npm
+AdRouter. Version `0.81.0-beta.20` is an MIT-licensed public-source and npm
 prerelease; hosted access remains invite-only. AdRouterCLI is derived from
 [Mario Zechner's upstream project](UPSTREAM.md), whose MIT license and
 attribution are preserved.
@@ -62,7 +62,7 @@ Failed, denied, cancelled, and interrupted login attempts remove the pending pri
 the server to cancel abandoned enrollment state. A later `/login adrouter`, including after `/quit`
 and restart, always creates a clean approval request even when server cleanup was unreachable.
 
-The hosted beta routes eight models:
+The hosted coding surface exposes the six models that currently pass tool-calling qualification:
 
 ```sh
 adrouter --provider adrouter --model deepseek-v4-flash
@@ -71,12 +71,11 @@ adrouter --provider adrouter --model mimo-v2.5
 adrouter --provider adrouter --model mimo-v2.5-pro
 adrouter --provider adrouter --model agnes-2.0-flash
 adrouter --provider adrouter --model agnes-2.5-flash
-adrouter --provider adrouter --model agnes-2.5-pro
-adrouter --provider adrouter --model agnes-2.5-pro-alpha
 ```
 
 DeepSeek Flash and Pro advertise thinking off, medium, and high. MiMo Flash/Pro and Agnes Flash
-advertise off and high. Agnes 2.5 Pro and Pro Alpha are high-only.
+advertise off and high. Agnes 2.5 Pro and Pro Alpha remain available for WebUI chat, but are hidden
+from AdRouterCLI until their read/write tool-calling contract passes qualification.
 
 Hosted limits are model-specific: total context is 524,288 or 1,048,576 tokens, maximum input ranges
 from 458,752 to 917,504, and maximum output ranges from 65,536 to 196,608. The exact tuple for every
@@ -171,8 +170,8 @@ belong in GitHub Issues; usage questions belong in GitHub Discussions. See
 Inspect the immutable source tag before installation:
 
 ```sh
-gh api repos/adrouter/adrouterCLI/git/ref/tags/v0.81.0-beta.19
-gh api repos/adrouter/adrouterCLI/tarball/v0.81.0-beta.19 > adrouterCLI-v0.81.0-beta.19.tar.gz
+gh api repos/adrouter/adrouterCLI/git/ref/tags/v0.81.0-beta.20
+gh api repos/adrouter/adrouterCLI/tarball/v0.81.0-beta.20 > adrouterCLI-v0.81.0-beta.20.tar.gz
 ```
 
 The release draft includes the single bundled npm tarball, its artifact

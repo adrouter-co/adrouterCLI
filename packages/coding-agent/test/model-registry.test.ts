@@ -13,8 +13,6 @@ const expectedIds = [
 	"mimo-v2.5-pro",
 	"agnes-2.0-flash",
 	"agnes-2.5-flash",
-	"agnes-2.5-pro",
-	"agnes-2.5-pro-alpha",
 ];
 
 const tempDirs: string[] = [];
@@ -52,12 +50,12 @@ function createProviderConfig(): ProviderConfig {
 }
 
 describe("locked official model registry", () => {
-	it("contains exactly the generated AdRouter catalog in canonical order", () => {
+	it("contains exactly the generated tool-capable AdRouter catalog in canonical order", () => {
 		const registry = ModelRegistry.create(AuthStorage.inMemory());
 		const models = registry.getAll();
 
 		expect(registry.isLocked()).toBe(true);
-		expect(models.map(({ provider }) => provider)).toEqual(Array(8).fill("adrouter"));
+		expect(models.map(({ provider }) => provider)).toEqual(Array(6).fill("adrouter"));
 		expect(models.map(({ id }) => id)).toEqual(expectedIds);
 		expect(models).toEqual(Object.values(ADROUTER_MODELS));
 		expect(models.map(({ id, contextWindow, maxTokens }) => ({ id, contextWindow, maxTokens }))).toEqual([
@@ -67,8 +65,6 @@ describe("locked official model registry", () => {
 			{ id: "mimo-v2.5-pro", contextWindow: 1_048_576, maxTokens: 131_072 },
 			{ id: "agnes-2.0-flash", contextWindow: 524_288, maxTokens: 65_536 },
 			{ id: "agnes-2.5-flash", contextWindow: 524_288, maxTokens: 65_536 },
-			{ id: "agnes-2.5-pro", contextWindow: 1_048_576, maxTokens: 131_072 },
-			{ id: "agnes-2.5-pro-alpha", contextWindow: 1_048_576, maxTokens: 196_608 },
 		]);
 
 		models.splice(0);

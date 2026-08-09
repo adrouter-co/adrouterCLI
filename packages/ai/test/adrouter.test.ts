@@ -74,10 +74,14 @@ describe("AdRouter provider", () => {
 				maxInputTokens: descriptor.max_input_tokens,
 				maxOutputTokens: descriptor.max_output_tokens,
 			});
-			expect(ADROUTER_MODELS[descriptor.id]).toMatchObject({
-				contextWindow: descriptor.context_window,
-				maxTokens: descriptor.max_output_tokens,
-			});
+			if (descriptor.tool_calling) {
+				expect(ADROUTER_MODELS[descriptor.id as keyof typeof ADROUTER_MODELS]).toMatchObject({
+					contextWindow: descriptor.context_window,
+					maxTokens: descriptor.max_output_tokens,
+				});
+			} else {
+				expect(ADROUTER_MODELS).not.toHaveProperty(descriptor.id);
+			}
 			expect(getAdRouterHostedProactiveInputTokens(limits!)).toBe(
 				Math.min(
 					descriptor.max_input_tokens,
@@ -464,12 +468,13 @@ describe("AdRouter provider", () => {
 
 	it("publishes the exact hosted catalog and maps only router-supported thinking levels", async () => {
 		const catalog = readAdRouterCatalog();
-		const expectedModelIds = catalog.models.map(({ id }) => id);
+		const codingCatalog = catalog.models.filter((descriptor) => descriptor.tool_calling);
+		const expectedModelIds = codingCatalog.map(({ id }) => id);
 		expect(ADROUTER_CATALOG_SCHEMA_VERSION).toBe(catalog.schema_version);
 		expect(ADROUTER_CATALOG_DIGEST).toBe(catalog.catalog_digest);
 		expect(Object.keys(ADROUTER_MODELS)).toEqual(expectedModelIds);
 		expect(Object.values(ADROUTER_MODELS).map(({ name }) => name)).toEqual(
-			catalog.models.map(({ display_name }) => `AdRouter ${display_name}`),
+			codingCatalog.map(({ display_name }) => `AdRouter ${display_name}`),
 		);
 		expect(ADROUTER_HOSTED_LIMITS_BY_MODEL).toEqual(
 			Object.fromEntries(
@@ -483,8 +488,8 @@ describe("AdRouter provider", () => {
 				]),
 			),
 		);
-		for (const descriptor of catalog.models) {
-			const hostedModel = ADROUTER_MODELS[descriptor.id];
+		for (const descriptor of codingCatalog) {
+			const hostedModel = ADROUTER_MODELS[descriptor.id as keyof typeof ADROUTER_MODELS];
 			expect(hostedModel).toMatchObject({
 				api: "adrouter-agent",
 				provider: "adrouter",
@@ -495,12 +500,16 @@ describe("AdRouter provider", () => {
 				contextWindow: descriptor.context_window,
 				maxTokens: descriptor.max_output_tokens,
 			});
+		}
+		for (const descriptor of catalog.models) {
 			expect(ADROUTER_CATALOG_METADATA[descriptor.id]).toEqual({
 				provider: descriptor.provider,
 				modelClass: descriptor.model_class,
 				description: descriptor.description,
 				thinkingLevels: descriptor.thinking_levels,
 				defaultThinkingLevel: descriptor.default_thinking_level,
+				inputModalities: descriptor.input_modalities,
+				toolCalling: descriptor.tool_calling,
 				contextWindowTokens: descriptor.context_window,
 				maxInputTokens: descriptor.max_input_tokens,
 				maxOutputTokens: descriptor.max_output_tokens,
@@ -517,7 +526,6 @@ describe("AdRouter provider", () => {
 			max: null,
 		};
 		const flashAliases = { ...deepseekAliases, medium: null };
-		const proAliases = { ...flashAliases, off: null };
 		for (const modelId of ["deepseek-v4-flash", "deepseek-v4-pro"] as const) {
 			expect(ADROUTER_MODELS[modelId].thinkingLevelMap).toEqual(deepseekAliases);
 			expect(getSupportedThinkingLevels(ADROUTER_MODELS[modelId])).toEqual(["off", "medium", "high"]);
@@ -529,14 +537,6 @@ describe("AdRouter provider", () => {
 				expect(clampThinkingLevel(ADROUTER_MODELS[modelId], unsupported)).toBe("high");
 			}
 		}
-		for (const modelId of ["agnes-2.5-pro", "agnes-2.5-pro-alpha"] as const) {
-			expect(ADROUTER_MODELS[modelId].thinkingLevelMap).toEqual(proAliases);
-			expect(getSupportedThinkingLevels(ADROUTER_MODELS[modelId])).toEqual(["high"]);
-			for (const unsupported of ["off", "minimal", "low", "medium", "xhigh", "max"] as const) {
-				expect(clampThinkingLevel(ADROUTER_MODELS[modelId], unsupported)).toBe("high");
-			}
-		}
-
 		const fetchMock = vi.fn(async (_input: unknown, _init?: RequestInit) => ({
 			ok: true,
 			status: 200,
@@ -545,8 +545,8 @@ describe("AdRouter provider", () => {
 		}));
 		vi.stubGlobal("fetch", fetchMock);
 
-		for (const descriptor of catalog.models) {
-			const hostedModel = ADROUTER_MODELS[descriptor.id];
+		for (const descriptor of codingCatalog) {
+			const hostedModel = ADROUTER_MODELS[descriptor.id as keyof typeof ADROUTER_MODELS];
 			for (const reasoning of getSupportedThinkingLevels(hostedModel)) {
 				fetchMock.mockClear();
 				await stream(
@@ -564,10 +564,13 @@ describe("AdRouter provider", () => {
 
 		// The agent runtime represents an omitted reasoning option as undefined. The Router artifact
 		// owns the default for every known hosted model.
-		for (const descriptor of catalog.models) {
+		for (const descriptor of codingCatalog) {
 			fetchMock.mockClear();
 			await stream(
-				{ ...ADROUTER_MODELS[descriptor.id], baseUrl: "https://router.example.test" },
+				{
+					...ADROUTER_MODELS[descriptor.id as keyof typeof ADROUTER_MODELS],
+					baseUrl: "https://router.example.test",
+				},
 				{ messages: [{ role: "user", content: "test", timestamp: Date.now() }] },
 				{ apiKey: "test-key", reasoning: undefined } as Parameters<typeof stream>[2],
 			).result();
@@ -590,14 +593,13 @@ describe("AdRouter provider", () => {
 
 		process.env.ADROUTER_MODEL_ROUTE = "agnes-2.5-pro";
 		fetchMock.mockClear();
-		await stream(
+		const rejectedRoute = await stream(
 			{ ...ADROUTER_MODELS["deepseek-v4-flash"], baseUrl: "https://router.example.test" },
 			{ messages: [{ role: "user", content: "test", timestamp: Date.now() }] },
 			{ apiKey: "test-key", reasoning: undefined } as Parameters<typeof stream>[2],
 		).result();
-		const routedBody = parseRequestBody(fetchMock.mock.calls[0]?.[1]);
-		expect(routedBody.model).toBe("agnes-2.5-pro");
-		expect(routedBody.thinking_level).toBe("high");
+		expect(fetchMock).not.toHaveBeenCalled();
+		expect(rejectedRoute.errorMessage).toContain("not available for coding");
 	});
 
 	it("accepts the deprecated minimum-tier variable without interpreting it", async () => {
@@ -756,8 +758,11 @@ describe("AdRouter provider", () => {
 			rememberNonce: vi.fn(),
 		};
 
-		for (const descriptor of readAdRouterCatalog().models) {
-			const hostedModel = { ...ADROUTER_MODELS[descriptor.id], baseUrl: "https://api-staging.adrouter.co" };
+		for (const descriptor of readAdRouterCatalog().models.filter((candidate) => candidate.tool_calling)) {
+			const hostedModel = {
+				...ADROUTER_MODELS[descriptor.id as keyof typeof ADROUTER_MODELS],
+				baseUrl: "https://api-staging.adrouter.co",
+			};
 			for (const requested of [
 				descriptor.max_output_tokens - 1,
 				descriptor.max_output_tokens,

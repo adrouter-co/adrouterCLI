@@ -13,8 +13,6 @@ export const EXPECTED_ADROUTER_MODEL_IDS = [
 	"mimo-v2.5-pro",
 	"agnes-2.0-flash",
 	"agnes-2.5-flash",
-	"agnes-2.5-pro",
-	"agnes-2.5-pro-alpha",
 ];
 export const EXPECTED_ADROUTER_LIMITS = {
 	"deepseek-v4-flash": { contextWindowTokens: 1_048_576, maxInputTokens: 917_504, maxOutputTokens: 65_536 },

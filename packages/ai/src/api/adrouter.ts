@@ -539,7 +539,12 @@ function mapThinkingLevel(modelId: string, value: unknown): "none" | "medium" | 
 }
 
 function resolveRouterModel(model: Model<Api>): string {
-	return process.env.ADROUTER_MODEL_ROUTE ?? model.id;
+	const modelId = process.env.ADROUTER_MODEL_ROUTE ?? model.id;
+	const metadata = ADROUTER_CATALOG_METADATA[modelId as keyof typeof ADROUTER_CATALOG_METADATA];
+	if (metadata && !metadata.toolCalling) {
+		throw new Error(`${modelId} is not available for coding until its tool-calling contract is qualified.`);
+	}
+	return modelId;
 }
 
 function toolCallSignature(toolCall: ToolCall): string {

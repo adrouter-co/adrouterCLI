@@ -7,7 +7,7 @@ For deployments, `installation.deployable` must be `true`. If doctor reports
 exact packaged version:
 
 ```sh
-npm install --global --ignore-scripts @adrouter/cli@0.81.0-beta.14
+npm install --global --ignore-scripts @adrouter/cli@0.81.0-beta.20
 ```
 
 Use `ADROUTER_BUNDLED_FEATURES=off` only as an explicit core-only recovery
@@ -19,8 +19,8 @@ mode; extension commands, tools, and skills are unavailable in that mode.
 - Network: verify DNS, TLS interception, proxy settings, and access to `api-staging.adrouter.co`.
 - Terminal: reproduce in a current terminal with `TERM` set correctly; include dimensions and OS, not terminal history.
 - Extensions: disable project resources, then bundled or user extensions one at a time.
-- Model selection: use `agnes-2.0-flash`, `agnes-2.5-flash`, `agnes-2.5-pro`,
-  `agnes-2.5-pro-alpha`, `deepseek-v4-flash`, `deepseek-v4-pro`, `mimo-v2.5`, or `mimo-v2.5-pro`
+- Model selection: use `agnes-2.0-flash`, `agnes-2.5-flash`, `deepseek-v4-flash`,
+  `deepseek-v4-pro`, `mimo-v2.5`, or `mimo-v2.5-pro`
   for the hosted beta.
 - Context limits: hosted context is 524,288 or 1,048,576 tokens, maximum input ranges from 458,752
   to 917,504, and maximum output ranges from 65,536 to 196,608. A growing session compacts at the

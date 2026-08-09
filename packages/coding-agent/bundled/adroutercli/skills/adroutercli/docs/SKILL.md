@@ -12,7 +12,7 @@ The canonical product contract is maintained in the
 ## Run modes
 
 - Normal: `adrouter` starts the interactive coding agent in the current workspace.
-- Hosted: run `/login adrouter` for browser installation approval, then select one of `deepseek-v4-flash`, `deepseek-v4-pro`, `mimo-v2.5`, `mimo-v2.5-pro`, `agnes-2.0-flash`, `agnes-2.5-flash`, `agnes-2.5-pro`, or `agnes-2.5-pro-alpha` with `--provider adrouter --model <id>`.
+- Hosted: run `/login adrouter` for browser installation approval, then select one of `deepseek-v4-flash`, `deepseek-v4-pro`, `mimo-v2.5`, `mimo-v2.5-pro`, `agnes-2.0-flash`, or `agnes-2.5-flash` with `--provider adrouter --model <id>`.
 - Custom/loopback: only an explicitly configured non-official endpoint may use its supported `ADROUTER_API_KEY` bearer flow.
 - Mock: configure the backend for mock execution; ad routing and display remain testable with canned model output.
 - Profile: create with `adrouter-profile set <name> --provider <provider> --model <model>`, apply with `adrouter-profile apply <name>`, and undo the project overlay with `adrouter-profile restore`. `adrouter --profile <name>` applies the same overlay explicitly. Plain `adrouter` applies no profile.
@@ -22,7 +22,7 @@ The canonical product contract is maintained in the
 
 ## Troubleshooting
 
-Custom local backends may use `ADROUTER_API_KEY`; official hosted access uses installation auth and fresh request proofs. Provider credentials for DeepSeek, MiMo, and Agnes remain backend-only. Never reuse or print credentials. A healthy mock backend does not prove live provider auth works. Confirm `/health`, then `/v1/models`, then run a minimal prompt with the selected model. Supported IDs are `deepseek-v4-flash`, `deepseek-v4-pro`, `mimo-v2.5`, `mimo-v2.5-pro`, `agnes-2.0-flash`, `agnes-2.5-flash`, `agnes-2.5-pro`, and `agnes-2.5-pro-alpha`; `deepseek` is a rejected legacy alias.
+Custom local backends may use `ADROUTER_API_KEY`; official hosted access uses installation auth and fresh request proofs. Provider credentials for DeepSeek, MiMo, and Agnes remain backend-only. Never reuse or print credentials. A healthy mock backend does not prove live provider auth works. Confirm `/health`, then `/v1/models`, then run a minimal prompt with the selected model. Supported coding IDs are `deepseek-v4-flash`, `deepseek-v4-pro`, `mimo-v2.5`, `mimo-v2.5-pro`, `agnes-2.0-flash`, and `agnes-2.5-flash`; `deepseek` is a rejected legacy alias.
 
 Inspect isolated state under `~/.adrouter/agent` and project `.adrouter`. Profiles live under `ADROUTER_PROFILES_DIR` or `~/.adrouter/profiles`. Do not read or migrate personal state from other coding agents.
 

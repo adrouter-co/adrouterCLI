@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.81.0-beta.20] - 2026-08-10
+
+### Changed
+
+- Adopted Router catalog schema v2 with input-modality and tool-calling capabilities, and filtered
+  the generated coding registry to models that pass the tool-calling gate.
+
 ## [0.81.0-beta.19] - 2026-08-03
 
 ### Changed

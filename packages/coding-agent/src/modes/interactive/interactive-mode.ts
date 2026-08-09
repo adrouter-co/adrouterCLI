@@ -4730,6 +4730,13 @@ export class InteractiveMode {
 				id: providerId,
 				name: this.session.modelRegistry.getProviderDisplayName(providerId),
 				authType: "api_key",
+				...(providerId === "adrouter"
+					? {
+							authLabel: isOfficialAdRouterApiUrl(resolveAdRouterApiUrl(authStorage))
+								? "Browser installation"
+								: "Bearer key",
+						}
+					: {}),
 			});
 		}
 
@@ -4776,7 +4783,7 @@ export class InteractiveMode {
 
 	private async handleLoginCommand(providerRef?: string): Promise<void> {
 		if (!providerRef) {
-			this.showLoginAuthTypeSelector();
+			this.showLoginProviderSelector();
 			return;
 		}
 
@@ -4914,7 +4921,7 @@ export class InteractiveMode {
 
 	private async showOAuthSelector(mode: "login" | "logout"): Promise<void> {
 		if (mode === "login") {
-			this.showLoginAuthTypeSelector();
+			this.showLoginProviderSelector();
 			return;
 		}
 

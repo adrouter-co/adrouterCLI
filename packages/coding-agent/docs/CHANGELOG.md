@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.81.0-beta.20] - 2026-08-10
+
+### Fixed
+
+- Removed the redundant authentication-method step from bare `/login` and labeled AdRouter's
+  official flow as browser installation approval.
+- Exposed only Router models qualified for read/write tool calling while retaining full hosted
+  metadata and limits for contract validation.
+
 ## [0.81.0-beta.19] - 2026-08-03
 
 ### Changed

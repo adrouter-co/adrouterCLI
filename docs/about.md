@@ -8,25 +8,26 @@ for DeepSeek, MiMo, and Agnes never belong in the CLI.
 
 ## Official model catalog
 
-The default product registry is generated from the versioned Router catalog. It is immutable and
-contains exactly these models, in Router order:
+The default product registry is generated from the versioned Router catalog. The table keeps all
+hosted models in Router order and records whether each one is qualified for coding tools:
 
 <!-- BEGIN ADROUTER MODEL TABLE -->
-| Model ID | Display name | Provider | Class | Description | Thinking modes | Default | Context | Max input | Max output |
+| Model ID | Display name | Provider | Class | Tool calling | Thinking modes | Default | Context | Max input | Max output |
 | --- | --- | --- | --- | --- | --- | --- | ---: | ---: | ---: |
-| `deepseek-v4-flash` | DeepSeek V4 Flash | deepseek | flash | Fast DeepSeek coding model for interactive development. | none, medium, high | medium | 1,048,576 | 917,504 | 65,536 |
-| `deepseek-v4-pro` | DeepSeek V4 Pro | deepseek | pro | DeepSeek coding model for complex development tasks. | none, medium, high | medium | 1,048,576 | 851,968 | 131,072 |
-| `mimo-v2.5` | MiMo V2.5 Flash | mimo | flash | Fast MiMo coding model for interactive development. | none, high | high | 1,048,576 | 917,504 | 65,536 |
-| `mimo-v2.5-pro` | MiMo V2.5 Pro | mimo | pro | MiMo coding model for complex development tasks. | none, high | high | 1,048,576 | 851,968 | 131,072 |
-| `agnes-2.0-flash` | Agnes 2.0 Flash | agnes | flash | Fast Agnes 2.0 coding model for interactive development. | none, high | none | 524,288 | 458,752 | 65,536 |
-| `agnes-2.5-flash` | Agnes 2.5 Flash | agnes | flash | Fast Agnes 2.5 coding model for interactive development. | none, high | none | 524,288 | 458,752 | 65,536 |
-| `agnes-2.5-pro` | Agnes 2.5 Pro | agnes | pro | Agnes 2.5 reasoning model for complex development tasks. | high | high | 1,048,576 | 851,968 | 131,072 |
-| `agnes-2.5-pro-alpha` | Agnes 2.5 Pro Alpha | agnes | pro | Alpha Agnes 2.5 reasoning model for complex development tasks. | high | high | 1,048,576 | 786,432 | 196,608 |
+| `deepseek-v4-flash` | DeepSeek V4 Flash | deepseek | flash | yes | none, medium, high | medium | 1,048,576 | 917,504 | 65,536 |
+| `deepseek-v4-pro` | DeepSeek V4 Pro | deepseek | pro | yes | none, medium, high | medium | 1,048,576 | 851,968 | 131,072 |
+| `mimo-v2.5` | MiMo V2.5 Flash | mimo | flash | yes | none, high | high | 1,048,576 | 917,504 | 65,536 |
+| `mimo-v2.5-pro` | MiMo V2.5 Pro | mimo | pro | yes | none, high | high | 1,048,576 | 851,968 | 131,072 |
+| `agnes-2.0-flash` | Agnes 2.0 Flash | agnes | flash | yes | none, high | none | 524,288 | 458,752 | 65,536 |
+| `agnes-2.5-flash` | Agnes 2.5 Flash | agnes | flash | yes | none, high | none | 524,288 | 458,752 | 65,536 |
+| `agnes-2.5-pro` | Agnes 2.5 Pro | agnes | pro | no | high | high | 1,048,576 | 851,968 | 131,072 |
+| `agnes-2.5-pro-alpha` | Agnes 2.5 Pro Alpha | agnes | pro | no | high | high | 1,048,576 | 786,432 | 196,608 |
 <!-- END ADROUTER MODEL TABLE -->
 
-The catalog schema is version 1. Its digest is
-`sha256:75b5c38f6f037ac2d5105b0e780bf449d00e0c851dcb749232503c3782b32b70`.
-The three fields in each row are independently authoritative. AdRouterCLI proactively compacts at
+The catalog schema is version 2. Its digest is
+`sha256:ee5aba34ad122c6864045cbedc1b982ceefebeb3cfaaa5f15ab90ad34a82cb8b`.
+AdRouterCLI exposes only the six rows marked `yes`; Agnes 2.5 Pro and Pro Alpha remain WebUI-chat
+models until they pass the read/write tool-calling qualification gate. AdRouterCLI proactively compacts at
 the lower of that model's maximum input and its context window minus 16,384 tokens. Router continues
 to use 4,096 tokens when output is omitted and for the default account ceiling; the larger listed
 outputs are explicit maxima subject to model, platform, and account policy. One pre-response

@@ -29,30 +29,32 @@ function expectInvalidWithValidDigest(mutator, pattern = /invalid_adrouter_catal
 	}, pattern);
 }
 
-test("accepts the committed Router catalog", () => {
+test("accepts the committed Router catalog and exposes its coding capability", () => {
 	assert.deepEqual(
-		catalog.models.map(({ id, context_window, max_input_tokens, max_output_tokens }) => ({
+		catalog.models.map(({ id, input_modalities, tool_calling, context_window, max_input_tokens, max_output_tokens }) => ({
 			id,
+			input_modalities,
+			tool_calling,
 			context_window,
 			max_input_tokens,
 			max_output_tokens,
 		})),
 		[
-			{ id: "deepseek-v4-flash", context_window: 1_048_576, max_input_tokens: 917_504, max_output_tokens: 65_536 },
-			{ id: "deepseek-v4-pro", context_window: 1_048_576, max_input_tokens: 851_968, max_output_tokens: 131_072 },
-			{ id: "mimo-v2.5", context_window: 1_048_576, max_input_tokens: 917_504, max_output_tokens: 65_536 },
-			{ id: "mimo-v2.5-pro", context_window: 1_048_576, max_input_tokens: 851_968, max_output_tokens: 131_072 },
-			{ id: "agnes-2.0-flash", context_window: 524_288, max_input_tokens: 458_752, max_output_tokens: 65_536 },
-			{ id: "agnes-2.5-flash", context_window: 524_288, max_input_tokens: 458_752, max_output_tokens: 65_536 },
-			{ id: "agnes-2.5-pro", context_window: 1_048_576, max_input_tokens: 851_968, max_output_tokens: 131_072 },
-			{ id: "agnes-2.5-pro-alpha", context_window: 1_048_576, max_input_tokens: 786_432, max_output_tokens: 196_608 },
+			{ id: "deepseek-v4-flash", input_modalities: ["text"], tool_calling: true, context_window: 1_048_576, max_input_tokens: 917_504, max_output_tokens: 65_536 },
+			{ id: "deepseek-v4-pro", input_modalities: ["text"], tool_calling: true, context_window: 1_048_576, max_input_tokens: 851_968, max_output_tokens: 131_072 },
+			{ id: "mimo-v2.5", input_modalities: ["text", "image"], tool_calling: true, context_window: 1_048_576, max_input_tokens: 917_504, max_output_tokens: 65_536 },
+			{ id: "mimo-v2.5-pro", input_modalities: ["text"], tool_calling: true, context_window: 1_048_576, max_input_tokens: 851_968, max_output_tokens: 131_072 },
+			{ id: "agnes-2.0-flash", input_modalities: ["text", "image"], tool_calling: true, context_window: 524_288, max_input_tokens: 458_752, max_output_tokens: 65_536 },
+			{ id: "agnes-2.5-flash", input_modalities: ["text", "image"], tool_calling: true, context_window: 524_288, max_input_tokens: 458_752, max_output_tokens: 65_536 },
+			{ id: "agnes-2.5-pro", input_modalities: ["text", "image"], tool_calling: false, context_window: 1_048_576, max_input_tokens: 851_968, max_output_tokens: 131_072 },
+			{ id: "agnes-2.5-pro-alpha", input_modalities: ["text", "image"], tool_calling: false, context_window: 1_048_576, max_input_tokens: 786_432, max_output_tokens: 196_608 },
 		],
 	);
 });
 
 test("rejects schema, digest, and key drift", () => {
 	expectInvalid((candidate) => {
-		candidate.schema_version = 2;
+		candidate.schema_version = 1;
 	});
 	expectInvalid((candidate) => {
 		candidate.catalog_digest = `sha256:${"0".repeat(64)}`;
@@ -62,6 +64,9 @@ test("rejects schema, digest, and key drift", () => {
 	});
 	expectInvalid((candidate) => {
 		candidate.models[0].configured = true;
+	});
+	expectInvalid((candidate) => {
+		delete candidate.models[0].tool_calling;
 	});
 });
 

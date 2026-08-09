@@ -12,7 +12,7 @@ import {
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const generatedPath = resolve(root, "packages/ai/src/providers/adrouter.models.ts");
-const defaultSource = resolve(root, "../../router/backend/catalog/model-catalog.v1.json");
+const defaultSource = resolve(root, "../../router/backend/catalog/model-catalog.v2.json");
 
 function parseArgs(args) {
 	let check = false;
