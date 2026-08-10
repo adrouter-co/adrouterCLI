@@ -9,6 +9,7 @@
 <p align="center">
   <a href="https://www.npmjs.com/package/@adrouter/cli"><img src="https://img.shields.io/npm/v/%40adrouter%2Fcli/beta?label=npm%20beta" alt="npm beta version"></a>
   <a href="https://github.com/adrouter/adrouterCLI/actions/workflows/ci.yml"><img src="https://github.com/adrouter/adrouterCLI/actions/workflows/ci.yml/badge.svg" alt="CI status"></a>
+  <a href="https://github.com/adrouter/adrouterCLI/releases"><img src="https://img.shields.io/github/v/release/adrouter/adrouterCLI?include_prereleases&amp;label=release" alt="GitHub release"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT license"></a>
 </p>
 
@@ -21,10 +22,24 @@ invite-only. The CLI runs on macOS, Linux, and Windows with Node.js 22.19 or new
 
 ## Install
 
-Install the current public beta, then confirm that the CLI is ready:
+Choose the release channel you want to follow. `beta` tracks accepted prereleases, while `latest`
+tracks the current recommended release.
+
+Beta channel:
 
 ```sh
 npm install --global --ignore-scripts @adrouter/cli@beta
+```
+
+Latest channel:
+
+```sh
+npm install --global --ignore-scripts @adrouter/cli@latest
+```
+
+Then confirm that the CLI is ready:
+
+```sh
 adrouter --version
 adrouter --json doctor
 ```
@@ -100,6 +115,7 @@ those separately only if you no longer need them.
 - [Privacy](docs/privacy.md)
 - [Security policy](SECURITY.md)
 - [Support](SUPPORT.md)
+- [GitHub releases](https://github.com/adrouter/adrouterCLI/releases)
 
 ## Development and contributing
 
