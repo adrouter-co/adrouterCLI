@@ -62,7 +62,8 @@ Failed, denied, cancelled, and interrupted login attempts remove the pending pri
 the server to cancel abandoned enrollment state. A later `/login adrouter`, including after `/quit`
 and restart, always creates a clean approval request even when server cleanup was unreachable.
 
-The hosted coding surface exposes the six models that currently pass tool-calling qualification:
+The generated catalog contains all eight hosted models. Interactive CLI selection exposes the six
+models that currently pass this client's read/write tool-calling qualification:
 
 ```sh
 adrouter --provider adrouter --model deepseek-v4-flash
@@ -74,8 +75,10 @@ adrouter --provider adrouter --model agnes-2.5-flash
 ```
 
 DeepSeek Flash and Pro advertise thinking off, medium, and high. MiMo Flash/Pro and Agnes Flash
-advertise off and high. Agnes 2.5 Pro and Pro Alpha remain available for WebUI chat, but are hidden
-from AdRouterCLI until their read/write tool-calling contract passes qualification.
+advertise off and high. `agnes-2.5-pro` and `agnes-2.5-pro-alpha` remain in the exact offline
+catalog and available on supported surfaces, but are hidden from interactive AdRouterCLI selection
+because their current Router descriptors do not qualify them for this client's read/write tool
+workflow. This is a documented client capability exception, not a reduced Router registry.
 
 Hosted limits are model-specific: total context is 524,288 or 1,048,576 tokens, maximum input ranges
 from 458,752 to 917,504, and maximum output ranges from 65,536 to 196,608. The exact tuple for every
@@ -174,7 +177,7 @@ gh api repos/adrouter/adrouterCLI/git/ref/tags/v0.81.0-beta.20
 gh api repos/adrouter/adrouterCLI/tarball/v0.81.0-beta.20 > adrouterCLI-v0.81.0-beta.20.tar.gz
 ```
 
-The release draft includes the single bundled npm tarball, its artifact
+The public prerelease includes the single bundled npm tarball, its artifact
 manifest, a CycloneDX SBOM, bundled-source inventory, third-party notices, and
 checksums. The tarball and release metadata must have GitHub artifact
 attestations before npm publication.
