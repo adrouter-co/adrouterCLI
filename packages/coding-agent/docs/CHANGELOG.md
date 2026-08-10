@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.81.0-beta.21] - 2026-08-11
+
+### Security
+
+- Required a fresh authorization decision for model-requested commands and mutations in
+  interactive, print, and RPC modes, failing closed when no approval handler is available.
+- Ignored project-controlled session-directory settings until trust is established and constrained
+  session persistence to the protected global state root before that point.
+- Replaced predictable shared temporary logs with owner-only, collision-resistant files and
+  bounded official Router responses before they can consume unbounded memory.
+
 ## [0.81.0-beta.20] - 2026-08-10
 
 ### Fixed

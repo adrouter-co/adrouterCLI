@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.81.0-beta.21] - 2026-08-11
+
+### Security
+
+- Bounded official Router response headers, JSON bodies, and NDJSON streams before parsing or
+  accumulation, and rejected oversized or stalled upstream responses deterministically.
+- Restricted official hosted configuration to the installation-authenticated transport while
+  preserving explicit loopback/custom-router compatibility.
+
 ## [0.81.0-beta.20] - 2026-08-10
 
 ### Changed

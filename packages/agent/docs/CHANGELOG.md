@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.81.0-beta.21] - 2026-08-11
+
+### Security
+
+- Added a mandatory asynchronous tool-authorization boundary before agent-requested tools execute.
+
 ## [0.81.0-beta.20] - 2026-08-10
 
 ### Changed

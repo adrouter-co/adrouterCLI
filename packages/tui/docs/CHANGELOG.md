@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.81.0-beta.21] - 2026-08-11
+
+### Changed
+
+- Repacked the private terminal UI runtime for the security-hardening candidate.
+
 ## [0.81.0-beta.20] - 2026-08-10
 
 ### Changed
