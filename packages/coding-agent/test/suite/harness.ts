@@ -17,6 +17,7 @@ import { ModelRegistry } from "../../src/core/model-registry.ts";
 import { SessionManager } from "../../src/core/session-manager.ts";
 import type { Settings } from "../../src/core/settings-manager.ts";
 import { SettingsManager } from "../../src/core/settings-manager.ts";
+import type { ToolAuthorizer } from "../../src/core/tool-authorization.ts";
 import type { InlineExtension, ResourceLoader } from "../../src/index.ts";
 import {
 	type CreateTestExtensionsResultInput,
@@ -66,6 +67,8 @@ export interface HarnessOptions {
 	resourceLoader?: ResourceLoader;
 	extensionFactories?: Array<InlineExtension | CreateTestExtensionsResultInput>;
 	withConfiguredAuth?: boolean;
+	/** Explicit test authorizer. Null exercises the production fail-closed path. */
+	authorizeToolCall?: ToolAuthorizer | null;
 }
 
 export interface Harness {
@@ -180,6 +183,10 @@ export async function createHarness(options: HarnessOptions = {}): Promise<Harne
 		allowedToolNames: options.allowedToolNames,
 		excludedToolNames: options.excludedToolNames,
 		extensionRunnerRef,
+		authorizeToolCall:
+			options.authorizeToolCall === null
+				? undefined
+				: (options.authorizeToolCall ?? (async () => ({ allow: true }))),
 	});
 
 	const events: AgentSessionEvent[] = [];

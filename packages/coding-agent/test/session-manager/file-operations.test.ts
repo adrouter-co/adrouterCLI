@@ -1,5 +1,16 @@
 import { constants as bufferConstants } from "buffer";
-import { appendFileSync, closeSync, mkdirSync, openSync, readFileSync, rmSync, writeFileSync, writeSync } from "fs";
+import {
+	appendFileSync,
+	closeSync,
+	mkdirSync,
+	openSync,
+	readFileSync,
+	rmSync,
+	statSync,
+	symlinkSync,
+	writeFileSync,
+	writeSync,
+} from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -233,6 +244,20 @@ describe("SessionManager custom flat session directory", () => {
 
 		const continuedA = SessionManager.continueRecent(projectA, tempDir);
 		expect(continuedA.getSessionFile()).toBe(sessionA);
+	});
+
+	it.skipIf(process.platform === "win32")("uses a private directory and private session files", () => {
+		const sessionFile = createPersistedSession(projectA, "private");
+		expect(statSync(tempDir).mode & 0o777).toBe(0o700);
+		expect(statSync(sessionFile).mode & 0o777).toBe(0o600);
+	});
+
+	it.skipIf(process.platform === "win32")("rejects a symlink as the session directory", () => {
+		const target = join(tempDir, "real-sessions");
+		mkdirSync(target, { mode: 0o700 });
+		const link = join(tempDir, "linked-sessions");
+		symlinkSync(target, link);
+		expect(() => SessionManager.create(projectA, link)).toThrow(/symlink/);
 	});
 });
 

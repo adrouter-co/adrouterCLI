@@ -264,6 +264,31 @@ describe("AdRouter provider", () => {
 		expect(message.usage.totalTokens).toBe(5);
 	});
 
+	it("fails closed when an NDJSON line exceeds 1 MiB", async () => {
+		mockNdjsonFetch([{ type: "text", content: "x".repeat(1024 * 1024) }]);
+
+		const message = await stream(model, { messages: [] }, { apiKey: "test-key" }).result();
+
+		expect(message.stopReason).toBe("error");
+		expect(message.errorCode).toBe("router_response_limit");
+		expect(message.errorMessage).toContain("1 MiB");
+	});
+
+	it("fails closed after 128 unique streamed tool calls", async () => {
+		mockNdjsonFetch(
+			Array.from({ length: 129 }, (_, index) => ({
+				type: "tool_call",
+				tool_call: { id: `call_${index}`, name: "read", arguments: { path: `${index}.txt` } },
+			})),
+		);
+
+		const message = await stream(model, { messages: [] }, { apiKey: "test-key" }).result();
+
+		expect(message.stopReason).toBe("error");
+		expect(message.errorCode).toBe("router_response_limit");
+		expect(message.errorMessage).toContain("128-tool-call");
+	});
+
 	it("reconciles streamed tool calls with the done snapshot without duplicating IDs", async () => {
 		process.env.ADROUTER_AD_MODE = "live";
 		mockNdjsonFetch([

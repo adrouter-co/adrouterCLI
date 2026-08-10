@@ -1,4 +1,5 @@
 import { ADROUTER_HOSTED_LIMITS_BY_MODEL } from "./providers/adrouter.models.ts";
+import { readBoundedResponseText } from "./utils/bounded-response.ts";
 
 export const ADROUTER_PROVIDER_ID = "adrouter";
 export const DEFAULT_ADROUTER_API_URL = "https://api-staging.adrouter.co";
@@ -161,14 +162,26 @@ export function resolveAdRouterAdMode(apiUrl: string, configuredMode?: string): 
 	return configuredMode ?? (isOfficialAdRouterApiUrl(apiUrl) ? "live" : "mock");
 }
 
-export async function adRouterApiErrorFromResponse(response: Response): Promise<AdRouterApiError> {
+export async function adRouterApiErrorFromResponse(
+	response: Response,
+	signal?: AbortSignal,
+): Promise<AdRouterApiError> {
 	const fallback = `AdRouter request failed with HTTP ${response.status}`;
 	let code: string | undefined;
 	let details: Record<string, number> | undefined;
 	let message = "";
 	try {
 		const contentType = response.headers.get("content-type") ?? "";
-		const body: unknown = contentType.includes("application/json") ? await response.json() : await response.text();
+		const text = response.body
+			? await readBoundedResponseText(response, {
+					maxBytes: 64 * 1024,
+					idleTimeoutMs: 10_000,
+					overallTimeoutMs: 30_000,
+					signal,
+					label: "AdRouter error response",
+				})
+			: await response.text();
+		const body: unknown = contentType.includes("application/json") ? JSON.parse(text) : text;
 		if (typeof body === "string") {
 			message = sanitizeErrorText(body);
 		} else if (body && typeof body === "object") {
@@ -227,7 +240,21 @@ export async function validateAdRouterApiKey(options: ValidateAdRouterApiKeyOpti
 		});
 		if (!response.ok) throw await adRouterApiErrorFromResponse(response);
 
-		const body = (await response.json()) as Record<string, unknown>;
+		const serialized = response.body
+			? await readBoundedResponseText(response, {
+					maxBytes: 64 * 1024,
+					idleTimeoutMs: 10_000,
+					overallTimeoutMs: timeoutMs,
+					signal: controller.signal,
+					label: "AdRouter profile response",
+				})
+			: JSON.stringify(await response.json());
+		if (new TextEncoder().encode(serialized).byteLength > 64 * 1024) {
+			throw new AdRouterApiError("AdRouter profile response exceeded the 64 KiB limit.", {
+				code: "invalid_profile_response",
+			});
+		}
+		const body = JSON.parse(serialized) as Record<string, unknown>;
 		const id = sanitizeErrorText(body.id);
 		if (!id) {
 			throw new AdRouterApiError("AdRouter returned an invalid profile response.", {

@@ -6,11 +6,9 @@
  * - Direct calls from modes that need bash execution
  */
 
-import { randomBytes } from "node:crypto";
-import { createWriteStream, type WriteStream } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
+import type { WriteStream } from "node:fs";
 import { stripAnsi } from "../utils/ansi.ts";
+import { createPrivateTempWriteStream } from "../utils/secure-temp.ts";
 import { sanitizeBinaryOutput } from "../utils/shell.ts";
 import type { BashOperations } from "./tools/bash.ts";
 import { DEFAULT_MAX_BYTES, truncateTail } from "./tools/truncate.ts";
@@ -65,12 +63,21 @@ export async function executeBashWithOperations(
 		if (tempFilePath) {
 			return;
 		}
-		const id = randomBytes(8).toString("hex");
-		tempFilePath = join(tmpdir(), `adrouter-bash-${id}.log`);
-		tempFileStream = createWriteStream(tempFilePath);
+		const temp = createPrivateTempWriteStream("adrouter-bash");
+		tempFilePath = temp.path;
+		tempFileStream = temp.stream;
 		for (const chunk of outputChunks) {
 			tempFileStream.write(chunk);
 		}
+	};
+	const closeTempFile = async (): Promise<void> => {
+		if (!tempFileStream) return;
+		const stream = tempFileStream;
+		tempFileStream = undefined;
+		await new Promise<void>((resolve, reject) => {
+			stream.once("error", reject);
+			stream.end(resolve);
+		});
 	};
 
 	const decoder = new TextDecoder();
@@ -115,9 +122,7 @@ export async function executeBashWithOperations(
 		if (truncationResult.truncated) {
 			ensureTempFile();
 		}
-		if (tempFileStream) {
-			tempFileStream.end();
-		}
+		await closeTempFile();
 		const cancelled = options?.signal?.aborted ?? false;
 
 		return {
@@ -135,9 +140,7 @@ export async function executeBashWithOperations(
 			if (truncationResult.truncated) {
 				ensureTempFile();
 			}
-			if (tempFileStream) {
-				tempFileStream.end();
-			}
+			await closeTempFile();
 			return {
 				output: truncationResult.truncated ? truncationResult.content : fullOutput,
 				exitCode: undefined,
@@ -147,9 +150,7 @@ export async function executeBashWithOperations(
 			};
 		}
 
-		if (tempFileStream) {
-			tempFileStream.end();
-		}
+		await closeTempFile();
 
 		throw err;
 	}

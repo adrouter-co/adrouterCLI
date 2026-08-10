@@ -12,6 +12,7 @@ import {
 	type InstallationAuthProvider,
 	isOfficialAdRouterApiUrl,
 	isValidAdRouterNonce,
+	readBoundedResponseText,
 	resolveAdRouterApiUrl as resolveSharedAdRouterApiUrl,
 	validateAdRouterApiKey,
 } from "@adrouter/ai";
@@ -76,9 +77,19 @@ function asRecord(value: unknown): JsonRecord {
 	return value && typeof value === "object" && !Array.isArray(value) ? (value as JsonRecord) : {};
 }
 
-async function responseJson(response: Response): Promise<JsonRecord> {
+async function responseJson(response: Response, signal?: AbortSignal): Promise<JsonRecord> {
 	try {
-		return asRecord(await response.json());
+		const serialized = response.body
+			? await readBoundedResponseText(response, {
+					maxBytes: 64 * 1024,
+					idleTimeoutMs: 10_000,
+					overallTimeoutMs: 30_000,
+					signal,
+					label: "AdRouter authentication response",
+				})
+			: JSON.stringify(await response.json());
+		if (new TextEncoder().encode(serialized).byteLength > 64 * 1024) return {};
+		return asRecord(JSON.parse(serialized));
 	} catch {
 		return {};
 	}
@@ -348,7 +359,7 @@ async function createPendingEnrollment(
 		body,
 		signal,
 	});
-	const result = await responseJson(response);
+	const result = await responseJson(response, signal);
 	if (!response.ok) throw safeProtocolError(response, result, "Could not start AdRouter enrollment");
 	const deviceCode = stringField(result, "device_code", "deviceCode");
 	const userCode = stringField(result, "user_code", "userCode");
@@ -419,7 +430,7 @@ async function redeemPendingEnrollment(
 			onProgress?.("AdRouter is temporarily unreachable; enrollment polling will continue.");
 			continue;
 		}
-		const result = await responseJson(response);
+		const result = await responseJson(response, signal);
 		if (response.ok) return parseTokenResponse(result);
 		const errorCode = stringField(result, "code", "error");
 		if (errorCode === "authorization_pending") continue;
@@ -454,7 +465,7 @@ async function validateEnrollmentProfile(
 		},
 		signal,
 	});
-	const result = await responseJson(response);
+	const result = await responseJson(response, signal);
 	if (!response.ok) throw safeProtocolError(response, result, "AdRouter profile validation failed");
 }
 
@@ -626,7 +637,7 @@ export class AdRouterInstallationAuth implements InstallationAuthProvider {
 					onNonce: (nonce) => this.rememberNonce(origin, nonce),
 					signal,
 				});
-				const result = await responseJson(response);
+				const result = await responseJson(response, signal);
 				if (!response.ok) throw safeProtocolError(response, result, "AdRouter credential refresh failed");
 				const tokens = parseTokenResponse(result);
 				rotated = true;
@@ -708,7 +719,7 @@ export class AdRouterInstallationAuth implements InstallationAuthProvider {
 
 	async getProfile(origin: string, signal?: AbortSignal): Promise<JsonRecord> {
 		const response = await this.authenticatedRequest(origin, "GET", PROFILE_PATH, undefined, signal);
-		const result = await responseJson(response);
+		const result = await responseJson(response, signal);
 		if (!response.ok) throw safeProtocolError(response, result, "AdRouter profile validation failed");
 		return result;
 	}

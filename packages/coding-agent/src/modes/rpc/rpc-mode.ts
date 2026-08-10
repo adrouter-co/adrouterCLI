@@ -25,6 +25,7 @@ import {
 	waitForRawStdoutBackpressure,
 	writeRawStdout,
 } from "../../core/output-guard.ts";
+import type { ToolApprovalRequest } from "../../core/tool-authorization.ts";
 import { killTrackedDetachedChildren } from "../../utils/shell.ts";
 import { type Theme, theme } from "../interactive/theme/theme.ts";
 import { attachJsonlLineReader, serializeJsonLine } from "./jsonl.ts";
@@ -35,6 +36,7 @@ import type {
 	RpcResponse,
 	RpcSessionState,
 	RpcSlashCommand,
+	RpcToolApprovalRequest,
 } from "./rpc-types.ts";
 
 // Re-export types for consumers
@@ -44,6 +46,7 @@ export type {
 	RpcExtensionUIResponse,
 	RpcResponse,
 	RpcSessionState,
+	RpcToolApprovalRequest,
 } from "./rpc-types.ts";
 
 /**
@@ -56,7 +59,7 @@ export async function runRpcMode(runtimeHost: AgentSessionRuntime): Promise<neve
 	let unsubscribe: (() => void) | undefined;
 	let unsubscribeBackpressure: (() => void) | undefined;
 
-	const output = (obj: RpcResponse | RpcExtensionUIRequest | object) => {
+	const output = (obj: RpcResponse | RpcExtensionUIRequest | RpcToolApprovalRequest | object) => {
 		writeRawStdout(serializeJsonLine(obj));
 	};
 
@@ -80,6 +83,43 @@ export async function runRpcMode(runtimeHost: AgentSessionRuntime): Promise<neve
 		string,
 		{ resolve: (value: any) => void; reject: (error: Error) => void }
 	>();
+	const pendingToolApprovals = new Map<
+		string,
+		{
+			digest: string;
+			resolve: (decision: { allow: boolean; reason?: string }) => void;
+			cleanup: () => void;
+		}
+	>();
+
+	const authorizeToolCall = (
+		request: ToolApprovalRequest,
+		signal?: AbortSignal,
+	): Promise<{ allow: boolean; reason?: string }> => {
+		if (signal?.aborted) {
+			return Promise.resolve({ allow: false, reason: "Tool approval was aborted." });
+		}
+
+		return new Promise((resolve) => {
+			const cleanup = () => {
+				signal?.removeEventListener("abort", onAbort);
+				pendingToolApprovals.delete(request.approvalId);
+			};
+			const finish = (decision: { allow: boolean; reason?: string }) => {
+				cleanup();
+				resolve(decision);
+			};
+			const onAbort = () => finish({ allow: false, reason: "Tool approval was aborted." });
+			signal?.addEventListener("abort", onAbort, { once: true });
+
+			pendingToolApprovals.set(request.approvalId, {
+				digest: request.digest,
+				resolve: finish,
+				cleanup,
+			});
+			output({ type: "tool_approval_request", ...request } satisfies RpcToolApprovalRequest);
+		});
+	};
 
 	// Shutdown request flag
 	let shutdownRequested = false;
@@ -318,6 +358,7 @@ export async function runRpcMode(runtimeHost: AgentSessionRuntime): Promise<neve
 		await session.bindExtensions({
 			uiContext: createExtensionUIContext(),
 			mode: "rpc",
+			authorizeToolCall,
 			commandContextActions: {
 				waitForIdle: () => session.waitForIdle(),
 				newSession: async (options) => runtimeHost.newSession(options),
@@ -709,6 +750,10 @@ export async function runRpcMode(runtimeHost: AgentSessionRuntime): Promise<neve
 		}
 		unsubscribe?.();
 		unsubscribeBackpressure?.();
+		for (const pending of pendingToolApprovals.values()) {
+			pending.resolve({ allow: false, reason: "RPC host disconnected before approving the tool call." });
+		}
+		pendingToolApprovals.clear();
 		await runtimeHost.dispose();
 		detachInput();
 		process.stdin.pause();
@@ -752,6 +797,31 @@ export async function runRpcMode(runtimeHost: AgentSessionRuntime): Promise<neve
 				pendingExtensionRequests.delete(response.id);
 				pending.resolve(response);
 			}
+			return;
+		}
+
+		if (
+			typeof parsed === "object" &&
+			parsed !== null &&
+			"type" in parsed &&
+			parsed.type === "tool_approval_response"
+		) {
+			const response = parsed as Extract<RpcCommand, { type: "tool_approval_response" }>;
+			const pending = pendingToolApprovals.get(response.approvalId);
+			if (!pending) {
+				output(error(response.id, response.type, "Unknown or already-consumed tool approval request."));
+			} else if (pending.digest !== response.digest) {
+				output(error(response.id, response.type, "Tool approval digest does not match the pending request."));
+			} else if (response.decision !== "allow_once" && response.decision !== "deny") {
+				output(error(response.id, response.type, "Invalid tool approval decision."));
+			} else {
+				pending.resolve({
+					allow: response.decision === "allow_once",
+					reason: response.decision === "deny" ? "The RPC host denied this tool call." : undefined,
+				});
+				output(success(response.id, response.type));
+			}
+			await waitForRawStdoutBackpressure();
 			return;
 		}
 

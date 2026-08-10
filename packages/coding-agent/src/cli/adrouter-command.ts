@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { resolveAdRouterAdMode } from "@adrouter/ai";
+import { readBoundedResponseText, resolveAdRouterAdMode } from "@adrouter/ai";
 import { APP_NAME, getSettingsPath, VERSION } from "../config.ts";
 import { AdRouterInstallationAuth, resolveAdRouterCredentials } from "../core/adrouter-auth.ts";
 import { AuthStorage } from "../core/auth-storage.ts";
@@ -156,8 +156,15 @@ async function requestGet(path: string, authStorage: AuthStorage): Promise<void>
 		}
 		const response = await fetch(url, {
 			headers: apiKey ? { authorization: `Bearer ${apiKey}` } : undefined,
+			signal: AbortSignal.timeout(30_000),
 		});
-		const text = await response.text();
+		const maxBytes = new URL(url).pathname === "/v1/models" ? 512 * 1024 : 64 * 1024;
+		const text = await readBoundedResponseText(response, {
+			maxBytes,
+			idleTimeoutMs: 10_000,
+			overallTimeoutMs: 30_000,
+			label: "AdRouter diagnostic response",
+		});
 		let body: unknown = text;
 		try {
 			body = text ? JSON.parse(text) : null;

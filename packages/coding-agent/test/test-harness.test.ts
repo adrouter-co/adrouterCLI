@@ -75,6 +75,32 @@ describe("test harness", () => {
 		expect(toolResults).toHaveLength(1);
 	});
 
+	it("effectful tool calls fail closed without an authorizer", async () => {
+		let toolExecuted = false;
+		const commandTool: AgentTool = {
+			name: "command",
+			label: "Command",
+			description: "Effectful test tool",
+			effect: "command",
+			parameters: Type.Object({ value: Type.String() }),
+			execute: async () => {
+				toolExecuted = true;
+				return { content: [{ type: "text", text: "executed" }], details: {} };
+			},
+		};
+		harness = createHarness({
+			responses: [{ toolCalls: [{ name: "command", args: { value: "exact" } }] }, "done"],
+			baseToolsOverride: { command: commandTool },
+			authorizeToolCall: null,
+		});
+
+		await harness.session.prompt("run the command");
+
+		expect(toolExecuted).toBe(false);
+		const result = harness.session.messages.find((message) => message.role === "toolResult");
+		expect(JSON.stringify(result?.content)).toContain("fresh allow-once approval");
+	});
+
 	it("error response", async () => {
 		harness = createHarness({
 			responses: [{ error: "something broke" }],

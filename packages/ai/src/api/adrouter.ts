@@ -29,6 +29,7 @@ import type {
 	ToolCall,
 	Usage,
 } from "../types.ts";
+import { iterateBoundedResponse, ResponseBodyLimitError, readBoundedResponseText } from "../utils/bounded-response.ts";
 import { estimateContextTokens, estimateTextTokens } from "../utils/estimate.ts";
 import { AssistantMessageEventStream } from "../utils/event-stream.ts";
 import { isValidAdRouterNonce } from "./adrouter-installation-auth-types.ts";
@@ -73,6 +74,107 @@ interface RouterStreamEvent {
 }
 
 const RESPONSE_CONTENT_EVENT_TYPES = new Set(["ad", "text", "thinking", "tool_call", "settlement", "done"]);
+const MAX_ROUTER_RESPONSE_BYTES = 8 * 1024 * 1024;
+const MAX_ROUTER_LINE_BYTES = 1024 * 1024;
+const MAX_ROUTER_EVENTS = 8192;
+const MAX_ROUTER_TOOL_CALLS = 128;
+const MAX_ROUTER_TOOL_ARGUMENT_BYTES = 1024 * 1024;
+const ROUTER_HEADER_TIMEOUT_MS = 30_000;
+const ROUTER_IDLE_TIMEOUT_MS = 60_000;
+const ROUTER_OVERALL_TIMEOUT_MS = 10 * 60_000;
+
+interface RouterRequestLifetime {
+	signal: AbortSignal;
+	abort: (reason: unknown) => void;
+	dispose: () => void;
+}
+
+function createRouterRequestLifetime(callerSignal?: AbortSignal): RouterRequestLifetime {
+	const controller = new AbortController();
+	const abortFromCaller = () => controller.abort(callerSignal?.reason);
+	if (callerSignal?.aborted) abortFromCaller();
+	else callerSignal?.addEventListener("abort", abortFromCaller, { once: true });
+	const overallTimer = setTimeout(() => {
+		controller.abort(
+			new AdRouterApiError("AdRouter response exceeded the 10-minute overall timeout.", {
+				code: "router_response_timeout",
+			}),
+		);
+	}, ROUTER_OVERALL_TIMEOUT_MS);
+	return {
+		signal: controller.signal,
+		abort: (reason) => controller.abort(reason),
+		dispose: () => {
+			clearTimeout(overallTimer);
+			callerSignal?.removeEventListener("abort", abortFromCaller);
+		},
+	};
+}
+
+async function fetchWithHeaderTimeout(
+	url: string,
+	init: RequestInit,
+	lifetime: RouterRequestLifetime,
+): Promise<Response> {
+	const timeout = setTimeout(() => {
+		lifetime.abort(
+			new AdRouterApiError("AdRouter timed out before returning response headers.", {
+				code: "router_header_timeout",
+			}),
+		);
+	}, ROUTER_HEADER_TIMEOUT_MS);
+	try {
+		return await fetch(url, { ...init, signal: lifetime.signal });
+	} catch (error) {
+		if (lifetime.signal.aborted && lifetime.signal.reason instanceof Error) throw lifetime.signal.reason;
+		throw error;
+	} finally {
+		clearTimeout(timeout);
+	}
+}
+
+function routerBodyOptions(signal: AbortSignal, label: string) {
+	return {
+		maxBytes: MAX_ROUTER_RESPONSE_BYTES,
+		idleTimeoutMs: ROUTER_IDLE_TIMEOUT_MS,
+		overallTimeoutMs: ROUTER_OVERALL_TIMEOUT_MS,
+		signal,
+		label,
+	};
+}
+
+interface ToolCallBudget {
+	seen: Map<string, string>;
+	argumentBytes: number;
+}
+
+function accountToolCalls(value: unknown, budget: ToolCallBudget): void {
+	for (const toolCall of parseToolCalls(value)) {
+		const signature = JSON.stringify({ name: toolCall.name, arguments: toolCall.arguments });
+		const prior = budget.seen.get(toolCall.id);
+		if (prior !== undefined) {
+			if (prior !== signature) throw new Error(`AdRouter returned conflicting tool calls with ID ${toolCall.id}`);
+			continue;
+		}
+		if (budget.seen.size >= MAX_ROUTER_TOOL_CALLS) {
+			throw new AdRouterApiError("AdRouter response exceeded the 128-tool-call limit.", {
+				code: "router_response_limit",
+			});
+		}
+		budget.argumentBytes += new TextEncoder().encode(JSON.stringify(toolCall.arguments)).byteLength;
+		if (budget.argumentBytes > MAX_ROUTER_TOOL_ARGUMENT_BYTES) {
+			throw new AdRouterApiError("AdRouter response exceeded the 1 MiB aggregate tool-argument limit.", {
+				code: "router_response_limit",
+			});
+		}
+		budget.seen.set(toolCall.id, signature);
+	}
+}
+
+function accountEventToolCalls(event: RouterStreamEvent, budget: ToolCallBudget): void {
+	if (event.type === "tool_call") accountToolCalls([event.tool_call], budget);
+	if (event.type === "done") accountToolCalls(event.assistant?.tool_calls ?? event.assistant?.toolCalls, budget);
+}
 
 const EMPTY_USAGE: Usage = {
 	input: 0,
@@ -660,6 +762,7 @@ function buildRouterBody(
 async function fetchRouter(
 	model: Model<Api>,
 	context: Context,
+	lifetime: RouterRequestLifetime,
 	options?: StreamOptions,
 ): Promise<{ response: Response; adMode: string }> {
 	const baseUrl = resolveAdRouterApiUrl({
@@ -713,13 +816,16 @@ async function fetchRouter(
 			headers.set("x-adrouter-client-kind", access.clientKind);
 			headers.set("x-adrouter-client-version", access.clientVersion);
 			headers.set("dpop", signed.proof);
-			const result = await fetch(url, {
-				method: "POST",
-				headers,
-				body,
-				signal: options?.signal,
-				redirect: "error",
-			});
+			const result = await fetchWithHeaderTimeout(
+				url,
+				{
+					method: "POST",
+					headers,
+					body,
+					redirect: "error",
+				},
+				lifetime,
+			);
 			if (result.redirected)
 				throw new AdRouterApiError("Authenticated redirects are not allowed", { code: "redirect_rejected" });
 			return result;
@@ -737,18 +843,21 @@ async function fetchRouter(
 		const apiKey = options?.apiKey ?? options?.env?.ADROUTER_API_KEY;
 		if (!apiKey) throw new Error("ADROUTER_API_KEY is not configured for the custom AdRouter endpoint");
 		callerHeaders.set("authorization", `Bearer ${apiKey}`);
-		response = await fetch(url, {
-			method: "POST",
-			headers: callerHeaders,
-			body,
-			signal: options?.signal,
-			redirect: "error",
-		});
+		response = await fetchWithHeaderTimeout(
+			url,
+			{
+				method: "POST",
+				headers: callerHeaders,
+				body,
+				redirect: "error",
+			},
+			lifetime,
+		);
 		if (response.redirected)
 			throw new AdRouterApiError("Authenticated redirects are not allowed", { code: "redirect_rejected" });
 	}
 	if (!response.ok) {
-		throw await adRouterApiErrorFromResponse(response);
+		throw await adRouterApiErrorFromResponse(response, lifetime.signal);
 	}
 	return { response, adMode };
 }
@@ -768,21 +877,46 @@ function mockAd(): AdRouterAd {
 export function stream(model: Model<Api>, context: Context, options?: StreamOptions): AssistantMessageEventStream {
 	const output = new AssistantMessageEventStream();
 	(async () => {
+		const lifetime = createRouterRequestLifetime(options?.signal);
 		try {
-			const { response, adMode } = await fetchRouter(model, context, options);
+			const { response, adMode } = await fetchRouter(model, context, lifetime, options);
 			const contentType = response.headers.get("content-type") ?? "";
 			if (contentType.includes("application/x-ndjson") && response.body) {
-				await consumeNdjsonStream(output, model, response, adMode);
+				await consumeNdjsonStream(output, model, response, adMode, lifetime.signal);
 				return;
 			}
-			const jsonResponse = (await response.json()) as RouterResponse;
+			let jsonResponse: RouterResponse;
+			if (response.body) {
+				const serialized = await readBoundedResponseText(
+					response,
+					routerBodyOptions(lifetime.signal, "AdRouter JSON response"),
+				);
+				jsonResponse = JSON.parse(serialized) as RouterResponse;
+			} else {
+				jsonResponse = (await response.json()) as RouterResponse;
+				if (new TextEncoder().encode(JSON.stringify(jsonResponse)).byteLength > MAX_ROUTER_RESPONSE_BYTES) {
+					throw new AdRouterApiError("AdRouter JSON response exceeded the 8 MiB limit.", {
+						code: "router_response_limit",
+					});
+				}
+			}
+			accountToolCalls(jsonResponse.assistant?.tool_calls ?? jsonResponse.assistant?.toolCalls, {
+				seen: new Map(),
+				argumentBytes: 0,
+			});
 			emitRouterJson(output, model, jsonResponse, adMode);
 		} catch (error) {
-			const failed = createErrorStream(model, error);
+			const normalizedError =
+				error instanceof ResponseBodyLimitError
+					? new AdRouterApiError(error.message, { code: "router_response_limit", cause: error })
+					: error;
+			const failed = createErrorStream(model, normalizedError);
 			for await (const event of failed) {
 				output.push(event);
 			}
 			output.end(await failed.result());
+		} finally {
+			lifetime.dispose();
 		}
 	})();
 	return output;
@@ -821,6 +955,7 @@ async function consumeNdjsonStream(
 	model: Model<Api>,
 	response: Response,
 	adMode: string,
+	signal: AbortSignal,
 ): Promise<void> {
 	const message = beginMessage(model);
 	const textStarted = { value: false };
@@ -830,49 +965,57 @@ async function consumeNdjsonStream(
 	output.push({ type: "start", partial: message });
 
 	const decoder = new TextDecoder();
+	const encoder = new TextEncoder();
+	const toolBudget: ToolCallBudget = { seen: new Map(), argumentBytes: 0 };
+	let eventCount = 0;
 	let buffer = "";
-	for await (const chunk of response.body as unknown as AsyncIterable<Uint8Array>) {
-		buffer += decoder.decode(chunk, { stream: true });
-		let newlineIndex = buffer.indexOf("\n");
-		while (newlineIndex !== -1) {
-			const line = buffer.slice(0, newlineIndex).trim();
-			buffer = buffer.slice(newlineIndex + 1);
-			if (line) {
-				const event = JSON.parse(line) as RouterStreamEvent;
-				currentUpdate = handleRouterStreamEvent(
-					output,
-					message,
-					event,
-					textStarted,
-					thinkingStarted,
-					responseContentEvents,
-					currentUpdate,
-					adMode,
-				);
-				if (RESPONSE_CONTENT_EVENT_TYPES.has(String(event.type))) responseContentEvents.value++;
-				// Let the interactive TUI paint the early ad side-channel before a
-				// fast mock response is consumed from the same network chunk.
-				if (event.type === "ad") await new Promise<void>((resolve) => setTimeout(resolve, 0));
-			}
-			newlineIndex = buffer.indexOf("\n");
+	const processLine = async (rawLine: string): Promise<void> => {
+		if (encoder.encode(rawLine).byteLength > MAX_ROUTER_LINE_BYTES) {
+			throw new AdRouterApiError("AdRouter NDJSON line exceeded the 1 MiB limit.", {
+				code: "router_response_limit",
+			});
 		}
-	}
-	buffer += decoder.decode();
-	if (buffer.trim()) {
-		const finalEvent = JSON.parse(buffer.trim()) as RouterStreamEvent;
+		const line = rawLine.trim();
+		if (!line) return;
+		eventCount++;
+		if (eventCount > MAX_ROUTER_EVENTS) {
+			throw new AdRouterApiError("AdRouter response exceeded the 8192-event limit.", {
+				code: "router_response_limit",
+			});
+		}
+		const event = JSON.parse(line) as RouterStreamEvent;
+		accountEventToolCalls(event, toolBudget);
 		currentUpdate = handleRouterStreamEvent(
 			output,
 			message,
-			finalEvent,
+			event,
 			textStarted,
 			thinkingStarted,
 			responseContentEvents,
 			currentUpdate,
 			adMode,
 		);
-		if (RESPONSE_CONTENT_EVENT_TYPES.has(String(finalEvent.type))) {
-			responseContentEvents.value++;
+		if (RESPONSE_CONTENT_EVENT_TYPES.has(String(event.type))) responseContentEvents.value++;
+		if (event.type === "ad") await new Promise<void>((resolve) => setTimeout(resolve, 0));
+	};
+	for await (const chunk of iterateBoundedResponse(response, routerBodyOptions(signal, "AdRouter NDJSON response"))) {
+		buffer += decoder.decode(chunk, { stream: true });
+		let newlineIndex = buffer.indexOf("\n");
+		while (newlineIndex !== -1) {
+			const line = buffer.slice(0, newlineIndex);
+			buffer = buffer.slice(newlineIndex + 1);
+			await processLine(line);
+			newlineIndex = buffer.indexOf("\n");
 		}
+		if (encoder.encode(buffer).byteLength > MAX_ROUTER_LINE_BYTES) {
+			throw new AdRouterApiError("AdRouter NDJSON line exceeded the 1 MiB limit.", {
+				code: "router_response_limit",
+			});
+		}
+	}
+	buffer += decoder.decode();
+	if (buffer.trim()) {
+		await processLine(buffer);
 	}
 	if (thinkingStarted.value) {
 		const contentIndex = message.content.findIndex((content) => content.type === "thinking");

@@ -380,7 +380,7 @@ describe("agentLoop with AgentMessage", () => {
 		expect(messages[messages.length - 1].role).toBe("assistant");
 	});
 
-	it("should execute mutated beforeToolCall args without revalidation", async () => {
+	it("should revalidate extension-mutated arguments before authorization and execution", async () => {
 		const toolSchema = Type.Object({ value: Type.String() });
 		const executed: Array<string | number> = [];
 		const tool: AgentTool<typeof toolSchema, { value: string | number }> = {
@@ -439,7 +439,57 @@ describe("agentLoop with AgentMessage", () => {
 			// consume
 		}
 
-		expect(executed).toEqual([123]);
+		expect(executed).toEqual(["123"]);
+	});
+
+	it("should bind effectful execution to the final frozen arguments", async () => {
+		const toolSchema = Type.Object({ value: Type.String() });
+		const executed: string[] = [];
+		const authorizations: Array<{ effect: string; value: string; frozen: boolean }> = [];
+		const tool: AgentTool<typeof toolSchema, { value: string }> = {
+			name: "shell",
+			label: "Shell",
+			description: "Effectful test tool",
+			effect: "command",
+			parameters: toolSchema,
+			async execute(_toolCallId, params) {
+				executed.push(params.value);
+				return { content: [{ type: "text", text: params.value }], details: { value: params.value } };
+			},
+		};
+		const context: AgentContext = { systemPrompt: "", messages: [], tools: [tool] };
+		const config: AgentLoopConfig = {
+			model: createModel(),
+			convertToLlm: identityConverter,
+			authorizeToolCall: async ({ args, effect }) => {
+				const value = (args as { value: string }).value;
+				authorizations.push({ effect, value, frozen: Object.isFrozen(args) });
+				return { allow: false, reason: "denied by test" };
+			},
+		};
+		let callIndex = 0;
+		const streamFn = () => {
+			const stream = new MockAssistantStream();
+			queueMicrotask(() => {
+				stream.push({
+					type: "done",
+					reason: callIndex++ === 0 ? "toolUse" : "stop",
+					message:
+						callIndex === 1
+							? createAssistantMessage(
+									[{ type: "toolCall", id: "tool-auth", name: "shell", arguments: { value: "exact" } }],
+									"toolUse",
+								)
+							: createAssistantMessage([{ type: "text", text: "done" }]),
+				});
+			});
+			return stream;
+		};
+		for await (const _event of agentLoop([createUserMessage("run")], context, config, undefined, streamFn)) {
+			// consume
+		}
+		expect(authorizations).toEqual([{ effect: "command", value: "exact", frozen: true }]);
+		expect(executed).toEqual([]);
 	});
 
 	it("should prepare tool arguments for validation", async () => {

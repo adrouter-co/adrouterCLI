@@ -301,6 +301,7 @@ describe("AgentSession retry", () => {
 			modelRegistry,
 			resourceLoader: createTestResourceLoader(),
 			baseToolsOverride: { echo: echoTool },
+			authorizeToolCall: async () => ({ allow: true }),
 		});
 
 		await session.prompt("Test");

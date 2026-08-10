@@ -43,6 +43,8 @@ import {
 import { assertValidSessionId, SessionManager } from "./core/session-manager.ts";
 import { SettingsManager } from "./core/settings-manager.ts";
 import { printTimings, resetTimings, time } from "./core/timings.ts";
+import type { ToolAuthorizer } from "./core/tool-authorization.ts";
+import { loadToolPolicy } from "./core/tool-policy.ts";
 import { hasTrustRequiringProjectResources, ProjectTrustStore } from "./core/trust-manager.ts";
 import { runMigrations, showDeprecationWarnings } from "./migrations.ts";
 import { InteractiveMode, runPrintMode, runRpcMode } from "./modes/index.ts";
@@ -562,7 +564,7 @@ export async function main(args: string[], options?: MainOptions) {
 	const { migratedAuthProviders: migratedProviders, deprecationWarnings } = runMigrations(cwd);
 	time("runMigrations");
 
-	const startupSettingsManager = SettingsManager.create(cwd, agentDir);
+	const startupSettingsManager = SettingsManager.create(cwd, agentDir, { projectTrusted: false });
 	reportDiagnostics(collectSettingsDiagnostics(startupSettingsManager, "startup session lookup"));
 
 	// Experimental first-time setup: theme choice and analytics opt-in.
@@ -782,6 +784,20 @@ export async function main(args: string[], options?: MainOptions) {
 	}
 	time("readPipedStdin");
 
+	let toolAuthorizer: ToolAuthorizer | undefined;
+	if (parsed.toolPolicy !== undefined) {
+		if (appMode !== "print" && appMode !== "json") {
+			console.error(chalk.red("Error: --tool-policy is supported only in print or JSON mode"));
+			process.exit(1);
+		}
+		try {
+			toolAuthorizer = loadToolPolicy(parsed.toolPolicy, cwd);
+		} catch (error) {
+			console.error(chalk.red(`Error: ${error instanceof Error ? error.message : String(error)}`));
+			process.exit(1);
+		}
+	}
+
 	const { initialMessage, initialImages } = await prepareInitialMessage(
 		parsed,
 		settingsManager.getImageAutoResize(),
@@ -857,6 +873,7 @@ export async function main(args: string[], options?: MainOptions) {
 			messages: parsed.messages,
 			initialMessage,
 			initialImages,
+			authorizeToolCall: toolAuthorizer,
 		});
 		stopThemeWatcher();
 		restoreStdout();
