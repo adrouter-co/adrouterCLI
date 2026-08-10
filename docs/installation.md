@@ -2,8 +2,15 @@
 
 AdRouterCLI requires Node.js 22.19 or newer. On macOS and Linux, install Node with the official installer or a maintained version manager. On Windows, install Node for all users or ensure the per-user npm binary directory is on `PATH`.
 
+Choose either the accepted prerelease channel or the current recommended channel:
+
 ```sh
+# Accepted prereleases
 npm install --global --ignore-scripts @adrouter/cli@beta
+
+# Current recommended release
+npm install --global --ignore-scripts @adrouter/cli@latest
+
 adrouter --version
 adrouter --help
 adrouter --json doctor
@@ -39,10 +46,14 @@ If the command is missing, inspect `npm prefix --global`. Add its executable dir
 
 For a published native archive, download the archive, `SHA256SUMS`, and SBOM from the same prerelease. Confirm the asset is listed as eligible in `release-manifest.json`, then run `sha256sum -c SHA256SUMS` (or `shasum -a 256 -c SHA256SUMS` on macOS) and `gh attestation verify <asset> --repo adrouter/adrouterCLI`. Do not install an artifact marked blocked.
 
-Upgrade with:
+Upgrade by repeating the command for the channel you follow:
 
 ```sh
+# Accepted prereleases
 npm install --global --ignore-scripts @adrouter/cli@beta
+
+# Current recommended release
+npm install --global --ignore-scripts @adrouter/cli@latest
 ```
 
 Uninstall with:
