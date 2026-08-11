@@ -269,14 +269,14 @@ export function resolveHeaders(
 }
 
 export function resolveHeadersOrThrow(
-	headers: Record<string, string> | undefined,
+	headers: Record<string, string | null> | undefined,
 	description: string,
 	env?: Record<string, string>,
-): Record<string, string> | undefined {
+): Record<string, string | null> | undefined {
 	if (!headers) return undefined;
-	const resolved: Record<string, string> = {};
+	const resolved: Record<string, string | null> = {};
 	for (const [key, value] of Object.entries(headers)) {
-		resolved[key] = resolveConfigValueOrThrow(value, `${description} header "${key}"`, env);
+		resolved[key] = value === null ? null : resolveConfigValueOrThrow(value, `${description} header "${key}"`, env);
 	}
 	return Object.keys(resolved).length > 0 ? resolved : undefined;
 }

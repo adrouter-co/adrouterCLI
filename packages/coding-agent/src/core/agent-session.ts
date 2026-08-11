@@ -25,7 +25,7 @@ import type {
 	ThinkingLevel,
 } from "@adrouter/agent-core";
 import { getAdRouterMessageUpdate } from "@adrouter/ai";
-import type { AssistantMessage, ImageContent, Message, Model, TextContent } from "@adrouter/ai/compat";
+import type { AssistantMessage, ImageContent, Message, Model, ProviderHeaders, TextContent } from "@adrouter/ai/compat";
 import {
 	clampThinkingLevel,
 	cleanupSessionResources,
@@ -98,6 +98,12 @@ import { createToolApprovalRequest, type ToolAuthorizer } from "./tool-authoriza
 import { type BashOperations, createLocalBashOperations } from "./tools/bash.ts";
 import { createAllToolDefinitions } from "./tools/index.ts";
 import { createToolDefinitionFromAgentTool } from "./tools/tool-definition-wrapper.ts";
+
+function withoutDeletedHeaders(headers: ProviderHeaders | undefined): Record<string, string> | undefined {
+	return headers
+		? Object.fromEntries(Object.entries(headers).filter((entry): entry is [string, string] => entry[1] !== null))
+		: undefined;
+}
 
 // ============================================================================
 // Skill Block Parsing
@@ -408,7 +414,7 @@ export class AgentSession {
 			throw new Error(result.error);
 		}
 		if (result.apiKey) {
-			return { apiKey: result.apiKey, headers: result.headers, env: result.env };
+			return { apiKey: result.apiKey, headers: withoutDeletedHeaders(result.headers), env: result.env };
 		}
 
 		const isOAuth = this._modelRegistry.isUsingOAuth(model);
@@ -432,7 +438,9 @@ export class AgentSession {
 		}
 
 		const result = await this._modelRegistry.getApiKeyAndHeaders(model);
-		return result.ok ? { apiKey: result.apiKey, headers: result.headers, env: result.env } : {};
+		return result.ok
+			? { apiKey: result.apiKey, headers: withoutDeletedHeaders(result.headers), env: result.env }
+			: {};
 	}
 
 	/**
@@ -2073,7 +2081,7 @@ export class AgentSession {
 					return false;
 				}
 				apiKey = authResult.apiKey;
-				headers = authResult.headers;
+				headers = withoutDeletedHeaders(authResult.headers);
 				env = authResult.env;
 			} else {
 				({ apiKey, headers, env } = await this._getCompactionRequestAuth(this.model));
@@ -2593,8 +2601,10 @@ export class AgentSession {
 	}
 
 	async reload(options?: { beforeSessionStart?: () => void | Promise<void> }): Promise<void> {
-		const previousFlagValues = this._extensionRunner.getFlagValues();
-		await emitSessionShutdownEvent(this._extensionRunner, { type: "session_shutdown", reason: "reload" });
+		const oldRunner = this._extensionRunner;
+		const previousFlagValues = oldRunner.getFlagValues();
+		await emitSessionShutdownEvent(oldRunner, { type: "session_shutdown", reason: "reload" });
+		oldRunner.invalidate();
 		await this.settingsManager.reload();
 		this.syncQueueModesFromSettings();
 		resetApiProviders();

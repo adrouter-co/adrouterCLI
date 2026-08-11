@@ -1,44 +1,74 @@
-# Plan: Fix-forward AdRouterCLI DPoP nonce handling and release beta.22
+# Plan: Pi and external-extension upgrade workflow
 
 ## Goal
 
-Publish and accept an immutable `0.81.0-beta.22` security fix-forward that completes repeated hosted signed requests without replaying a consumed DPoP nonce, while keeping public `beta` and `latest` on beta.20 until exact-artifact acceptance is complete.
+Create a reproducible upstream-intake workflow, synchronize AdRouterCLI with Pi 0.84.1, restore a
+conservative AdRouter cache optimizer, upgrade the bundled subagent runtime through a strict safe
+subset, port the accepted behavior to the desktop Agent, finalize the preceding security release,
+and publish the implementation as the next immutable npm candidate.
 
 ## Context
 
-The exact `0.81.0-beta.21` candidate enrolled successfully on the primary macOS ARM64 cohort and passed redacted `/v1/profile` diagnostics, but a hosted agent turn failed with `401 invalid_dpop_proof` on the continuation after a local read tool. Source inspection confirmed that beta.21 retains the challenge nonce in an origin-wide map after the retry succeeds, then reuses that server-consumed value on the next signed request. The protected server rejects the nonce replay as designed.
-
-The user authorized fix-forward releases and required security acceptance to finish before the preserved Pi/cache/subagent work. Because beta.22 is now consumed by this security correction, the follow-on CLI feature candidate moves to the next unused version, expected to be beta.23 after fresh registry and tag checks.
+- AdRouterCLI is a four-package npm monorepo forked from Pi and releases its packages in lockstep.
+- The baseline CLI vendored pi-subagents 0.30.0, pi-web-access 0.13.0, and BTW; the earlier cache
+  optimizer was retired with provider registration and executable `models.json` configuration.
+- The desktop Agent consumes exact upstream Pi dependencies directly and intentionally does not run
+  arbitrary executable Pi extensions.
+- This wave freezes Pi 0.84.1, pi-cache-optimizer 2.8.2, and pi-subagents 0.45.2. A newer release
+  discovered during implementation is recorded for the next wave rather than silently expanding
+  scope.
+- The user selected controlled Pi core sync, stats-first cache optimization with prompt rewrite
+  opt-in, and a bounded subagent subset.
 
 ## Research Summary
 
-RFC 9449 section 8 describes a nonce challenge/retry flow and permits a server to provide the next nonce on a successful response. The local AdRouter server contract is stricter: its issued access nonce is consumed once, and a successful response currently does not provide a replacement. The compatible client behavior is therefore to use a cached server-provided nonce at most once, keep a challenge nonce local to its immediate retry, and retain only a new nonce received on the final response.
+- Pi 0.84.1 introduces TypeBox 1.3.7, request-transform and provider-header changes, delta-only
+  message updates, new session/repository APIs, and optional telemetry/client/protocol features.
+- pi-cache-optimizer 2.8.2 mixes useful prompt-prefix/statistics logic with provider mutation,
+  `models.json` surgery, and raw provider cache controls that are incompatible with hosted
+  `/v1/agent/turn`.
+- pi-subagents 0.45.2 adds workflow scripts, missions, schedules, intercom, worktrees, watchdogs,
+  profiles, and nested delegation. Only structured run/parallel/lifecycle behavior is in scope.
+- Router already returns authoritative cache-read/cache-write settlement data and does not expose a
+  client cache-hint field. This wave therefore leaves the hosted Router request schema unchanged.
 
 ## Constraints
 
-- Preserve existing user-facing behavior except for correcting repeated hosted signed requests.
-- Keep the implementation small, reviewable, and reversible.
-- Prefer a minimal diff and introduce no new dependencies.
-- Preserve all public APIs, routes, request bodies, proof fields, model catalog, sponsor isolation, and persisted credential formats.
-- Do not put the preserved Pi/cache/subagent changes on this security branch or PR.
-- Never retarget a tag, replace an asset, or republish an immutable npm version.
-- Use Node.js 22.19.0 for release verification and require all six-platform protected CI jobs.
-- Keep `beta` and `latest` unchanged until exact beta.22 Mac and physical Windows acceptance succeeds.
+- Preserve hosted installation auth, DPoP proofs, exact Router endpoints, generated model catalog,
+  workspace trust, approvals, redaction, bounded streaming, and local session ownership.
+- Sponsor and settlement data must remain outside prompts, assistant text, tools, commands, edits,
+  child-agent context, and compaction.
+- Preserve existing public behavior unless this plan explicitly narrows the bundled extension
+  surface; keep compatibility adapters for existing chain commands.
+- Keep changes reviewable and reversible; use exact versions, checked-in lockfiles, and no runtime
+  downloads.
+- Do not add upstream credential export, provider registration, executable `models.json`, self
+  update, telemetry egress, or remote client/server product surfaces.
+- Keep CLI and Agent histories, lockfiles, toolchains, tags, and release channels independent.
+- The user explicitly authorized finalizing the preceding CLI and Agent security releases, then
+  publishing the follow-on CLI and Agent candidates. No other tag, channel, hosted service, database,
+  traffic, signing, or deployment mutation is authorized.
 
 ## Out of Scope
 
-- Router, WebUI, Landing, Agent, and OpenCode source or deployment changes.
-- Changes to nonce generation, replay storage, enrollment schemas, or server policy.
-- Pi 0.84.1, cache optimization, subagent behavior, or other opportunistic cleanup.
-- Stable-channel promotion or native archive expansion.
+- Updating pi-web-access, BTW, unrelated TUI overlays, Router cache-hint APIs, or OpenCode.
+- Enabling subagent missions, schedules, Gist sharing, external intercom, managed worktrees,
+  watchdog automation, provider profiles, nested delegation, or arbitrary workflow JavaScript.
+- Redesigning unrelated desktop UI or replacing the Agent's native sandbox/approval architecture.
+- Finalizing the follow-on Pi/cache/subagent candidate, stable publication, or any hosted-service
+  deployment.
 
 ## Reversibility
 
-The runtime correction and its regression tests will be isolated in one security PR. Before tagging, the branch can be amended or abandoned without affecting public channels. After publication, any defect must be fixed with the next unused beta; beta.22 itself will remain immutable.
+- Land upstream governance, Pi core, cache, subagents, and Agent work as separable phases.
+- Preserve compatibility adapters and keep cache prompt rewriting opt-in.
+- Provide independent local kill switches for cache optimization and subagents.
+- Reconstruct vendored bundles from exact upstream sources plus reviewed local patches.
+- Fix forward under a higher immutable prerelease if a published artifact later regresses.
 
 ---
 
-## Step A: Reproduce and specify nonce consumption
+## Step A: Reproducible upstream intake and provenance
 
 ### Status
 
@@ -46,60 +76,66 @@ The runtime correction and its regression tests will be isolated in one security
 
 ### Objective
 
-Capture the beta.21 failure in focused tests and define the one-use client nonce lifecycle without widening authentication contracts.
+Make exact upstream discovery, verification, staging, provenance, and bundle contracts repeatable.
 
 ### Tasks
 
-- [x] Reproduce the exact candidate failure after a successful hosted enrollment and first streamed tool step.
-- [x] Confirm the redacted profile diagnostic remains healthy on the same installation.
-- [x] Add focused transport and installation-auth tests covering two consecutive signed requests.
-- [x] Cover retention of a genuinely new nonce returned by the final response.
+- [x] Add one canonical upstream lock covering Pi core and bundled third-party sources.
+- [x] Add offline validation, live advisory audit, and clean-tree exact staging commands.
+- [x] Generate or validate runtime bundle contracts and packaged provenance from the lock.
+- [x] Remove scattered hard-coded bundle versions where the central manifest can drive them.
 
 ### Relevant Files
 
-- `packages/ai/src/api/adrouter.ts`
-- `packages/ai/test/adrouter.test.ts`
-- `packages/coding-agent/src/core/adrouter-auth.ts`
-- `packages/coding-agent/test/adrouter-auth.test.ts`
+- `upstreams.lock.json`
+- `scripts/`
+- `docs/bundled-sources.json`
+- `packages/coding-agent/src/core/bundled-features.ts`
 
 ### Expected Changes
 
-- modify: `packages/ai/test/adrouter.test.ts`
-- modify: `packages/coding-agent/test/adrouter-auth.test.ts`
+- create: canonical lock, schema/check/audit/stage scripts, focused tests, workflow documentation
+- modify: package scripts, bundle contracts, provenance and release-readiness checks
+- delete: no bundled source in this step
 
 ### Do Not Modify
 
-- Hosted route, proof-claim, header, or credential-storage contracts.
-- Server code or any sibling repository.
+- hosted auth/model/Router contracts
+- generated model catalogs
+- npm/GitHub release state
 
 ### Commands
 
 ```bash
-npm run test --workspace @adrouter/ai -- test/adrouter.test.ts
-npm run test --workspace @adrouter/cli -- test/adrouter-auth.test.ts
+npm run upstream:check
+npm run upstream:audit
+npm run check
 ```
 
 ### Acceptance Criteria
 
-- [x] A regression test fails against beta.21 behavior by detecting reuse of a consumed nonce.
-- [x] Tests distinguish the immediate challenge nonce from a new final-response nonce.
-- [x] No test fixture contains live credentials, proofs, keys, or nonce values from acceptance.
+- [x] Locked sources include exact version, commit, source, integrity/hash, license, local patches,
+      and feature disposition.
+- [x] Offline checks fail on provenance drift or unexpected packaged bundle contents.
+- [x] Live audit reports newer releases without changing files or failing ordinary CI for age alone.
+- [x] No runtime path downloads executable extension source.
 
 ### Validation Results
 
-- exact beta.21 Mac hosted canary: failed on the post-tool continuation with `401 invalid_dpop_proof`
-- exact beta.21 redacted doctor: passed; installation ready, `file_protected`, refresh valid, signed requests enabled
-- focused tests against unchanged beta.21 behavior: failed as expected on both retained challenge and final-response nonce reuse
-- focused tests after the fix: passed, AI 31/31 and CLI installation auth 12/12
+- `npm run upstream:check`: passed (6 component records, 4 runtime extensions, 3 tests)
+- `npm run upstream:audit`: passed; Pi 0.84.1, pi-subagents 0.45.2, and
+  pi-cache-optimizer 2.8.2 remain current; pi-web-access 0.21.0 is recorded for a later wave
+- `npm run check`: passed
 
 ### Findings / Notes
 
-- The failure is deterministic from the client lifecycle: `rememberNonce()` stored the challenge nonce before the successful retry, leaving it available for the next request.
-- Synthetic nonce values are used throughout the tests; no live acceptance proof or nonce was captured.
+- Runtime bundle inventory and bundled-source notices are generated deterministically from the lock.
+- The staging command requires an exact frozen target and a clean tree, verifies SHA-256 and npm
+  integrity before extraction, and never modifies repository files.
 
 ---
 
-## Step B: Implement and prepare the security fix-forward
+## Step B: Controlled Pi 0.84.1 core synchronization
 
 ### Status
 
@@ -107,35 +143,377 @@ npm run test --workspace @adrouter/cli -- test/adrouter-auth.test.ts
 
 ### Objective
 
-Consume cached nonces exactly once, keep challenge nonces local to their retry, and prepare consistent beta.22 release metadata.
+Port the reviewed Pi 0.84.1 core into the existing four AdRouter packages without weakening product
+or security boundaries.
 
 ### Tasks
 
-- [x] Add a one-use nonce retrieval path in installation auth.
-- [x] Stop persisting an intermediate challenge nonce before its immediate retry.
-- [x] Preserve a valid nonce supplied by the final response for one subsequent request.
-- [x] Update all manifests, lockfiles, shrinkwrap, changelogs, and `release-manifest.json` to beta.22 with beta.21 as `supersedes`.
-- [x] Review the diff to confirm no preserved feature work is present.
+- [x] Record an adopt/adapt/defer/reject ledger for upstream changes from the 0.81 baseline.
+- [x] Port reviewed core changes and align host schemas on TypeBox 1.3.7.
+- [x] Adapt nullable headers, agent settlement, event-bus lifecycle, tool termination, and TUI/path
+      behavior without replacing AdRouter's existing streaming/session contracts.
+- [x] Preserve current AdRouter RPC/JSON, auth, model, sponsor, approval, and session contracts.
+- [x] Reject or disable upstream provider credentials, telemetry egress, self-update, and remote
+      client/server surfaces.
 
 ### Relevant Files
 
-- `packages/coding-agent/src/core/adrouter-auth.ts`
-- `packages/ai/src/api/adrouter.ts`
-- `package.json`
-- `package-lock.json`
-- `packages/*/package.json`
-- `packages/coding-agent/npm-shrinkwrap.json`
-- `packages/*/docs/CHANGELOG.md`
-- `release-manifest.json`
+- `packages/ai/`
+- `packages/agent/`
+- `packages/tui/`
+- `packages/coding-agent/`
 
 ### Expected Changes
 
-- modify: the listed runtime, tests, version, changelog, lock, shrinkwrap, and release-manifest files
+- modify: the four package sources, manifests, lockfile, focused tests, upstream provenance
+- create: compatibility/adaptation ledger and any internal no-egress adapters required by the port
+- delete: obsolete internals only after equivalent behavior is covered
 
 ### Do Not Modify
 
-- Generated model catalog or upstream bundles.
-- Agent desktop repository or workspace state documentation during this code step.
+- generated `adrouter.models.ts` by hand
+- hosted installation proof, official routes, or sponsor isolation
+- package version/channel metadata for publication
+
+### Commands
+
+```bash
+npm run typecheck
+npm run check
+```
+
+### Acceptance Criteria
+
+- [x] Pi 0.84.1 source identity and every intentional AdRouter divergence are documented.
+- [x] Four package manifests and the lockfile remain internally consistent.
+- [x] Existing JSON/RPC clients, auth flows, catalogs, compaction, tools, and TUI tests pass.
+- [x] No new credential, provider-registration, self-update, or telemetry network authority exists.
+
+### Validation Results
+
+- `npx tsgo --noEmit`: passed
+- `npm run check`: passed
+
+### Findings / Notes
+
+- Keep optional upstream client/protocol/fullscreen products deferred unless a reviewed core import
+  cannot compile without an internal, non-public adapter.
+
+---
+
+## Step C: Conservative cache optimizer
+
+### Status
+
+`done`
+
+### Objective
+
+Restore truthful cache diagnostics and an explicitly enabled DeepSeek prompt-prefix optimizer while
+leaving hosted Router request framing unchanged.
+
+### Tasks
+
+- [x] Derive a narrow AdRouter extension from pi-cache-optimizer 2.8.2 with exact provenance.
+- [x] Implement `off`, `stats-only`, and `prompt-rewrite` modes with stats-only as the default.
+- [x] Remove provider registration, `models.json`, compat/fix mutation, and raw hosted cache fields.
+- [x] Restrict prompt rewrite to known stable instruction blocks and exclude skills compression.
+- [x] Add truthful normalized-usage stats, secret-free doctor output, state permissions, and a kill
+      switch.
+
+### Relevant Files
+
+- `packages/coding-agent/bundled/`
+- `packages/coding-agent/src/core/`
+- `packages/coding-agent/test/`
+
+### Expected Changes
+
+- create: adapted cache extension, license/provenance, focused unit/integration tests
+- modify: bundle manifest/contracts, packaged inventory, documentation
+- delete: no current provider or model configuration
+
+### Do Not Modify
+
+- hosted `/v1/agent/turn` body or proof calculation
+- sponsor display/settlement separation
+- official model catalog
+
+### Commands
+
+```bash
+npm run upstream:check
+npm run check
+```
+
+### Acceptance Criteria
+
+- [x] Stats-only mode is request-byte neutral and reports only authoritative normalized usage.
+- [x] Prompt rewrite is opt-in, DeepSeek-only, content-preserving, and sponsor-free.
+- [x] No command reads or writes `models.json` or registers a provider.
+- [x] Missing cache telemetry is shown as unavailable rather than fabricated.
+
+### Validation Results
+
+- `npm run upstream:check`: passed (6 component records, 4 runtime extensions)
+- focused cache tests: passed (7 tests; package suite 38 tests)
+- `npm run check`: passed
+
+### Findings / Notes
+
+- Live cache-effectiveness canaries are manual candidate acceptance, not production automation.
+
+---
+
+## Step D: Safe pi-subagents 0.45.2 subset
+
+### Status
+
+`done`
+
+### Objective
+
+Adopt the current subagent lifecycle internals while exposing only bounded structured execution and
+management compatible with AdRouter trust and approval policy.
+
+### Tasks
+
+- [x] Reconstruct the source-derived bundle against pi-subagents 0.45.2 plus reviewed AdRouter patches.
+- [x] Keep structured single, parallel, and compatibility chain execution; do not expose arbitrary
+      workflow JavaScript.
+- [x] Allow only list/get/models/children/status/resume/stop/interrupt/doctor management actions.
+- [x] Enforce three children, depth one, read-only parallel profiles, and a single mutating child.
+- [x] Redirect executable/state paths to AdRouter and remove/deactivate every deferred subsystem.
+
+### Relevant Files
+
+- `packages/coding-agent/bundled/pi-subagents-*`
+- `packages/coding-agent/src/core/bundled-features.ts`
+- `packages/coding-agent/test/bundled-*`
+
+### Expected Changes
+
+- create: exact 0.45.2-derived bundle, patch/provenance record, policy wrapper and tests
+- modify: command/tool contracts, packaged inventory, docs and readiness checks
+- delete: old 0.30.0 bundle after reconstructed replacement passes
+
+### Do Not Modify
+
+- personal `~/.pi` or project `.pi` state
+- hosted auth material, provider catalog, or sponsor context
+- worktrees, schedules, missions, Gist, intercom, watchdog, nested delegation, or provider profiles
+
+### Commands
+
+```bash
+npm run upstream:check
+npm run check
+npm run install:local
+```
+
+### Acceptance Criteria
+
+- [x] Deferred fields/actions are absent from the public schema and rejected before execution.
+- [x] Child launch, status, resume, stop, cancellation, cleanup, trust, and approval tests pass.
+- [x] Children launch `adrouter`, use only `.adrouter` state, and never receive copied credentials
+      or sponsor data.
+- [x] The installed package contains only the exact declared bundle source and licenses.
+
+### Validation Results
+
+- focused subagent/loader/state/spawn tests: passed (34 tests; safe-subset file 7 tests)
+- `npm run upstream:check`: passed (6 component records, 4 runtime extensions)
+- `npm run check`: passed
+- `npm run install:local`: passed; verified packaged `@adrouter/cli@0.81.0-beta.21` installed
+
+### Findings / Notes
+
+- Existing `/chain` and `/run-chain` remain bounded compatibility adapters during this wave.
+
+---
+
+## Step E: Desktop Agent follow-on
+
+### Status
+
+`done`
+
+### Objective
+
+Upgrade the independent Agent to the accepted Pi version and port cache/delegation behavior through
+its native Router, utility-process, approval, and task abstractions.
+
+### Tasks
+
+- [x] Preserve and reconcile the Agent's existing beta.17/node-gyp working changes.
+- [x] Upgrade exact Pi dependencies to 0.84.1 and update lock/override/physical-resolution policy.
+- [x] Port cache modes natively without loading the CLI extension or changing Router framing.
+- [x] Extend existing depth-one delegation with native status, follow-up/resume, and cancellation.
+- [x] Keep declarative bundles Markdown-only and prove optional upstream packages have no authority.
+
+### Relevant Files
+
+- `../adrouterAgent/package.json`
+- `../adrouterAgent/src/runtime/`
+- `../adrouterAgent/src/main/`
+- `../adrouterAgent/tests/`
+
+### Expected Changes
+
+- modify: exact dependencies/lock, dependency policy, runtime/provider/session/delegation code, tests
+- create: native cache fixtures/settings and bounded delegation lifecycle coverage if missing
+- delete: no user-owned beta.17 work or executable-extension boundary
+
+### Do Not Modify
+
+- `../adrouterAgent/PLAN.md` active release/security plan
+- safeStorage identity, sandbox/approval boundary, normal one-task capacity, or Router wire contract
+- unrelated renderer/release/channel behavior
+
+### Commands
+
+```bash
+npm run check
+npm run verify:release-readiness
+npm run test:e2e
+```
+
+### Acceptance Criteria
+
+- [x] Existing beta.17/node-gyp changes remain intact and attributable.
+- [x] Pi dependencies resolve exactly to 0.84.1 with reviewed security overrides.
+- [x] Cache modes and delegation limits match the accepted CLI policy without executable plugins.
+- [x] Source, integration, launcher, and packaged security tests pass under Node.js 25.9.0.
+
+### Validation Results
+
+- `npm run check`: passed under Node.js 25.9.0 (162 unit tests, 13 integration tests, 47
+  launcher/release tests, plus source/public/workflow checks)
+- `npm run verify:release-readiness`: passed, including the exact launcher tarball allowlist
+- `npm run test:e2e`: passed (2 packaged Electron tests)
+- `npm run audit:build`: passed; the only high-severity nodes are the repository's reviewed,
+  dev-only Forge advisory chain
+- source parity: passed for 76 reviewed product files
+
+### Findings / Notes
+
+- The existing exact node-gyp 12.3.0 pin and associated provenance remained intact; the native broker
+  rebuilt under Node.js 25.9.0 during the full gate.
+- Pi auth/model authority remains app-owned through a network-disabled `ModelRuntime`; optional Pi
+  client/protocol packages remain transitive-only and are not imported by the Agent session.
+
+---
+
+## Step F: Final verification and cleanup
+
+### Status
+
+`done`
+
+### Objective
+
+Prove the complete local CLI and Agent implementation, review all diffs, and leave publication as a
+separately authorized action.
+
+### Tasks
+
+- [x] Run full CLI checks, production-faithful local install, and packaged inventory verification.
+- [x] Run full Agent checks, release-readiness, packaged E2E, and relevant native distribution
+      verification.
+- [x] Review both repository diffs for unrelated changes, stale comments, temporary artifacts, and
+      provenance drift.
+- [x] Update developer documentation and record skipped manual/live/cross-platform acceptance.
+- [x] Record residual risks and next-wave upstream releases without moving any public channel.
+
+### Relevant Files
+
+- `README.md`, `RELEASE.md`, `SECURITY.md`, upstream/bundle documentation
+- `../adrouterAgent/README.md`, `../adrouterAgent/RELEASE.md`, `../adrouterAgent/SOURCE_PROVENANCE.md`
+
+### Expected Changes
+
+- modify: documentation and this plan with actual validation results
+- create/delete: only intentional source artifacts already listed in prior steps
+
+### Do Not Modify
+
+- npm/GitHub tags, dist-tags, releases, protected environments, or hosted configuration
+- ignored credentials or `.protected/`
+
+### Commands
+
+```bash
+npm run check
+npm run install:local
+git diff --check
+git status --short --branch
+```
+
+### Acceptance Criteria
+
+- [x] Both repositories pass their full authorized local gates.
+- [x] Installed/package artifacts match source, manifests, locks, provenance, and licenses.
+- [x] Default cache and subagent behavior is bounded, reversible, and secret/sponsor-safe.
+- [x] No unintended files or publication/deployment changes remain.
+
+### Validation Results
+
+- CLI `npm run check`: passed
+- CLI `npm run install:local`: passed; installed verified packaged
+  `@adrouter/cli@0.81.0-beta.21`
+- CLI `npm run upstream:audit`: passed; frozen Pi/cache/subagent targets remain current
+- Agent `npm run check`: passed under Node.js 25.9.0
+- Agent `npm run verify:release-readiness`: passed
+- Agent `npm run audit:build`: passed under the bounded dev-only advisory policy
+- Agent packaged E2E/native verification: passed (2 Electron tests; native broker rebuilt with
+  node-gyp 12.3.0 under Node.js 25.9.0)
+- `git diff --check`: passed in both repositories
+
+### Findings / Notes
+
+- Physical Windows and live hosted cache canaries remain manual acceptance unless separately
+  authorized and available.
+
+---
+
+## Step G: Security finalization and next CLI candidate
+
+### Status
+
+`in_progress`
+
+### Objective
+
+Preserve the completed upstream work independently, finalize the exact beta.21 security release,
+then publish the implementation as the next unused CLI candidate without moving its public channels.
+
+### Tasks
+
+- [ ] Commit the current upstream work on a dedicated feature branch without changing security PR #64.
+- [ ] Merge, tag, publish, accept on primary macOS and physical Windows, and finalize beta.21 through
+      the protected workflows.
+- [ ] Rebase the upstream feature commit onto accepted protected `main` and prepare beta.22, or the
+      next unused beta if security requires a fix-forward.
+- [ ] Pass clean Node.js 22.19 release gates, protected six-platform CI, tagged draft verification,
+      and exact npm candidate publication.
+- [ ] Run exact-version macOS and Windows candidate canaries, then stop before finalization.
+
+### Relevant Files
+
+- `package.json`, workspace manifests, lockfile, shrinkwrap, and `release-manifest.json`
+- `.github/workflows/`, changelogs, upstream provenance, and release documentation
+
+### Expected Changes
+
+- modify: next-beta release identity, changelogs, release evidence, and this plan
+- create: immutable tag, protected draft release, and exact npm candidate through workflows
+- delete: no source, prior artifact, tag, or public channel
+
+### Do Not Modify
+
+- hosted Router/WebUI contracts or state
+- npm `beta`/`latest` after beta.21 security finalization
+- any immutable prior version, tag, or release asset
 
 ### Commands
 
@@ -150,32 +528,26 @@ node scripts/ci-package-smoke.mjs
 
 ### Acceptance Criteria
 
-- [x] Consecutive signed profile/turn requests never reuse an already-consumed nonce.
-- [x] A final-response nonce is retained and used at most once.
-- [x] Existing replay, tamper, key-binding, refresh rotation, revocation, and redaction tests remain green.
-- [x] Every release identity is exactly `0.81.0-beta.22` and supersedes beta.21.
-- [x] The working tree contains no Pi/cache/subagent changes.
+- [ ] Beta.21 is the exact accepted `beta`/`latest` security release and has no candidate alias.
+- [ ] The next candidate resolves to one exact source commit and recorded tarball integrity.
+- [ ] Public `beta`/`latest` remain beta.21 while the follow-on version is only `candidate`.
+- [ ] Hosted auth, sponsor isolation, cache modes, and bounded subagent behavior pass exact-artifact
+      macOS and Windows canaries.
 
 ### Validation Results
 
-- `npm ci --ignore-scripts`: passed under Node.js 22.19.0
-- `npm run build`: passed
-- `npm run check`: passed
-- `npm run test:isolated`: passed outside the restricted sandbox; AI 522, TUI 824, agent core 183, and CLI 1,504 tests passed with only intentional skips
-- `npm run check:release-readiness`: passed
-- `node scripts/ci-package-smoke.mjs`: passed, including packaged command/resource and profile round-trip smokes
-- isolated production-faithful install: passed for `0.81.0-beta.22`
-- live hosted post-tool continuation canary: passed and returned the exact README heading without proof rejection
+- protected security release and acceptance: not run
+- next-candidate release gates: not run
+- exact candidate canaries: not run
 
 ### Findings / Notes
 
-- If beta.22 is found remotely before tagging, advance all security release metadata to the next unused beta and reserve the following version for the feature candidate.
-- The first isolated-suite attempt was expectedly blocked by sandbox `listen EPERM` and DNS restrictions; the identical unrestricted run passed.
-- A transient redacted-doctor readiness timeout was not reproducible at the public endpoints; direct `/health/ready` and schema-2 `/v1/models` checks passed with the expected catalog digest.
+- As of the authorization, beta.21 is unused and PR #64 is a draft with protected checks running.
+- Local GitHub CLI authentication must be refreshed interactively before remote mutation.
 
 ---
 
-## Step C: Publish and accept the protected beta.22 candidate
+## Step H: Final verification and cleanup
 
 ### Status
 
@@ -183,137 +555,41 @@ node scripts/ci-package-smoke.mjs
 
 ### Objective
 
-Merge through protected main, publish the exact immutable candidate, and complete real Mac and physical Windows security acceptance before finalization.
+Record exact local, candidate, public, and hosted identities and leave the release checkout clean.
 
 ### Tasks
 
-- [ ] Open the security PR and require the six-platform CI matrix plus CodeQL.
-- [ ] Squash-merge only after required checks pass; capture the protected-main SHA.
-- [ ] Re-query npm versions/dist-tags, GitHub tags/releases, PR head, staging readiness, and model catalog before tagging.
-- [ ] Tag the exact merge SHA and verify draft inventory, checksums, attestations, SBOM, manifest, and source identity.
-- [ ] Publish under `candidate` only and verify `beta`/`latest` remain unchanged.
-- [ ] Install the exact candidate anonymously on the primary Mac and physical Windows 11 x64 cohort.
-- [ ] Complete the schema-1 security matrix, attach the validated redacted acceptance asset, and finalize only if every required result is true.
-- [ ] Revoke temporary npm publication credentials after final verification.
-
-### Relevant Files
-
-- `.github/workflows/ci.yml`
-- `.github/workflows/release-tag.yml`
-- `.github/workflows/promote-release.yml`
-- `scripts/validate-auth-acceptance.mjs`
-- `release-manifest.json`
-
-### Expected Changes
-
-- create: protected Git commit, tag, draft release assets, and redacted acceptance asset through documented workflows
-- modify: npm dist-tags only during explicitly authorized candidate publication and finalization
-
-### Do Not Modify
-
-- Existing immutable beta.21 tag, npm bytes, or release assets.
-- Public channels before acceptance is complete.
-- Any hosted service, database, traffic gate, or signing configuration.
-
-### Commands
-
-```bash
-gh pr checks --watch
-gh workflow run promote-release.yml -f tag=v0.81.0-beta.22 -f phase=publish-candidate
-node scripts/validate-auth-acceptance.mjs authentication-acceptance.json release-manifest.json
-gh workflow run promote-release.yml -f tag=v0.81.0-beta.22 -f phase=finalize-release
-```
+- [ ] Re-query npm, GitHub, staging health, and the public model catalog.
+- [ ] Record source SHAs, tags, workflow runs, integrity, acceptance limits, and rollback points.
+- [ ] Review final diffs/status and leave the release checkout clean at the immutable candidate.
 
 ### Acceptance Criteria
 
-- [ ] Git tag, GitHub release, npm integrity, manifest, and protected-main SHA agree exactly.
-- [ ] Mac and Windows exact-version cohorts complete all required schema-1 authentication results.
-- [ ] After finalization, `candidate` is removed and `beta`/`latest` resolve exactly to beta.22.
-- [ ] The beta.21 candidate is deprecated with a fix-forward notice, not unpublished or mutated.
+- [ ] No unrecorded channel, hosted service, database, traffic, or release mutation occurred.
+- [ ] Any post-tag defect is assigned a higher immutable beta rather than replacing an artifact.
 
 ### Validation Results
 
-- protected CI: not run
-- candidate workflow: not run
-- Mac acceptance: not run
-- Windows acceptance: not run
-- finalization: not run
-
-### Findings / Notes
-
-- Publication and finalization stop immediately on any identity, integrity, acceptance, or platform mismatch.
-
----
-
-## Step D: Final verification and cleanup
-
-### Status
-
-`todo`
-
-### Objective
-
-Record the immutable release evidence, leave clean release inputs, and hand the next unused version to the preserved follow-on candidate.
-
-### Tasks
-
-- [ ] Re-query npm tags/integrity, GitHub release/tag identity, and workflow results.
-- [ ] Update workspace state/parity documentation with exact SHAs, integrity, runs, acceptance limits, and rollback points.
-- [ ] Confirm the security release checkout is clean at the immutable accepted commit.
-- [ ] Confirm the preserved feature branch remains clean and unchanged.
-- [ ] Record remaining risks and the beta.23 follow-on starting point.
-
-### Relevant Files
-
-- `PLAN.md`
-- workspace `docs/state.md`
-- newest workspace parity report
-
-### Expected Changes
-
-- modify: `PLAN.md`
-- modify: workspace state/parity documentation after release completion
-
-### Do Not Modify
-
-- Router, WebUI, Landing, OpenCode, or accepted immutable release artifacts.
-
-### Commands
-
-```bash
-git status --short --branch
-npm view @adrouter/cli dist-tags --json
-gh release view v0.81.0-beta.22 --json tagName,targetCommitish,isDraft,isPrerelease,assets
-```
-
-### Acceptance Criteria
-
-- [ ] Recorded evidence can reconstruct the exact released source and registry bytes.
-- [ ] Temporary credentials are revoked and no acceptance secret is retained.
-- [ ] Both security and preserved feature checkouts are clean at documented commits.
-- [ ] No unrelated repository or hosted deployment changed.
-
-### Validation Results
-
-- final identity audit: not run
-- clean-checkout audit: not run
-
-### Findings / Notes
-
-- The later Pi/cache/subagent rollout remains candidate-only and requires fresh authorization for any public promotion.
+- final remote parity verification: not run
+- `git diff --check`: not run
+- `git status --short --branch`: not run
 
 ---
 
 ## Follow-up Work
 
-- After beta.22 is accepted and finalized, prepare the preserved CLI Pi/cache/subagent work as the next unused candidate, expected `0.81.0-beta.23`, without moving public channels.
-- Begin the Agent feature candidate only after the CLI follow-on candidate and its required Mac/Windows canaries pass.
-- If Agent beta.17 shows the same nonce lifecycle defect under repeated signed requests, fix it forward before any Agent feature candidate and increment its reserved version accordingly.
+- Evaluate pi-web-access and BTW through the same upstream lock/audit/patch workflow.
+- Consider a versioned Router cache-hint contract only after separate platform design and tests.
+- Evaluate missions, schedules, managed worktrees, or richer desktop delegation as independent
+  security/product changes.
+- Triage any Pi or extension releases newer than this wave's frozen versions.
 
 ## Decision Log
 
 | Date | Decision | Rationale | Impact |
 | --- | --- | --- | --- |
-| 2026-08-11 | Stop beta.21 finalization and fix forward | Exact-artifact Mac acceptance reproduced a signed-request failure after a tool continuation. | Public beta/latest remain on beta.20; beta.22 becomes the security correction. |
-| 2026-08-11 | Consume cached access nonces at most once | The server consumes each issued nonce and does not return a successor on successful access responses. | Prevents nonce replay while preserving challenge/retry and future final-response nonce support. |
-| 2026-08-11 | Move the preserved feature candidate to beta.23 | Immutable beta.22 is now required for the security fix. | Pi/cache/subagent work remains isolated and follows security acceptance. |
+| 2026-08-11 | Freeze Pi 0.84.1, cache optimizer 2.8.2, and subagents 0.45.2. | Exact inputs keep a large cross-repository upgrade reviewable and reproducible. | Newer releases enter a later wave. |
+| 2026-08-11 | Keep hosted Router framing unchanged. | The current API reports authoritative cache usage but has no cache-hint contract. | Cache optimization is stats-first and prompt-prefix-only. |
+| 2026-08-11 | Expose a safe subagent subset. | New upstream automation surfaces exceed current AdRouter trust and approval boundaries. | Structured, depth-one delegation ships without missions, schedules, scripts, or worktrees. |
+| 2026-08-11 | Port desktop behavior natively after CLI qualification. | The Agent does not execute arbitrary Pi extensions and owns separate release inputs. | Agent uses exact Pi 0.84.1 dependencies plus native cache and task-delegation abstractions. |
+| 2026-08-11 | Finalize security releases before publishing follow-on candidates. | The security-only identities must remain reviewable and accepted before the broader upstream wave. | Beta.21/beta.17 become public first; the next CLI/Agent versions stop at `candidate`. |
