@@ -467,6 +467,61 @@ describe("AdRouter installation authentication", () => {
 		expect(JSON.stringify(authStorage.getAdRouterInstallation())).not.toContain("access-2");
 	});
 
+	it("uses each server access nonce at most once across consecutive profile requests", async () => {
+		const origin = "https://api-staging.adrouter.co";
+		const challengeOne = "profile_challenge_nonce_1234567890";
+		const challengeTwo = "profile_challenge_nonce_2234567890";
+		const challengeThree = "profile_challenge_nonce_3234567890";
+		const nextNonce = "profile_next_nonce_4234567890";
+		const expectedNonces = [undefined, challengeOne, undefined, challengeTwo, nextNonce, undefined, challengeThree];
+		const responsePlan = [
+			{ status: 401, nonce: challengeOne },
+			{ status: 200 },
+			{ status: 401, nonce: challengeTwo },
+			{ status: 200, nonce: nextNonce },
+			{ status: 200 },
+			{ status: 401, nonce: challengeThree },
+			{ status: 200 },
+		];
+		const observedNonces: Array<string | undefined> = [];
+		const fetchMock = vi.fn(async (_url: string | URL | Request, init?: RequestInit) => {
+			const proof = new Headers(init?.headers).get("dpop");
+			const claims = JSON.parse(Buffer.from(proof!.split(".")[1]!, "base64url").toString("utf8"));
+			observedNonces.push(claims.nonce);
+			const response = responsePlan[observedNonces.length - 1]!;
+			return new Response(
+				JSON.stringify(
+					response.status === 200
+						? { id: "user-1", policy_mode: "enforce" }
+						: { error: "A fresh DPoP nonce is required.", code: "use_dpop_nonce" },
+				),
+				{
+					status: response.status,
+					headers: {
+						"content-type": "application/json",
+						...(response.nonce ? { "dpop-nonce": response.nonce } : {}),
+					},
+				},
+			);
+		});
+		const manager = new AdRouterInstallationAuth(installationStorage(), fetchMock as typeof fetch);
+		manager.seedAccess({
+			accessToken: "memory-only-access",
+			expiresAt: Date.now() + 600_000,
+			installationId: "installation-1",
+			clientKind: "cli",
+			clientVersion: "0.81.0-beta.21",
+		});
+
+		await manager.getProfile(origin);
+		await manager.getProfile(origin);
+		await manager.getProfile(origin);
+		await manager.getProfile(origin);
+
+		expect(observedNonces).toEqual(expectedNonces);
+		expect(fetchMock).toHaveBeenCalledTimes(responsePlan.length);
+	});
+
 	it("always removes local installation material when remote revocation is unavailable", async () => {
 		const authStorage = installationStorage();
 		const manager = new AdRouterInstallationAuth(

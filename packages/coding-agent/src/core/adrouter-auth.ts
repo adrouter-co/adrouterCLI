@@ -259,7 +259,6 @@ async function signedProtocolRequest(input: {
 	let nonce = response.headers.get("dpop-nonce");
 	if (response.status === 401 && isValidAdRouterNonce(nonce)) {
 		await response.body?.cancel();
-		input.onNonce?.(nonce);
 		response = await send(nonce);
 		nonce = response.headers.get("dpop-nonce");
 	}
@@ -633,7 +632,7 @@ export class AdRouterInstallationAuth implements InstallationAuthProvider {
 					method: "POST",
 					url: `${origin}${TOKEN_PATH}`,
 					body,
-					nonce: this.nonces.get(origin),
+					nonce: this.takeNonce(origin),
 					onNonce: (nonce) => this.rememberNonce(origin, nonce),
 					signal,
 				});
@@ -678,7 +677,7 @@ export class AdRouterInstallationAuth implements InstallationAuthProvider {
 				url: input.url,
 				body: input.body,
 				accessToken: input.accessToken,
-				nonce: input.nonce ?? this.nonces.get(origin),
+				nonce: input.nonce ?? this.takeNonce(origin),
 				clientVersion: installation.clientVersion,
 			}),
 			contentDigest: contentDigestSha256(input.body),
@@ -687,6 +686,12 @@ export class AdRouterInstallationAuth implements InstallationAuthProvider {
 
 	rememberNonce(origin: string, nonce: string): void {
 		if (isValidAdRouterNonce(nonce)) this.nonces.set(origin, nonce);
+	}
+
+	private takeNonce(origin: string): string | undefined {
+		const nonce = this.nonces.get(origin);
+		this.nonces.delete(origin);
+		return nonce;
 	}
 
 	private async authenticatedRequest(
@@ -708,7 +713,7 @@ export class AdRouterInstallationAuth implements InstallationAuthProvider {
 			url: `${origin}${path}`,
 			body,
 			accessToken: access.accessToken,
-			nonce: this.nonces.get(origin),
+			nonce: this.takeNonce(origin),
 			onNonce: (nonce) => this.rememberNonce(origin, nonce),
 			signal,
 		});

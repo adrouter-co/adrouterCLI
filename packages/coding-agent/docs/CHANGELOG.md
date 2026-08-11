@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.81.0-beta.22] - 2026-08-11
+
+### Security
+
+- Consumed cached hosted DPoP nonces at most once, retained only a new nonce from the final
+  response, and restored reliable signed continuations after local tool results.
+
 ## [0.81.0-beta.21] - 2026-08-11
 
 ### Security
