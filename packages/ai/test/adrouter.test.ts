@@ -842,7 +842,7 @@ describe("AdRouter provider", () => {
 		expect(parseRequestBody(fetchMock.mock.calls[0]?.[1]).max_output_tokens).toBeUndefined();
 	});
 
-	it("filters protected headers and retries one nonce challenge before consuming the response", async () => {
+	it("keeps a challenge nonce local to its retry and remembers only the final response nonce", async () => {
 		const fetchMock = vi
 			.fn()
 			.mockResolvedValueOnce(
@@ -856,7 +856,10 @@ describe("AdRouter provider", () => {
 			.mockResolvedValueOnce(
 				new Response(JSON.stringify({ assistant: { content: "Done." }, ads: [] }), {
 					status: 200,
-					headers: { "content-type": "application/json" },
+					headers: {
+						"content-type": "application/json",
+						"dpop-nonce": "next_server_nonce_1234567890",
+					},
 				}),
 			);
 		vi.stubGlobal("fetch", fetchMock);
@@ -908,7 +911,8 @@ describe("AdRouter provider", () => {
 		expect(headers.get("content-type")).toBe("application/json");
 		expect(headers.get("x-adrouter-client-kind")).toBe("cli");
 		expect(headers.get("x-adrouter-client-version")).toBe("0.81.0-beta.7");
-		expect(rememberNonce).toHaveBeenCalledWith("https://api-staging.adrouter.co", "server_nonce_1234567890");
+		expect(rememberNonce).toHaveBeenCalledOnce();
+		expect(rememberNonce).toHaveBeenCalledWith("https://api-staging.adrouter.co", "next_server_nonce_1234567890");
 	});
 
 	it("preserves an explicitly configured runtime mode for local and custom routers", async () => {

@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.81.0-beta.22] - 2026-08-11
+
+### Changed
+
+- Repacked the private agent runtime for the hosted DPoP nonce-consumption fix-forward.
+
 ## [0.81.0-beta.21] - 2026-08-11
 
 ### Security

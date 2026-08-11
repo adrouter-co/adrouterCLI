@@ -834,7 +834,6 @@ async function fetchRouter(
 		let nonce = response.headers.get("dpop-nonce");
 		if (response.status === 401 && isValidAdRouterNonce(nonce)) {
 			await response.body?.cancel();
-			auth.rememberNonce(origin, nonce);
 			response = await send(nonce);
 			nonce = response.headers.get("dpop-nonce");
 		}

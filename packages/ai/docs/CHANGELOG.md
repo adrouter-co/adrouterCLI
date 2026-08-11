@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.81.0-beta.22] - 2026-08-11
+
+### Security
+
+- Kept DPoP challenge nonces local to their immediate retry so consecutive hosted requests cannot
+  retain and replay a server-consumed nonce.
+
 ## [0.81.0-beta.21] - 2026-08-11
 
 ### Security
