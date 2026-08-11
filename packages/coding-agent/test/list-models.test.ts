@@ -10,14 +10,12 @@ const expectedIds = [
 	"mimo-v2.5-pro",
 	"agnes-2.0-flash",
 	"agnes-2.5-flash",
-	"agnes-2.5-pro",
-	"agnes-2.5-pro-alpha",
 ];
 
 describe("offline model listing", () => {
 	afterEach(() => vi.restoreAllMocks());
 
-	it("lists the complete locked catalog in Router order before login", async () => {
+	it("lists the tool-capable locked catalog in Router order before login", async () => {
 		const output: string[] = [];
 		vi.spyOn(console, "log").mockImplementation((line = "") => output.push(String(line)));
 		await listModels(ModelRegistry.create(AuthStorage.inMemory()));

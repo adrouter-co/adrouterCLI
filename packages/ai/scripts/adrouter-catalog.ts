@@ -16,6 +16,7 @@ export const ADROUTER_CATALOG_IDS = [
 
 export type AdRouterCatalogModelId = (typeof ADROUTER_CATALOG_IDS)[number];
 export type AdRouterThinkingLevel = "none" | "medium" | "high";
+export type AdRouterInputModality = "text" | "image";
 
 export interface AdRouterCatalogModel {
 	id: AdRouterCatalogModelId;
@@ -26,13 +27,15 @@ export interface AdRouterCatalogModel {
 	description: string;
 	thinking_levels: AdRouterThinkingLevel[];
 	default_thinking_level: AdRouterThinkingLevel;
+	input_modalities: AdRouterInputModality[];
+	tool_calling: boolean;
 	context_window: number;
 	max_input_tokens: number;
 	max_output_tokens: number;
 }
 
 export interface AdRouterCatalog {
-	schema_version: 1;
+	schema_version: 2;
 	catalog_digest: string;
 	models: AdRouterCatalogModel[];
 }
@@ -43,6 +46,8 @@ const EXPECTED_MODELS: ReadonlyArray<{
 	modelClass: AdRouterCatalogModel["model_class"];
 	thinkingLevels: readonly AdRouterThinkingLevel[];
 	defaultThinkingLevel: AdRouterThinkingLevel;
+	inputModalities: readonly AdRouterInputModality[];
+	toolCalling: boolean;
 }> = [
 	{
 		id: "deepseek-v4-flash",
@@ -50,6 +55,8 @@ const EXPECTED_MODELS: ReadonlyArray<{
 		modelClass: "flash",
 		thinkingLevels: ["none", "medium", "high"],
 		defaultThinkingLevel: "medium",
+		inputModalities: ["text"],
+		toolCalling: true,
 	},
 	{
 		id: "deepseek-v4-pro",
@@ -57,6 +64,8 @@ const EXPECTED_MODELS: ReadonlyArray<{
 		modelClass: "pro",
 		thinkingLevels: ["none", "medium", "high"],
 		defaultThinkingLevel: "medium",
+		inputModalities: ["text"],
+		toolCalling: true,
 	},
 	{
 		id: "mimo-v2.5",
@@ -64,6 +73,8 @@ const EXPECTED_MODELS: ReadonlyArray<{
 		modelClass: "flash",
 		thinkingLevels: ["none", "high"],
 		defaultThinkingLevel: "high",
+		inputModalities: ["text", "image"],
+		toolCalling: true,
 	},
 	{
 		id: "mimo-v2.5-pro",
@@ -71,6 +82,8 @@ const EXPECTED_MODELS: ReadonlyArray<{
 		modelClass: "pro",
 		thinkingLevels: ["none", "high"],
 		defaultThinkingLevel: "high",
+		inputModalities: ["text"],
+		toolCalling: true,
 	},
 	{
 		id: "agnes-2.0-flash",
@@ -78,6 +91,8 @@ const EXPECTED_MODELS: ReadonlyArray<{
 		modelClass: "flash",
 		thinkingLevels: ["none", "high"],
 		defaultThinkingLevel: "none",
+		inputModalities: ["text", "image"],
+		toolCalling: true,
 	},
 	{
 		id: "agnes-2.5-flash",
@@ -85,6 +100,8 @@ const EXPECTED_MODELS: ReadonlyArray<{
 		modelClass: "flash",
 		thinkingLevels: ["none", "high"],
 		defaultThinkingLevel: "none",
+		inputModalities: ["text", "image"],
+		toolCalling: true,
 	},
 	{
 		id: "agnes-2.5-pro",
@@ -92,6 +109,8 @@ const EXPECTED_MODELS: ReadonlyArray<{
 		modelClass: "pro",
 		thinkingLevels: ["high"],
 		defaultThinkingLevel: "high",
+		inputModalities: ["text", "image"],
+		toolCalling: false,
 	},
 	{
 		id: "agnes-2.5-pro-alpha",
@@ -99,8 +118,26 @@ const EXPECTED_MODELS: ReadonlyArray<{
 		modelClass: "pro",
 		thinkingLevels: ["high"],
 		defaultThinkingLevel: "high",
+		inputModalities: ["text", "image"],
+		toolCalling: false,
 	},
 ];
+
+const EXPECTED_LIMITS_BY_MODEL: Readonly<
+	Record<
+		AdRouterCatalogModelId,
+		{ contextWindow: number; maxInputTokens: number; maxOutputTokens: number }
+	>
+> = {
+	"deepseek-v4-flash": { contextWindow: 1_048_576, maxInputTokens: 917_504, maxOutputTokens: 65_536 },
+	"deepseek-v4-pro": { contextWindow: 1_048_576, maxInputTokens: 851_968, maxOutputTokens: 131_072 },
+	"mimo-v2.5": { contextWindow: 1_048_576, maxInputTokens: 917_504, maxOutputTokens: 65_536 },
+	"mimo-v2.5-pro": { contextWindow: 1_048_576, maxInputTokens: 851_968, maxOutputTokens: 131_072 },
+	"agnes-2.0-flash": { contextWindow: 524_288, maxInputTokens: 458_752, maxOutputTokens: 65_536 },
+	"agnes-2.5-flash": { contextWindow: 524_288, maxInputTokens: 458_752, maxOutputTokens: 65_536 },
+	"agnes-2.5-pro": { contextWindow: 1_048_576, maxInputTokens: 851_968, maxOutputTokens: 131_072 },
+	"agnes-2.5-pro-alpha": { contextWindow: 1_048_576, maxInputTokens: 786_432, maxOutputTokens: 196_608 },
+};
 
 const TOP_LEVEL_KEYS = ["catalog_digest", "models", "schema_version"];
 const MODEL_KEYS = [
@@ -109,17 +146,20 @@ const MODEL_KEYS = [
 	"description",
 	"display_name",
 	"id",
+	"input_modalities",
 	"max_input_tokens",
 	"max_output_tokens",
 	"model_class",
 	"provider",
 	"provider_label",
 	"thinking_levels",
+	"tool_calling",
 ];
 const THINKING_LEVELS = new Set<AdRouterThinkingLevel>(["none", "medium", "high"]);
+const INPUT_MODALITIES = new Set<AdRouterInputModality>(["text", "image"]);
 const CATALOG_DIRECTORY = join(dirname(fileURLToPath(import.meta.url)), "..", "catalog");
 
-export const ADROUTER_CATALOG_PATH = join(CATALOG_DIRECTORY, "adrouter-model-catalog.v1.json");
+export const ADROUTER_CATALOG_PATH = join(CATALOG_DIRECTORY, "adrouter-model-catalog.v2.json");
 
 function fail(message: string): never {
 	throw new Error(`invalid_adrouter_catalog: ${message}`);
@@ -160,7 +200,7 @@ export function computeAdRouterCatalogDigest(payload: unknown): string {
 export function validateAdRouterCatalog(value: unknown): AdRouterCatalog {
 	assertRecord(value, "catalog");
 	assertExactKeys(value, TOP_LEVEL_KEYS, "catalog");
-	if (value.schema_version !== 1) fail("schema_version must equal 1");
+	if (value.schema_version !== 2) fail("schema_version must equal 2");
 	if (typeof value.catalog_digest !== "string" || !/^sha256:[0-9a-f]{64}$/.test(value.catalog_digest)) {
 		fail("catalog_digest must be a lowercase sha256 digest");
 	}
@@ -194,14 +234,34 @@ export function validateAdRouterCatalog(value: unknown): AdRouterCatalog {
 		) {
 			fail(`${expected.id}.default_thinking_level does not match the hosted contract`);
 		}
-		for (const [key, expectedLimit] of [
-			["context_window", 131_072],
-			["max_input_tokens", 126_976],
-			["max_output_tokens", 4_096],
-		] as const) {
-			if (!Number.isInteger(model[key]) || model[key] !== expectedLimit) {
-				fail(`${expected.id}.${key} must equal ${expectedLimit}`);
+		if (
+			!Array.isArray(model.input_modalities) ||
+			model.input_modalities.length !== expected.inputModalities.length ||
+			model.input_modalities.some(
+				(modality, modalityIndex) =>
+					!INPUT_MODALITIES.has(modality as AdRouterInputModality) || modality !== expected.inputModalities[modalityIndex],
+			)
+		) {
+			fail(`${expected.id}.input_modalities do not match the hosted contract`);
+		}
+		if (model.tool_calling !== expected.toolCalling) {
+			fail(`${expected.id}.tool_calling must equal ${expected.toolCalling}`);
+		}
+		for (const key of ["context_window", "max_input_tokens", "max_output_tokens"] as const) {
+			if (!Number.isInteger(model[key]) || (model[key] as number) <= 0) {
+				fail(`${expected.id}.${key} must be a positive integer`);
 			}
+		}
+		if ((model.max_input_tokens as number) + (model.max_output_tokens as number) > (model.context_window as number)) {
+			fail(`${expected.id} input and output limits must not exceed its context window`);
+		}
+		const expectedLimits = EXPECTED_LIMITS_BY_MODEL[expected.id];
+		for (const [key, expectedLimit] of [
+			["context_window", expectedLimits.contextWindow],
+			["max_input_tokens", expectedLimits.maxInputTokens],
+			["max_output_tokens", expectedLimits.maxOutputTokens],
+		] as const) {
+			if (model[key] !== expectedLimit) fail(`${expected.id}.${key} must equal ${expectedLimit}`);
 		}
 	}
 
@@ -243,7 +303,6 @@ function renderThinkingMap(levels: readonly AdRouterThinkingLevel[]): string {
 
 export function renderAdRouterModelsModule(catalog: AdRouterCatalog): string {
 	validateAdRouterCatalog(catalog);
-	const limits = catalog.models[0];
 	let output = `// This file is auto-generated by scripts/generate-models.ts
 // Do not edit manually - run 'npm run generate-models' to update
 
@@ -251,11 +310,17 @@ import type { Model } from "../types.ts";
 
 export const ADROUTER_CATALOG_SCHEMA_VERSION = ${catalog.schema_version} as const;
 export const ADROUTER_CATALOG_DIGEST = ${quote(catalog.catalog_digest)} as const;
-export const ADROUTER_HOSTED_LIMITS = {
-	contextWindowTokens: ${limits.context_window},
-	maxInputTokens: ${limits.max_input_tokens},
-	maxOutputTokens: ${limits.max_output_tokens},
-} as const;
+export const ADROUTER_HOSTED_LIMITS_BY_MODEL = {
+`;
+	for (const model of catalog.models) {
+		output += `\t${quote(model.id)}: {
+		contextWindowTokens: ${model.context_window},
+		maxInputTokens: ${model.max_input_tokens},
+		maxOutputTokens: ${model.max_output_tokens},
+	},
+`;
+	}
+	output += `} as const;
 
 export const ADROUTER_CATALOG_METADATA = {
 `;
@@ -266,7 +331,11 @@ export const ADROUTER_CATALOG_METADATA = {
 		description: ${quote(model.description)},
 		thinkingLevels: ${JSON.stringify(model.thinking_levels)},
 		defaultThinkingLevel: ${quote(model.default_thinking_level)},
+		inputModalities: ${JSON.stringify(model.input_modalities)},
+		toolCalling: ${model.tool_calling},
+		contextWindowTokens: ${model.context_window},
 		maxInputTokens: ${model.max_input_tokens},
+		maxOutputTokens: ${model.max_output_tokens},
 	},
 `;
 	}
@@ -274,7 +343,7 @@ export const ADROUTER_CATALOG_METADATA = {
 
 export const ADROUTER_MODELS = {
 `;
-	for (const model of catalog.models) {
+	for (const model of catalog.models.filter((candidate) => candidate.tool_calling)) {
 		output += `\t${quote(model.id)}: {
 		id: ${quote(model.id)},
 		name: ${quote(`AdRouter ${model.display_name}`)},

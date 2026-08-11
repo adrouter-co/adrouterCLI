@@ -13,6 +13,7 @@ import type {
 	AgentToolResult,
 	AgentToolUpdateCallback,
 	ThinkingLevel,
+	ToolEffect,
 	ToolExecutionMode,
 } from "@adrouter/agent-core";
 import type {
@@ -433,6 +434,8 @@ export interface ToolDefinition<TParams extends TSchema = TSchema, TDetails = un
 	name: string;
 	/** Human-readable label for UI */
 	label: string;
+	/** Security effect. Custom tools default to mutation when omitted. */
+	effect?: ToolEffect;
 	/** Description for LLM */
 	description: string;
 	/** Optional one-line snippet for the Available tools section in the default system prompt. Custom tools are omitted from that section when this is not provided. */

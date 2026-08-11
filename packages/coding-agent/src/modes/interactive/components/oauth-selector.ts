@@ -7,6 +7,7 @@ export type AuthSelectorProvider = {
 	id: string;
 	name: string;
 	authType: "oauth" | "api_key";
+	authLabel?: string;
 };
 
 export function formatAuthSelectorProviderType(authType: AuthSelectorProvider["authType"]): string {
@@ -121,7 +122,7 @@ export class OAuthSelectorComponent extends Container implements Focusable {
 
 			const statusIndicator = this.formatStatusIndicator(provider);
 			const authTypeLabel = this.showAuthTypeLabels
-				? theme.fg("muted", ` [${formatAuthSelectorProviderType(provider.authType)}]`)
+				? theme.fg("muted", ` [${provider.authLabel ?? formatAuthSelectorProviderType(provider.authType)}]`)
 				: "";
 			let line = "";
 			if (isSelected) {

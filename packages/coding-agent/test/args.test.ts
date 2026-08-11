@@ -329,6 +329,13 @@ describe("parseArgs", () => {
 		});
 	});
 
+	describe("--tool-policy", () => {
+		test("parses an exact policy path", () => {
+			const result = parseArgs(["--tool-policy", "/private/tmp/adrouter-policy.json"]);
+			expect(result.toolPolicy).toBe("/private/tmp/adrouter-policy.json");
+		});
+	});
+
 	describe("tool flags", () => {
 		test("parses --no-tools flag", () => {
 			const result = parseArgs(["--no-tools"]);

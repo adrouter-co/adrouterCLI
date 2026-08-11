@@ -32,6 +32,7 @@ import { ModelRegistry } from "../src/core/model-registry.ts";
 import { SessionManager } from "../src/core/session-manager.ts";
 import type { Settings } from "../src/core/settings-manager.ts";
 import { SettingsManager } from "../src/core/settings-manager.ts";
+import type { ToolAuthorizer } from "../src/core/tool-authorization.ts";
 import type { InlineExtension, ResourceLoader } from "../src/index.ts";
 import {
 	type CreateTestExtensionsResultInput,
@@ -336,6 +337,8 @@ export interface HarnessOptions {
 	resourceLoader?: ResourceLoader;
 	/** Inline extensions to load into the session resource loader. */
 	extensionFactories?: Array<InlineExtension | CreateTestExtensionsResultInput>;
+	/** Explicit test authorizer. Null exercises the production fail-closed path. */
+	authorizeToolCall?: ToolAuthorizer | null;
 }
 
 export interface Harness {
@@ -400,6 +403,10 @@ function createHarnessWithResourceLoader(
 		modelRegistry,
 		resourceLoader,
 		baseToolsOverride: options.baseToolsOverride,
+		authorizeToolCall:
+			options.authorizeToolCall === null
+				? undefined
+				: (options.authorizeToolCall ?? (async () => ({ allow: true }))),
 	});
 
 	const events: AgentSessionEvent[] = [];

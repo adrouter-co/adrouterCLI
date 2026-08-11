@@ -2,10 +2,14 @@ import { type AgentMessage, uuidv7 } from "@adrouter/agent-core";
 import type { ImageContent, Message, TextContent } from "@adrouter/ai";
 import { randomUUID } from "crypto";
 import {
-	appendFileSync,
+	chmodSync,
 	closeSync,
+	constants,
 	createReadStream,
 	existsSync,
+	fchmodSync,
+	fstatSync,
+	lstatSync,
 	mkdirSync,
 	openSync,
 	readdirSync,
@@ -476,11 +480,60 @@ function getDefaultSessionDirPath(cwd: string, agentDir: string = getDefaultAgen
 	return join(resolvedAgentDir, "sessions", safePath);
 }
 
+const PRIVATE_DIRECTORY_MODE = 0o700;
+const PRIVATE_FILE_MODE = 0o600;
+const NO_FOLLOW = constants.O_NOFOLLOW ?? 0;
+
+function assertCurrentUserOwner(uid: number, label: string): void {
+	if (process.platform !== "win32" && typeof process.getuid === "function" && uid !== process.getuid()) {
+		throw new Error(`${label} must be owned by the current user.`);
+	}
+}
+
+function ensurePrivateSessionDirectory(directory: string, repairPermissions: boolean): void {
+	if (!existsSync(directory)) {
+		mkdirSync(directory, { recursive: true, mode: PRIVATE_DIRECTORY_MODE });
+		chmodSync(directory, PRIVATE_DIRECTORY_MODE);
+	}
+	const metadata = lstatSync(directory);
+	if (metadata.isSymbolicLink() || !metadata.isDirectory()) {
+		throw new Error(`Session directory must be a real directory, not a symlink: ${directory}`);
+	}
+	assertCurrentUserOwner(metadata.uid, `Session directory ${directory}`);
+	if (process.platform !== "win32" && (metadata.mode & 0o077) !== 0) {
+		if (!repairPermissions) {
+			throw new Error(`Session directory must not grant group or other access (use mode 0700): ${directory}`);
+		}
+		chmodSync(directory, PRIVATE_DIRECTORY_MODE);
+	}
+}
+
+function openPrivateSessionFile(path: string, flags: number): number {
+	const fd = openSync(path, flags | NO_FOLLOW, PRIVATE_FILE_MODE);
+	try {
+		const metadata = fstatSync(fd);
+		if (!metadata.isFile()) throw new Error(`Session path must be a regular file: ${path}`);
+		assertCurrentUserOwner(metadata.uid, `Session file ${path}`);
+		if (process.platform !== "win32") fchmodSync(fd, PRIVATE_FILE_MODE);
+		return fd;
+	} catch (error) {
+		closeSync(fd);
+		throw error;
+	}
+}
+
+function appendPrivateSessionFile(path: string, serialized: string): void {
+	const fd = openPrivateSessionFile(path, constants.O_WRONLY | constants.O_APPEND);
+	try {
+		writeFileSync(fd, serialized);
+	} finally {
+		closeSync(fd);
+	}
+}
+
 export function getDefaultSessionDir(cwd: string, agentDir: string = getDefaultAgentDir()): string {
 	const sessionDir = getDefaultSessionDirPath(cwd, agentDir);
-	if (!existsSync(sessionDir)) {
-		mkdirSync(sessionDir, { recursive: true });
-	}
+	ensurePrivateSessionDirectory(sessionDir, true);
 	return sessionDir;
 }
 
@@ -502,7 +555,7 @@ export function loadEntriesFromFile(filePath: string): FileEntry[] {
 	if (!existsSync(resolvedFilePath)) return [];
 
 	const entries: FileEntry[] = [];
-	const fd = openSync(resolvedFilePath, "r");
+	const fd = openPrivateSessionFile(resolvedFilePath, constants.O_RDONLY);
 	try {
 		const decoder = new StringDecoder("utf8");
 		const buffer = Buffer.allocUnsafe(SESSION_READ_BUFFER_SIZE);
@@ -811,9 +864,7 @@ export class SessionManager {
 		this.cwd = resolvePath(cwd);
 		this.sessionDir = normalizePath(sessionDir);
 		this.persist = persist;
-		if (persist && this.sessionDir && !existsSync(this.sessionDir)) {
-			mkdirSync(this.sessionDir, { recursive: true });
-		}
+		if (persist && this.sessionDir) ensurePrivateSessionDirectory(this.sessionDir, true);
 
 		if (sessionFile) {
 			this.setSessionFile(sessionFile);
@@ -909,7 +960,7 @@ export class SessionManager {
 
 	private _rewriteFile(): void {
 		if (!this.persist || !this.sessionFile) return;
-		const fd = openSync(this.sessionFile, "w");
+		const fd = openPrivateSessionFile(this.sessionFile, constants.O_WRONLY | constants.O_CREAT | constants.O_TRUNC);
 		try {
 			for (const entry of this.fileEntries) {
 				writeFileSync(fd, `${JSON.stringify(entry)}\n`);
@@ -949,7 +1000,7 @@ export class SessionManager {
 		const hasAssistant = this.fileEntries.some((e) => e.type === "message" && e.message.role === "assistant");
 		if (!hasAssistant) {
 			if (this.flushed) {
-				appendFileSync(this.sessionFile, `${JSON.stringify(entry)}\n`);
+				appendPrivateSessionFile(this.sessionFile, `${JSON.stringify(entry)}\n`);
 			} else {
 				// Mark as not flushed so when assistant arrives, all entries get written
 				this.flushed = false;
@@ -958,7 +1009,7 @@ export class SessionManager {
 		}
 
 		if (!this.flushed) {
-			const fd = openSync(this.sessionFile, "wx");
+			const fd = openPrivateSessionFile(this.sessionFile, constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL);
 			try {
 				for (const e of this.fileEntries) {
 					writeFileSync(fd, `${JSON.stringify(e)}\n`);
@@ -968,7 +1019,7 @@ export class SessionManager {
 			}
 			this.flushed = true;
 		} else {
-			appendFileSync(this.sessionFile, `${JSON.stringify(entry)}\n`);
+			appendPrivateSessionFile(this.sessionFile, `${JSON.stringify(entry)}\n`);
 		}
 	}
 
@@ -1506,9 +1557,7 @@ export class SessionManager {
 		}
 
 		const dir = sessionDir ? normalizePath(sessionDir) : getDefaultSessionDir(resolvedTargetCwd);
-		if (!existsSync(dir)) {
-			mkdirSync(dir, { recursive: true });
-		}
+		ensurePrivateSessionDirectory(dir, true);
 
 		// Create new session file with new ID but forked content
 		if (options?.id !== undefined) {
@@ -1528,13 +1577,21 @@ export class SessionManager {
 			cwd: resolvedTargetCwd,
 			parentSession: resolvedSourcePath,
 		};
-		writeFileSync(newSessionFile, `${JSON.stringify(newHeader)}\n`, { flag: "wx" });
+		const newSessionFd = openPrivateSessionFile(
+			newSessionFile,
+			constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL,
+		);
+		try {
+			writeFileSync(newSessionFd, `${JSON.stringify(newHeader)}\n`);
 
-		// Copy all non-header entries from source
-		for (const entry of sourceEntries) {
-			if (entry.type !== "session") {
-				appendFileSync(newSessionFile, `${JSON.stringify(entry)}\n`);
+			// Copy all non-header entries from source
+			for (const entry of sourceEntries) {
+				if (entry.type !== "session") {
+					writeFileSync(newSessionFd, `${JSON.stringify(entry)}\n`);
+				}
 			}
+		} finally {
+			closeSync(newSessionFd);
 		}
 
 		return new SessionManager(resolvedTargetCwd, dir, newSessionFile, true);

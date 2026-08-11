@@ -29,15 +29,15 @@ for (const path of markdown) {
 }
 
 const rootReadme = readFileSync("README.md", "utf8");
-const catalog = JSON.parse(readFileSync("packages/ai/catalog/adrouter-model-catalog.v1.json", "utf8"));
-const adrouterModelIds = catalog.models.map((model) => model.id);
+const catalog = JSON.parse(readFileSync("packages/ai/catalog/adrouter-model-catalog.v2.json", "utf8"));
+const adrouterModelIds = catalog.models.filter((model) => model.tool_calling).map((model) => model.id);
 const formatInteger = (value) => new Intl.NumberFormat("en-US").format(value);
 const modelTable = [
-	"| Model ID | Display name | Provider | Class | Description | Thinking modes | Default | Context | Max input | Max output |",
+	"| Model ID | Display name | Provider | Class | Tool calling | Thinking modes | Default | Context | Max input | Max output |",
 	"| --- | --- | --- | --- | --- | --- | --- | ---: | ---: | ---: |",
 	...catalog.models.map(
 		(model) =>
-			`| \`${model.id}\` | ${model.display_name} | ${model.provider} | ${model.model_class} | ${model.description} | ${model.thinking_levels.join(", ")} | ${model.default_thinking_level} | ${formatInteger(model.context_window)} | ${formatInteger(model.max_input_tokens)} | ${formatInteger(model.max_output_tokens)} |`,
+			`| \`${model.id}\` | ${model.display_name} | ${model.provider} | ${model.model_class} | ${model.tool_calling ? "yes" : "no"} | ${model.thinking_levels.join(", ")} | ${model.default_thinking_level} | ${formatInteger(model.context_window)} | ${formatInteger(model.max_input_tokens)} | ${formatInteger(model.max_output_tokens)} |`,
 	),
 ].join("\n");
 const tableStart = "<!-- BEGIN ADROUTER MODEL TABLE -->";
@@ -48,6 +48,23 @@ const actualTable = about.match(/<!-- BEGIN ADROUTER MODEL TABLE -->[\s\S]*?<!--
 if (actualTable !== expectedTable) failures.push("docs/about.md: generated model table differs from vendored catalog");
 if (!about.includes(`\`${catalog.catalog_digest}\``)) {
 	failures.push("docs/about.md: catalog digest differs from vendored catalog");
+}
+if (!about.includes("Router continues\nto use 4,096 tokens when output is omitted")) {
+	failures.push("docs/about.md: omitted-output and account default is not distinguished from model maxima");
+}
+for (const path of ["README.md", "docs/about.md", "docs/architecture.md", "docs/installation.md", "docs/troubleshooting.md"]) {
+	const text = readFileSync(path, "utf8");
+	for (const stale of [
+		"All hosted models use a 131,072-token total context contract",
+		"The 131,072-token context is divided into at most 126,976 input tokens and 4,096 output tokens",
+		"all eight hosted models have a 131,072-token total window",
+		"All eight use a 131,072-token total context",
+	]) {
+		if (text.includes(stale)) failures.push(`${path}: stale shared hosted-limit claim remains`);
+	}
+}
+if (!readFileSync("packages/ai/docs/README.md", "utf8").includes("ADROUTER_HOSTED_LIMITS_BY_MODEL")) {
+	failures.push("packages/ai/docs/README.md: model-keyed hosted limits export is undocumented");
 }
 for (const path of [
 	"docs/installation.md",

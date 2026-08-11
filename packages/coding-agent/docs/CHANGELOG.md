@@ -1,5 +1,34 @@
 # Changelog
 
+## [0.81.0-beta.21] - 2026-08-11
+
+### Security
+
+- Required a fresh authorization decision for model-requested commands and mutations in
+  interactive, print, and RPC modes, failing closed when no approval handler is available.
+- Ignored project-controlled session-directory settings until trust is established and constrained
+  session persistence to the protected global state root before that point.
+- Replaced predictable shared temporary logs with owner-only, collision-resistant files and
+  bounded official Router responses before they can consume unbounded memory.
+
+## [0.81.0-beta.20] - 2026-08-10
+
+### Fixed
+
+- Removed the redundant authentication-method step from bare `/login` and labeled AdRouter's
+  official flow as browser installation approval.
+- Exposed only Router models qualified for read/write tool calling while retaining full hosted
+  metadata and limits for contract validation.
+
+## [0.81.0-beta.19] - 2026-08-03
+
+### Changed
+
+- Synchronized exact model-specific context, input, and output limits from Router and propagated
+  them through offline listing, selected-model compaction, and installed-package verification.
+- Kept one compact-and-retry before response events and preserved the no-replay rule after any
+  sponsored or paid stream event.
+
 ## [0.81.0-beta.18] - 2026-08-02
 
 ### Changed

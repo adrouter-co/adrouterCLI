@@ -94,6 +94,7 @@ import type { SettingsManager } from "./settings-manager.ts";
 import type { SlashCommandInfo } from "./slash-commands.ts";
 import { createSyntheticSourceInfo, type SourceInfo } from "./source-info.ts";
 import { type BuildSystemPromptOptions, buildSystemPrompt } from "./system-prompt.ts";
+import { createToolApprovalRequest, type ToolAuthorizer } from "./tool-authorization.ts";
 import { type BashOperations, createLocalBashOperations } from "./tools/bash.ts";
 import { createAllToolDefinitions } from "./tools/index.ts";
 import { createToolDefinitionFromAgentTool } from "./tools/tool-definition-wrapper.ts";
@@ -205,6 +206,8 @@ export interface AgentSessionConfig {
 	extensionRunnerRef?: { current?: ExtensionRunner };
 	/** Session start event metadata emitted when extensions bind to this runtime. */
 	sessionStartEvent?: SessionStartEvent;
+	/** Core authorizer for exact effectful model tool calls. Omission fails closed. */
+	authorizeToolCall?: ToolAuthorizer;
 }
 
 export interface ExtensionBindings {
@@ -214,6 +217,8 @@ export interface ExtensionBindings {
 	abortHandler?: () => void;
 	shutdownHandler?: ShutdownHandler;
 	onError?: ExtensionErrorListener;
+	/** Core, non-extension authorizer for exact effectful tool calls. */
+	authorizeToolCall?: ToolAuthorizer;
 }
 
 /** Options for AgentSession.prompt() */
@@ -334,6 +339,7 @@ export class AgentSession {
 	private _baseToolsOverride?: Record<string, AgentTool>;
 	private _sessionStartEvent: SessionStartEvent;
 	private _extensionUIContext?: ExtensionUIContext;
+	private _toolAuthorizer?: ToolAuthorizer;
 	private _extensionMode: ExtensionMode = "print";
 	private _extensionCommandContextActions?: ExtensionCommandContextActions;
 	private _extensionAbortHandler?: () => void;
@@ -370,6 +376,7 @@ export class AgentSession {
 		this._excludedToolNames = config.excludedToolNames ? new Set(config.excludedToolNames) : undefined;
 		this._baseToolsOverride = config.baseToolsOverride;
 		this._sessionStartEvent = config.sessionStartEvent ?? { type: "session_start", reason: "startup" };
+		this._toolAuthorizer = config.authorizeToolCall;
 
 		// Always subscribe to agent events for internal handling
 		// (session persistence, extensions, auto-compaction, retry logic)
@@ -437,6 +444,28 @@ export class AgentSession {
 	 * happens here instead of in wrappers.
 	 */
 	private _installAgentToolHooks(): void {
+		this.agent.authorizeToolCall = async (context, signal) => {
+			if (context.effect === "read") return { allow: true };
+			const authorizer = this._toolAuthorizer;
+			if (!authorizer) {
+				return {
+					allow: false,
+					reason: "Effectful model tool calls require a fresh allow-once approval.",
+				};
+			}
+			try {
+				return await authorizer(
+					createToolApprovalRequest(this.sessionManager.getSessionId(), this._cwd, context),
+					signal,
+				);
+			} catch (error) {
+				return {
+					allow: false,
+					reason: error instanceof Error ? error.message : "Tool authorization failed closed.",
+				};
+			}
+		};
+
 		this.agent.beforeToolCall = async ({ toolCall, args }) => {
 			const runner = this._extensionRunner;
 			if (!runner.hasHandlers("tool_call")) {
@@ -2234,6 +2263,9 @@ export class AgentSession {
 		}
 		if (bindings.onError !== undefined) {
 			this._extensionErrorListener = bindings.onError;
+		}
+		if (bindings.authorizeToolCall !== undefined) {
+			this._toolAuthorizer = bindings.authorizeToolCall;
 		}
 
 		this._applyExtensionBindings(this._extensionRunner);

@@ -28,6 +28,7 @@ export interface Args {
 	sessionId?: string;
 	fork?: string;
 	sessionDir?: string;
+	toolPolicy?: string;
 	models?: string[];
 	tools?: string[];
 	excludeTools?: string[];
@@ -114,6 +115,8 @@ export function parseArgs(args: string[]): Args {
 			result.fork = args[++i];
 		} else if (arg === "--session-dir" && i + 1 < args.length) {
 			result.sessionDir = args[++i];
+		} else if (arg === "--tool-policy" && i + 1 < args.length) {
+			result.toolPolicy = args[++i];
 		} else if (arg === "--models" && i + 1 < args.length) {
 			result.models = args[++i].split(",").map((s) => s.trim());
 		} else if (arg === "--no-tools" || arg === "-nt") {
@@ -251,6 +254,7 @@ ${chalk.bold("Options:")}
   --session-id <id>              Use exact project session ID, creating it if missing
   --fork <path|id>               Fork specific session file or partial UUID into a new session
   --session-dir <dir>            Directory for session storage and lookup
+  --tool-policy <absolute-path>  Exact one-shot tool approvals for print/JSON mode
   --no-session                   Don't save session (ephemeral)
   --name, -n <name>              Set session display name
   --models <patterns>            Comma-separated model patterns for Ctrl+P cycling

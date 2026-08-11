@@ -1,10 +1,10 @@
 import { setKeybindings } from "@adrouter/tui";
-import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { AuthStorage } from "../src/core/auth-storage.ts";
 import { KeybindingsManager } from "../src/core/keybindings.ts";
 import { BUILT_IN_PROVIDER_DISPLAY_NAMES } from "../src/core/provider-display-names.ts";
 import { OAuthSelectorComponent } from "../src/modes/interactive/components/oauth-selector.ts";
-import { isApiKeyLoginProvider } from "../src/modes/interactive/interactive-mode.ts";
+import { InteractiveMode, isApiKeyLoginProvider } from "../src/modes/interactive/interactive-mode.ts";
 import { initTheme } from "../src/modes/interactive/theme/theme.ts";
 import { stripAnsi } from "../src/utils/ansi.ts";
 
@@ -99,5 +99,42 @@ describe("OAuthSelectorComponent", () => {
 		expect(output).toContain("ollama");
 		expect(output).toContain("✓ env: OLLAMA_API_KEY");
 		expect(output).not.toContain("unconfigured");
+	});
+
+	it("labels official AdRouter login as a browser installation", () => {
+		const selector = new OAuthSelectorComponent(
+			"login",
+			AuthStorage.inMemory(),
+			[
+				{ id: "adrouter", name: "AdRouter", authType: "api_key", authLabel: "Browser installation" },
+				{ id: "anthropic", name: "Anthropic", authType: "oauth" },
+			],
+			() => {},
+			() => {},
+		);
+
+		const output = stripAnsi(selector.render(120).join("\n"));
+		expect(output).toContain("AdRouter [Browser installation]");
+		expect(output).not.toContain("AdRouter [API key]");
+	});
+
+	it("opens the provider selector directly for bare /login", async () => {
+		const showLoginProviderSelector = vi.fn();
+		const showLoginAuthTypeSelector = vi.fn();
+		const handleLoginCommand = (
+			InteractiveMode as unknown as {
+				prototype: {
+					handleLoginCommand(this: {
+						showLoginProviderSelector: () => void;
+						showLoginAuthTypeSelector: () => void;
+					}): Promise<void>;
+				};
+			}
+		).prototype.handleLoginCommand;
+
+		await handleLoginCommand.call({ showLoginProviderSelector, showLoginAuthTypeSelector });
+
+		expect(showLoginProviderSelector).toHaveBeenCalledOnce();
+		expect(showLoginAuthTypeSelector).not.toHaveBeenCalled();
 	});
 });

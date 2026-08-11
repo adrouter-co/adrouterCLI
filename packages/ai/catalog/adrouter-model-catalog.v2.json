@@ -1,6 +1,6 @@
 {
-  "schema_version": 1,
-  "catalog_digest": "sha256:e8e5f875b6c901ed98c3b07b5ad9aa107a52562dc9157aa8eae99b73562ca9be",
+  "schema_version": 2,
+  "catalog_digest": "sha256:ee5aba34ad122c6864045cbedc1b982ceefebeb3cfaaa5f15ab90ad34a82cb8b",
   "models": [
     {
       "id": "deepseek-v4-flash",
@@ -15,9 +15,13 @@
         "high"
       ],
       "default_thinking_level": "medium",
-      "context_window": 131072,
-      "max_input_tokens": 126976,
-      "max_output_tokens": 4096
+      "input_modalities": [
+        "text"
+      ],
+      "tool_calling": true,
+      "context_window": 1048576,
+      "max_input_tokens": 917504,
+      "max_output_tokens": 65536
     },
     {
       "id": "deepseek-v4-pro",
@@ -32,9 +36,13 @@
         "high"
       ],
       "default_thinking_level": "medium",
-      "context_window": 131072,
-      "max_input_tokens": 126976,
-      "max_output_tokens": 4096
+      "input_modalities": [
+        "text"
+      ],
+      "tool_calling": true,
+      "context_window": 1048576,
+      "max_input_tokens": 851968,
+      "max_output_tokens": 131072
     },
     {
       "id": "mimo-v2.5",
@@ -48,9 +56,14 @@
         "high"
       ],
       "default_thinking_level": "high",
-      "context_window": 131072,
-      "max_input_tokens": 126976,
-      "max_output_tokens": 4096
+      "input_modalities": [
+        "text",
+        "image"
+      ],
+      "tool_calling": true,
+      "context_window": 1048576,
+      "max_input_tokens": 917504,
+      "max_output_tokens": 65536
     },
     {
       "id": "mimo-v2.5-pro",
@@ -64,9 +77,13 @@
         "high"
       ],
       "default_thinking_level": "high",
-      "context_window": 131072,
-      "max_input_tokens": 126976,
-      "max_output_tokens": 4096
+      "input_modalities": [
+        "text"
+      ],
+      "tool_calling": true,
+      "context_window": 1048576,
+      "max_input_tokens": 851968,
+      "max_output_tokens": 131072
     },
     {
       "id": "agnes-2.0-flash",
@@ -80,9 +97,14 @@
         "high"
       ],
       "default_thinking_level": "none",
-      "context_window": 131072,
-      "max_input_tokens": 126976,
-      "max_output_tokens": 4096
+      "input_modalities": [
+        "text",
+        "image"
+      ],
+      "tool_calling": true,
+      "context_window": 524288,
+      "max_input_tokens": 458752,
+      "max_output_tokens": 65536
     },
     {
       "id": "agnes-2.5-flash",
@@ -96,9 +118,14 @@
         "high"
       ],
       "default_thinking_level": "none",
-      "context_window": 131072,
-      "max_input_tokens": 126976,
-      "max_output_tokens": 4096
+      "input_modalities": [
+        "text",
+        "image"
+      ],
+      "tool_calling": true,
+      "context_window": 524288,
+      "max_input_tokens": 458752,
+      "max_output_tokens": 65536
     },
     {
       "id": "agnes-2.5-pro",
@@ -111,9 +138,14 @@
         "high"
       ],
       "default_thinking_level": "high",
-      "context_window": 131072,
-      "max_input_tokens": 126976,
-      "max_output_tokens": 4096
+      "input_modalities": [
+        "text",
+        "image"
+      ],
+      "tool_calling": false,
+      "context_window": 1048576,
+      "max_input_tokens": 851968,
+      "max_output_tokens": 131072
     },
     {
       "id": "agnes-2.5-pro-alpha",
@@ -126,9 +158,14 @@
         "high"
       ],
       "default_thinking_level": "high",
-      "context_window": 131072,
-      "max_input_tokens": 126976,
-      "max_output_tokens": 4096
+      "input_modalities": [
+        "text",
+        "image"
+      ],
+      "tool_calling": false,
+      "context_window": 1048576,
+      "max_input_tokens": 786432,
+      "max_output_tokens": 196608
     }
   ]
 }

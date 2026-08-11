@@ -40,8 +40,10 @@ The hosted catalog is generated from `packages/ai/scripts/generate-models.ts`. N
 - `agnes-2.0-flash`, `agnes-2.5-flash`
 - `agnes-2.5-pro`, `agnes-2.5-pro-alpha`
 
-Preserve the registry's per-model reasoning modes and the 131,072 total / 126,976 input / 4,096
-output token contract. Do not restore old two-model or 1M-context assumptions.
+Preserve the registry's per-model reasoning modes and exact tuples. Context is 524,288 or
+1,048,576; maximum input ranges from 458,752 to 917,504; maximum output ranges from 65,536 to
+196,608. Omitted request and new-account output defaults remain 4,096. Do not restore old shared
+128K, two-model, or arithmetic-derived assumptions.
 
 - Keep sponsor/settlement data confined to the display panel and `/ads` controls. Never place it in
   prompts, assistant text, tools, command approvals, edits, or compacted sessions.
@@ -65,9 +67,9 @@ terminal behavior.
 
 ## Release channels and exact parity
 
-Remote state was verified on 2026-08-01: source/tag `0.81.0-beta.16` and npm `candidate` point to
-beta.16; public npm `beta` and `latest` remain `0.81.0-beta.13`; the beta.16 GitHub prerelease is a
-draft. Re-query before making a current claim.
+Read `../../docs/state.md` and the newest workspace parity report, then re-query npm and GitHub
+before making a current version or channel claim. Volatile release values do not belong in this
+governance file.
 
 - Keep immutable package versions, Git tags, npm `candidate`, public `beta`/`latest`, and GitHub
   release state distinct. Never claim a candidate is public merely because it is installable.

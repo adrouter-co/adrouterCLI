@@ -13,31 +13,48 @@ import {
 
 const catalog = parseAdRouterCatalog(readFileSync(ADROUTER_CATALOG_PATH));
 
-function withDigest(candidate) {
-	return {
-		...candidate,
-		catalog_digest: computeAdRouterCatalogDigest({
-			schema_version: candidate.schema_version,
-			models: candidate.models,
-		}),
-	};
-}
-
 function expectInvalid(mutator, pattern = /invalid_adrouter_catalog/) {
 	const candidate = structuredClone(catalog);
 	mutator(candidate);
 	assert.throws(() => validateAdRouterCatalog(candidate), pattern);
 }
 
-test("accepts the committed Router catalog", () => {
-	assert.equal(catalog.models.length, 8);
-	assert.equal(catalog.models[0].id, "deepseek-v4-flash");
-	assert.equal(catalog.models[7].id, "agnes-2.5-pro-alpha");
+function expectInvalidWithValidDigest(mutator, pattern = /invalid_adrouter_catalog/) {
+	expectInvalid((candidate) => {
+		mutator(candidate);
+		candidate.catalog_digest = computeAdRouterCatalogDigest({
+			schema_version: candidate.schema_version,
+			models: candidate.models,
+		});
+	}, pattern);
+}
+
+test("accepts the committed Router catalog and exposes its coding capability", () => {
+	assert.deepEqual(
+		catalog.models.map(({ id, input_modalities, tool_calling, context_window, max_input_tokens, max_output_tokens }) => ({
+			id,
+			input_modalities,
+			tool_calling,
+			context_window,
+			max_input_tokens,
+			max_output_tokens,
+		})),
+		[
+			{ id: "deepseek-v4-flash", input_modalities: ["text"], tool_calling: true, context_window: 1_048_576, max_input_tokens: 917_504, max_output_tokens: 65_536 },
+			{ id: "deepseek-v4-pro", input_modalities: ["text"], tool_calling: true, context_window: 1_048_576, max_input_tokens: 851_968, max_output_tokens: 131_072 },
+			{ id: "mimo-v2.5", input_modalities: ["text", "image"], tool_calling: true, context_window: 1_048_576, max_input_tokens: 917_504, max_output_tokens: 65_536 },
+			{ id: "mimo-v2.5-pro", input_modalities: ["text"], tool_calling: true, context_window: 1_048_576, max_input_tokens: 851_968, max_output_tokens: 131_072 },
+			{ id: "agnes-2.0-flash", input_modalities: ["text", "image"], tool_calling: true, context_window: 524_288, max_input_tokens: 458_752, max_output_tokens: 65_536 },
+			{ id: "agnes-2.5-flash", input_modalities: ["text", "image"], tool_calling: true, context_window: 524_288, max_input_tokens: 458_752, max_output_tokens: 65_536 },
+			{ id: "agnes-2.5-pro", input_modalities: ["text", "image"], tool_calling: false, context_window: 1_048_576, max_input_tokens: 851_968, max_output_tokens: 131_072 },
+			{ id: "agnes-2.5-pro-alpha", input_modalities: ["text", "image"], tool_calling: false, context_window: 1_048_576, max_input_tokens: 786_432, max_output_tokens: 196_608 },
+		],
+	);
 });
 
 test("rejects schema, digest, and key drift", () => {
 	expectInvalid((candidate) => {
-		candidate.schema_version = 2;
+		candidate.schema_version = 1;
 	});
 	expectInvalid((candidate) => {
 		candidate.catalog_digest = `sha256:${"0".repeat(64)}`;
@@ -48,19 +65,52 @@ test("rejects schema, digest, and key drift", () => {
 	expectInvalid((candidate) => {
 		candidate.models[0].configured = true;
 	});
+	expectInvalid((candidate) => {
+		delete candidate.models[0].tool_calling;
+	});
 });
 
-test("rejects model order, identity, class, limits, and thinking drift even with a valid digest", () => {
+test("rejects model order, identity, class, and thinking drift even with a valid digest", () => {
 	for (const mutate of [
 		(candidate) => candidate.models.reverse(),
 		(candidate) => (candidate.models[0].id = candidate.models[1].id),
 		(candidate) => (candidate.models[0].provider = "qwen"),
 		(candidate) => (candidate.models[0].model_class = "frontier"),
-		(candidate) => (candidate.models[0].max_output_tokens = 8192),
 		(candidate) => (candidate.models[0].thinking_levels = ["none", "high"]),
 		(candidate) => (candidate.models[0].default_thinking_level = "high"),
 	]) {
-		expectInvalid((candidate) => Object.assign(candidate, withDigest(mutateAndReturn(candidate, mutate))));
+		expectInvalidWithValidDigest(mutate);
+	}
+});
+
+test("rejects missing, duplicate, swapped, copied, malformed, and impossible tuples", () => {
+	for (const mutate of [
+		(candidate) => candidate.models.pop(),
+		(candidate) => (candidate.models[1] = structuredClone(candidate.models[0])),
+		(candidate) => {
+			const first = candidate.models[0];
+			const second = candidate.models[1];
+			[first.max_input_tokens, second.max_input_tokens] = [second.max_input_tokens, first.max_input_tokens];
+			[first.max_output_tokens, second.max_output_tokens] = [second.max_output_tokens, first.max_output_tokens];
+		},
+		(candidate) => {
+			candidate.models[4].context_window = candidate.models[0].context_window;
+			candidate.models[4].max_input_tokens = candidate.models[0].max_input_tokens;
+			candidate.models[4].max_output_tokens = candidate.models[0].max_output_tokens;
+		},
+		(candidate) => (candidate.models[0].context_window += 1),
+		(candidate) => (candidate.models[0].max_input_tokens += 1),
+		(candidate) => (candidate.models[0].max_output_tokens += 1),
+		(candidate) => (candidate.models[0].max_output_tokens = 65_536.5),
+		(candidate) => (candidate.models[0].max_input_tokens = 0),
+		(candidate) => (candidate.models[0].max_output_tokens = -1),
+		(candidate) => {
+			candidate.models[0].context_window = 10;
+			candidate.models[0].max_input_tokens = 8;
+			candidate.models[0].max_output_tokens = 8;
+		},
+	]) {
+		expectInvalidWithValidDigest(mutate);
 	}
 });
 
@@ -88,8 +138,3 @@ test("invalid synchronization input leaves vendored and generated bytes unchange
 		rmSync(directory, { recursive: true, force: true });
 	}
 });
-
-function mutateAndReturn(candidate, mutate) {
-	mutate(candidate);
-	return candidate;
-}

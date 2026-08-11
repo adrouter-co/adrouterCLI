@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.81.0-beta.21] - 2026-08-11
+
+### Security
+
+- Added a mandatory asynchronous tool-authorization boundary before agent-requested tools execute.
+
+## [0.81.0-beta.20] - 2026-08-10
+
+### Changed
+
+- Repacked the private agent runtime for catalog v2 and the streamlined installation login flow.
+
+## [0.81.0-beta.19] - 2026-08-03
+
+### Changed
+
+- Repacked the private agent runtime for Router-derived model-specific context limits.
+
 ## [0.81.0-beta.18] - 2026-08-02
 
 ### Changed

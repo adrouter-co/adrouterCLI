@@ -476,6 +476,13 @@ describe("SettingsManager", () => {
 			expect(manager.getSessionDir()).toBe("./sessions");
 		});
 
+		it("ignores an untrusted project's sessionDir during startup lookup", () => {
+			writeFileSync(join(agentDir, "settings.json"), JSON.stringify({ sessionDir: "/global/sessions" }));
+			writeFileSync(join(projectDir, ".adrouter", "settings.json"), JSON.stringify({ sessionDir: "./capture" }));
+			const manager = SettingsManager.create(projectDir, agentDir, { projectTrusted: false });
+			expect(manager.getSessionDir()).toBe("/global/sessions");
+		});
+
 		it("should expand ~ in sessionDir", () => {
 			writeFileSync(join(agentDir, "settings.json"), JSON.stringify({ sessionDir: "~/sessions" }));
 			const manager = SettingsManager.create(projectDir, agentDir);

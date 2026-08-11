@@ -12,6 +12,7 @@ import type { BashResult } from "../../core/bash-executor.ts";
 import type { CompactionResult } from "../../core/compaction/index.ts";
 import type { SessionEntry, SessionTreeNode } from "../../core/session-manager.ts";
 import type { SourceInfo } from "../../core/source-info.ts";
+import type { ToolApprovalRequest } from "../../core/tool-authorization.ts";
 
 // ============================================================================
 // RPC Commands (stdin)
@@ -24,6 +25,13 @@ export type RpcCommand =
 	| { id?: string; type: "follow_up"; message: string; images?: ImageContent[] }
 	| { id?: string; type: "abort" }
 	| { id?: string; type: "new_session"; parentSession?: string }
+	| {
+			id?: string;
+			type: "tool_approval_response";
+			approvalId: string;
+			digest: string;
+			decision: "allow_once" | "deny";
+	  }
 
 	// State
 	| { id?: string; type: "get_state" }
@@ -118,6 +126,7 @@ export type RpcResponse =
 	| { id?: string; type: "response"; command: "follow_up"; success: true }
 	| { id?: string; type: "response"; command: "abort"; success: true }
 	| { id?: string; type: "response"; command: "new_session"; success: true; data: { cancelled: boolean } }
+	| { id?: string; type: "response"; command: "tool_approval_response"; success: true }
 
 	// State
 	| { id?: string; type: "response"; command: "get_state"; success: true; data: RpcSessionState }
@@ -273,6 +282,9 @@ export type RpcExtensionUIResponse =
 	| { type: "extension_ui_response"; id: string; value: string }
 	| { type: "extension_ui_response"; id: string; confirmed: boolean }
 	| { type: "extension_ui_response"; id: string; cancelled: true };
+
+/** Emitted when an effectful model tool call requires an exact allow-once decision. */
+export type RpcToolApprovalRequest = ToolApprovalRequest & { type: "tool_approval_request" };
 
 // ============================================================================
 // Helper type for extracting command types

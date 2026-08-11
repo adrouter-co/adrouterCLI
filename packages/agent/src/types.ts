@@ -39,6 +39,7 @@ export type StreamFn = (
  *   while tool-result message artifacts are emitted later in assistant source order.
  */
 export type ToolExecutionMode = "sequential" | "parallel";
+export type ToolEffect = "read" | "mutation" | "command";
 
 /**
  * Controls how many queued user messages are injected when the agent loop reaches a queue drain point.
@@ -59,6 +60,11 @@ export type AgentToolCall = Extract<AssistantMessage["content"][number], { type:
  */
 export interface BeforeToolCallResult {
 	block?: boolean;
+	reason?: string;
+}
+
+export interface ToolAuthorizationResult {
+	allow: boolean;
 	reason?: string;
 }
 
@@ -95,6 +101,11 @@ export interface BeforeToolCallContext {
 	args: unknown;
 	/** Current agent context at the time the tool call is prepared. */
 	context: AgentContext;
+}
+
+export interface ToolAuthorizationContext extends BeforeToolCallContext {
+	/** Effect classification used by the mandatory CLI authorization boundary. */
+	effect: ToolEffect;
 }
 
 /** Context passed to `afterToolCall`. */
@@ -265,6 +276,8 @@ export interface AgentLoopConfig extends SimpleStreamOptions {
 	 * The hook receives the agent abort signal and is responsible for honoring it.
 	 */
 	beforeToolCall?: (context: BeforeToolCallContext, signal?: AbortSignal) => Promise<BeforeToolCallResult | undefined>;
+	/** Called after final argument validation and immediately before an effectful tool is admitted. */
+	authorizeToolCall?: (context: ToolAuthorizationContext, signal?: AbortSignal) => Promise<ToolAuthorizationResult>;
 
 	/**
 	 * Called after a tool finishes executing, before `tool_execution_end` and tool-result message events are emitted.
@@ -371,6 +384,8 @@ export type AgentToolUpdateCallback<T = any> = (partialResult: AgentToolResult<T
 export interface AgentTool<TParameters extends TSchema = TSchema, TDetails = any> extends Tool<TParameters> {
 	/** Human-readable label for UI display. */
 	label: string;
+	/** Security effect. Omitted/custom tools are treated as mutations by the CLI runtime. */
+	effect?: ToolEffect;
 	/**
 	 * Optional compatibility shim for raw tool-call arguments before schema validation.
 	 * Must return an object that matches `TParameters`.

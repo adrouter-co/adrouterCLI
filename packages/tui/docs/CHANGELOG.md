@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.81.0-beta.21] - 2026-08-11
+
+### Changed
+
+- Repacked the private terminal UI runtime for the security-hardening candidate.
+
+## [0.81.0-beta.20] - 2026-08-10
+
+### Changed
+
+- Repacked the private terminal UI runtime for the streamlined installation login flow.
+
+## [0.81.0-beta.19] - 2026-08-03
+
+### Changed
+
+- Repacked the private terminal UI runtime for model-specific hosted limit reporting.
+
 ## [0.81.0-beta.18] - 2026-08-02
 
 ### Changed

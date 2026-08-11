@@ -599,6 +599,13 @@ function prepareToolCallArguments(tool: AgentTool<any>, toolCall: AgentToolCall)
 	};
 }
 
+function freezeToolArguments<T>(value: T): T {
+	if (!value || typeof value !== "object" || Object.isFrozen(value)) return value;
+	Object.freeze(value);
+	for (const child of Object.values(value as Record<string, unknown>)) freezeToolArguments(child);
+	return value;
+}
+
 async function prepareToolCall(
 	currentContext: AgentContext,
 	assistantMessage: AssistantMessage,
@@ -617,7 +624,7 @@ async function prepareToolCall(
 
 	try {
 		const preparedToolCall = prepareToolCallArguments(tool, toolCall);
-		const validatedArgs = validateToolArguments(tool, preparedToolCall);
+		let validatedArgs = validateToolArguments(tool, preparedToolCall);
 		if (config.beforeToolCall) {
 			const beforeResult = await config.beforeToolCall(
 				{
@@ -642,6 +649,10 @@ async function prepareToolCall(
 					isError: true,
 				};
 			}
+			validatedArgs = validateToolArguments(tool, {
+				...preparedToolCall,
+				arguments: validatedArgs as Record<string, any>,
+			});
 		}
 		if (signal?.aborted) {
 			return {
@@ -650,11 +661,31 @@ async function prepareToolCall(
 				isError: true,
 			};
 		}
+		const finalArgs = freezeToolArguments(structuredClone(validatedArgs));
+		if (config.authorizeToolCall) {
+			const authorization = await config.authorizeToolCall(
+				{
+					assistantMessage,
+					toolCall: preparedToolCall,
+					args: finalArgs,
+					context: currentContext,
+					effect: tool.effect ?? "mutation",
+				},
+				signal,
+			);
+			if (!authorization.allow) {
+				return {
+					kind: "immediate",
+					result: createErrorToolResult(authorization.reason || "Tool execution was not authorized"),
+					isError: true,
+				};
+			}
+		}
 		return {
 			kind: "prepared",
 			toolCall,
 			tool,
-			args: validatedArgs,
+			args: finalArgs,
 		};
 	} catch (error) {
 		return {

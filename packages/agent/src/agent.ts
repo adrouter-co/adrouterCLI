@@ -24,6 +24,8 @@ import type {
 	PrepareNextTurnContext,
 	QueueMode,
 	StreamFn,
+	ToolAuthorizationContext,
+	ToolAuthorizationResult,
 	ToolExecutionMode,
 } from "./types.ts";
 
@@ -103,6 +105,7 @@ export interface AgentOptions {
 	onPayload?: SimpleStreamOptions["onPayload"];
 	onResponse?: SimpleStreamOptions["onResponse"];
 	beforeToolCall?: (context: BeforeToolCallContext, signal?: AbortSignal) => Promise<BeforeToolCallResult | undefined>;
+	authorizeToolCall?: (context: ToolAuthorizationContext, signal?: AbortSignal) => Promise<ToolAuthorizationResult>;
 	afterToolCall?: (context: AfterToolCallContext, signal?: AbortSignal) => Promise<AfterToolCallResult | undefined>;
 	prepareNextTurn?: (
 		signal?: AbortSignal,
@@ -184,6 +187,10 @@ export class Agent {
 		context: BeforeToolCallContext,
 		signal?: AbortSignal,
 	) => Promise<BeforeToolCallResult | undefined>;
+	public authorizeToolCall?: (
+		context: ToolAuthorizationContext,
+		signal?: AbortSignal,
+	) => Promise<ToolAuthorizationResult>;
 	public afterToolCall?: (
 		context: AfterToolCallContext,
 		signal?: AbortSignal,
@@ -216,6 +223,7 @@ export class Agent {
 		this.onPayload = options.onPayload;
 		this.onResponse = options.onResponse;
 		this.beforeToolCall = options.beforeToolCall;
+		this.authorizeToolCall = options.authorizeToolCall;
 		this.afterToolCall = options.afterToolCall;
 		this.prepareNextTurn = options.prepareNextTurn;
 		this.prepareNextTurnWithContext = options.prepareNextTurnWithContext;
@@ -442,6 +450,7 @@ export class Agent {
 			maxRetryDelayMs: this.maxRetryDelayMs,
 			toolExecution: this.toolExecution,
 			beforeToolCall: this.beforeToolCall,
+			authorizeToolCall: this.authorizeToolCall,
 			afterToolCall: this.afterToolCall,
 			prepareNextTurn:
 				this.prepareNextTurnWithContext || this.prepareNextTurn

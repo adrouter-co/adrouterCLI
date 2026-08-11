@@ -3,7 +3,6 @@
  * Handles TUI rendering and user interaction, delegating business logic to AgentSession.
  */
 
-import * as crypto from "node:crypto";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
@@ -95,6 +94,7 @@ import { formatMissingSessionCwdPrompt, MissingSessionCwdError } from "../../cor
 import { type SessionEntry, SessionManager, sessionEntryToContextMessages } from "../../core/session-manager.ts";
 import { BUILTIN_SLASH_COMMANDS } from "../../core/slash-commands.ts";
 import type { SourceInfo } from "../../core/source-info.ts";
+import { formatToolApproval } from "../../core/tool-authorization.ts";
 import type { TruncationResult } from "../../core/tools/truncate.ts";
 import { hasTrustRequiringProjectResources, ProjectTrustStore } from "../../core/trust-manager.ts";
 import { getChangelogPath, normalizeChangelogLinks, parseChangelog } from "../../utils/changelog.ts";
@@ -102,6 +102,7 @@ import { copyToClipboard } from "../../utils/clipboard.ts";
 import { extensionForImageMimeType, readClipboardImage } from "../../utils/clipboard-image.ts";
 import { parseGitUrl } from "../../utils/git.ts";
 import { getCwdRelativePath } from "../../utils/paths.ts";
+import { createPrivateTempFile } from "../../utils/secure-temp.ts";
 import { killTrackedDetachedChildren } from "../../utils/shell.ts";
 import { ensureTool } from "../../utils/tools-manager.ts";
 import { AdRouterAdPanel } from "./components/adrouter-ad-panel.ts";
@@ -1549,6 +1550,17 @@ export class InteractiveMode {
 		await this.session.bindExtensions({
 			uiContext,
 			mode: "tui",
+			authorizeToolCall: async (request, signal) => {
+				const allow = await uiContext.confirm(
+					`Allow ${request.toolName} once?`,
+					`${formatToolApproval(request)}\n\nApproval binding: ${request.digest}`,
+					{ signal },
+				);
+				return {
+					allow,
+					reason: allow ? undefined : "The user denied this effectful tool call.",
+				};
+			},
 			abortHandler: () => {
 				this.restoreQueuedMessagesToEditor({ abort: true });
 			},
@@ -2537,10 +2549,8 @@ export class InteractiveMode {
 			}
 
 			// Write to temp file
-			const tmpDir = os.tmpdir();
 			const ext = extensionForImageMimeType(image.mimeType) ?? "png";
-			const fileName = `${APP_NAME}-clipboard-${crypto.randomUUID()}.${ext}`;
-			const filePath = path.join(tmpDir, fileName);
+			const filePath = createPrivateTempFile(`${APP_NAME}-clipboard`, `.${ext}`).path;
 			fs.writeFileSync(filePath, Buffer.from(image.bytes));
 
 			// Insert file path directly
@@ -3768,7 +3778,8 @@ export class InteractiveMode {
 		}
 
 		const currentText = this.editor.getExpandedText?.() ?? this.editor.getText();
-		const tmpFile = path.join(os.tmpdir(), `${APP_NAME}-editor-${Date.now()}.md`);
+		const temp = createPrivateTempFile(`${APP_NAME}-editor`, ".md");
+		const tmpFile = temp.path;
 
 		try {
 			// Write current content to temp file
@@ -3804,11 +3815,7 @@ export class InteractiveMode {
 			// On non-zero exit, keep original text (no action needed)
 		} finally {
 			// Clean up temp file
-			try {
-				fs.unlinkSync(tmpFile);
-			} catch {
-				// Ignore cleanup errors
-			}
+			temp.cleanup();
 
 			// Restart TUI
 			this.ui.start();
@@ -4730,6 +4737,13 @@ export class InteractiveMode {
 				id: providerId,
 				name: this.session.modelRegistry.getProviderDisplayName(providerId),
 				authType: "api_key",
+				...(providerId === "adrouter"
+					? {
+							authLabel: isOfficialAdRouterApiUrl(resolveAdRouterApiUrl(authStorage))
+								? "Browser installation"
+								: "Bearer key",
+						}
+					: {}),
 			});
 		}
 
@@ -4776,7 +4790,7 @@ export class InteractiveMode {
 
 	private async handleLoginCommand(providerRef?: string): Promise<void> {
 		if (!providerRef) {
-			this.showLoginAuthTypeSelector();
+			this.showLoginProviderSelector();
 			return;
 		}
 
@@ -4914,7 +4928,7 @@ export class InteractiveMode {
 
 	private async showOAuthSelector(mode: "login" | "logout"): Promise<void> {
 		if (mode === "login") {
-			this.showLoginAuthTypeSelector();
+			this.showLoginProviderSelector();
 			return;
 		}
 
@@ -5491,10 +5505,12 @@ export class InteractiveMode {
 		}
 
 		// Export to a temp file
-		const tmpFile = path.join(os.tmpdir(), "session.html");
+		const temp = createPrivateTempFile(`${APP_NAME}-share`, ".html");
+		const tmpFile = temp.path;
 		try {
 			await this.session.exportToHtml(tmpFile);
 		} catch (error: unknown) {
+			temp.cleanup();
 			this.showError(`Failed to export session: ${error instanceof Error ? error.message : "Unknown error"}`);
 			return;
 		}
@@ -5511,11 +5527,7 @@ export class InteractiveMode {
 			this.editorContainer.clear();
 			this.editorContainer.addChild(this.editor);
 			this.ui.setFocus(this.editor);
-			try {
-				fs.unlinkSync(tmpFile);
-			} catch {
-				// Ignore cleanup errors
-			}
+			temp.cleanup();
 		};
 
 		// Create a secret gist asynchronously
