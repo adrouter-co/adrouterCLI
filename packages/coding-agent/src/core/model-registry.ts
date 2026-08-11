@@ -2,7 +2,7 @@
  * Model registry for the locked AdRouter runtime and explicit mutable SDK/test registries.
  */
 
-import { ADROUTER_MODELS } from "@adrouter/ai";
+import { ADROUTER_MODELS, type ProviderHeaders } from "@adrouter/ai";
 import {
 	type Api,
 	type AssistantMessageEventStream,
@@ -29,7 +29,7 @@ import {
 
 interface ProviderRequestConfig {
 	apiKey?: string;
-	headers?: Record<string, string>;
+	headers?: ProviderHeaders;
 	authHeader?: boolean;
 }
 
@@ -37,7 +37,7 @@ export type ResolvedRequestAuth =
 	| {
 			ok: true;
 			apiKey?: string;
-			headers?: Record<string, string>;
+			headers?: ProviderHeaders;
 			env?: Record<string, string>;
 	  }
 	| {
@@ -67,7 +67,7 @@ export interface ProviderConfig {
 	apiKey?: string;
 	api?: Api;
 	streamSimple?: (model: Model<Api>, context: Context, options?: SimpleStreamOptions) => AssistantMessageEventStream;
-	headers?: Record<string, string>;
+	headers?: ProviderHeaders;
 	authHeader?: boolean;
 	compat?: Model<Api>["compat"];
 	oauth?: Omit<OAuthProviderInterface, "id">;

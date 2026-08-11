@@ -15,6 +15,7 @@ const files = listed.stdout
 const historicalAttribution = (file) =>
 	file.endsWith("/docs/CHANGELOG.md") ||
 	file === "UPSTREAM.md" ||
+	file === "upstreams.lock.json" ||
 	file === "THIRD_PARTY_NOTICES.md" ||
 	file.endsWith("/THIRD_PARTY_NOTICES.md") ||
 	file.includes("/bundled/");
@@ -72,7 +73,7 @@ for (const file of files) {
 	) {
 		failures.push(`${file}: legacy package scope outside explicit attribution`);
 	}
-	if (/github\.com\/earendil-works\/pi(?:-mono)?/.test(text)) {
+	if (/github\.com\/earendil-works\/pi(?:-mono)?/.test(text) && !historicalAttribution(file)) {
 		failures.push(`${file}: stale product repository`);
 	}
 }
