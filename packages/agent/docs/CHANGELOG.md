@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.81.0-beta.23] - 2026-08-12
+
+### Changed
+
+- Repacked the private agent runtime for the reviewed Pi 0.84.1 compatibility layer.
+
 ## [0.81.0-beta.22] - 2026-08-11
 
 ### Changed

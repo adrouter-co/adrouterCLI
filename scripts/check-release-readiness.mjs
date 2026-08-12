@@ -4,6 +4,7 @@ import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join, normalize } from "node:path";
+import { publicBundleNames, readUpstreamLock, validateUpstreamLock } from "./upstream-lock.mjs";
 
 const targetVersion = JSON.parse(readFileSync("package.json", "utf8")).version;
 const repositoryUrl = "git+https://github.com/adrouter/adrouterCLI.git";
@@ -31,6 +32,8 @@ function readJson(path) {
 }
 
 const failures = [];
+const upstreamLock = readUpstreamLock();
+for (const failure of validateUpstreamLock(upstreamLock)) failures.push(`upstreams.lock.json: ${failure}`);
 
 for (const descriptor of packages) {
 	const manifest = readJson(join(descriptor.directory, "package.json"));
@@ -219,12 +222,7 @@ if (/\bpi-(?:darwin|linux|windows)-/.test(releaseWorkflow)) {
 
 if (!metadataOnly) {
 	const manifest = readJson("docs/bundled-sources.json");
-	const expectedBundleRecords = [
-		"BTW",
-		"pi-opencode-tui-patch",
-		"pi-subagents",
-		"pi-web-access",
-	];
+	const expectedBundleRecords = publicBundleNames(upstreamLock).sort();
 	const recordedBundleNames = (manifest.bundles ?? []).map((bundle) => bundle.name).sort();
 	if (JSON.stringify(recordedBundleNames) !== JSON.stringify(expectedBundleRecords)) {
 		failures.push(`bundled source inventory differs: ${recordedBundleNames.join(", ")}`);
@@ -234,12 +232,7 @@ if (!metadataOnly) {
 			failures.push(`${bundle.name}: written public redistribution clearance is not recorded`);
 		}
 	}
-	const expectedBundleDirectories = [
-		"adroutercli",
-		"btw-23017e9",
-		"pi-subagents-0.30.0",
-		"pi-web-access-0.13.0",
-	];
+	const expectedBundleDirectories = [...upstreamLock.runtime.bundle_directories].sort();
 	const bundleDirectories = readdirSync("packages/coding-agent/bundled", { withFileTypes: true })
 		.filter((entry) => entry.isDirectory())
 		.map((entry) => entry.name)

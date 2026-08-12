@@ -33,7 +33,7 @@ function createProviderConfig(): ProviderConfig {
 		baseUrl: "https://capture.example.test/v1",
 		apiKey: "test-key",
 		api: "openai-completions",
-		headers: { "x-provider": "capture" },
+		headers: { "x-provider": "capture", Authorization: null, "x-api-key": null },
 		models: [
 			{
 				id: "capture-model",
@@ -140,7 +140,12 @@ describe("explicit mutable model registry", () => {
 		expect(await registry.getApiKeyAndHeaders(model!)).toEqual({
 			ok: true,
 			apiKey: "test-key",
-			headers: { "x-provider": "capture", "x-model": "capture-model" },
+			headers: {
+				"x-provider": "capture",
+				"x-model": "capture-model",
+				Authorization: null,
+				"x-api-key": null,
+			},
 		});
 		expect(registry.getProviderAuthStatus("capture")).toEqual({
 			configured: true,

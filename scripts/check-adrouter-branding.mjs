@@ -1,7 +1,14 @@
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { resolve } from "node:path";
+import { readUpstreamLock } from "./upstream-lock.mjs";
 
 const root = process.cwd();
+const upstreamLock = readUpstreamLock();
+const subagentsDirectory = upstreamLock.runtime.extensions.find((entry) => entry.component === "pi-subagents")
+	?.relative_path[0];
+const webAccessDirectory = upstreamLock.runtime.extensions.find((entry) => entry.component === "pi-web-access")
+	?.relative_path[0];
+if (!subagentsDirectory || !webAccessDirectory) throw new Error("Upstream lock is missing required bundled extensions");
 
 /**
  * Product-owned AdRouter surfaces. Vendored sources are included where local
@@ -46,16 +53,16 @@ const productFiles = [
 
 const bundledRoot = resolve(root, "packages/coding-agent/bundled");
 const activeBundledFiles = [
-	"pi-subagents-0.30.0/install.mjs",
-	"pi-subagents-0.30.0/src/agents/agent-management.ts",
-	"pi-subagents-0.30.0/src/agents/agents.ts",
-	"pi-subagents-0.30.0/src/agents/skills.ts",
-	"pi-subagents-0.30.0/src/intercom/intercom-bridge.ts",
-	"pi-subagents-0.30.0/src/runs/shared/mcp-direct-tool-allowlist.ts",
-	"pi-subagents-0.30.0/src/shared/utils.ts",
-	...readdirSync(resolve(bundledRoot, "pi-web-access-0.13.0"))
+	`${subagentsDirectory}/install.mjs`,
+	`${subagentsDirectory}/src/agents/agent-management.ts`,
+	`${subagentsDirectory}/src/agents/agents.ts`,
+	`${subagentsDirectory}/src/agents/skills.ts`,
+	`${subagentsDirectory}/src/intercom/intercom-bridge.ts`,
+	`${subagentsDirectory}/src/runs/shared/mcp-direct-tool-allowlist.ts`,
+	`${subagentsDirectory}/src/shared/utils.ts`,
+	...readdirSync(resolve(bundledRoot, webAccessDirectory))
 		.filter((name) => name.endsWith(".ts"))
-		.map((name) => `pi-web-access-0.13.0/${name}`),
+		.map((name) => `${webAccessDirectory}/${name}`),
 ].map((file) => `packages/coding-agent/bundled/${file}`);
 
 // Detailed technical reference pages keep upstream extension API terminology

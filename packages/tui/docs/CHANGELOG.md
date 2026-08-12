@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.81.0-beta.23] - 2026-08-12
+
+### Changed
+
+- Adopted the reviewed Pi 0.84.1 terminal compatibility fixes for colors, images, width handling,
+  and terminal lifecycle behavior.
+
 ## [0.81.0-beta.22] - 2026-08-11
 
 ### Changed

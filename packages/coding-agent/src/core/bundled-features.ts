@@ -1,15 +1,20 @@
 import { join } from "node:path";
 import { VERSION } from "../config.ts";
+import {
+	GENERATED_BUNDLED_EXTENSION_CONTRACTS,
+	GENERATED_BUNDLED_SKILL_DIRECTORIES,
+	GENERATED_REQUIRED_BUNDLED_SKILLS,
+} from "./bundled-manifest.generated.ts";
 import type { LoadExtensionsResult } from "./extensions/types.ts";
 import type { Skill } from "./skills.ts";
 
 interface BundledExtensionContract {
 	name: string;
-	relativePath: string[];
-	commands?: string[];
-	tools?: string[];
-	handlers?: string[];
-	shortcuts?: string[];
+	relativePath: readonly string[];
+	commands?: readonly string[];
+	tools?: readonly string[];
+	handlers?: readonly string[];
+	shortcuts?: readonly string[];
 }
 
 export interface BundledFeatureReport {
@@ -18,36 +23,11 @@ export interface BundledFeatureReport {
 	failures: string[];
 }
 
-export const BUNDLED_EXTENSION_CONTRACTS: BundledExtensionContract[] = [
-	{
-		name: "pi-subagents",
-		relativePath: ["pi-subagents-0.30.0", "src", "extension", "index.ts"],
-		commands: ["chain", "parallel", "run", "run-chain", "subagents-doctor"],
-		tools: ["subagent"],
-		handlers: ["session_start", "session_shutdown", "tool_result"],
-	},
-	{
-		name: "btw",
-		relativePath: ["btw-23017e9", "index.ts"],
-		commands: ["btw"],
-	},
-	{
-		name: "pi-web-access",
-		relativePath: ["pi-web-access-0.13.0", "dist", "index.js"],
-		commands: ["curator", "google-account", "search", "websearch"],
-		tools: ["fetch_content", "get_search_content", "web_search"],
-		handlers: ["session_shutdown", "session_start", "session_tree"],
-		shortcuts: ["ctrl+shift+w"],
-	},
-];
+export const BUNDLED_EXTENSION_CONTRACTS: readonly BundledExtensionContract[] = GENERATED_BUNDLED_EXTENSION_CONTRACTS;
 
-export const BUNDLED_SKILL_DIRECTORIES = [
-	["pi-subagents-0.30.0", "skills"],
-	["pi-web-access-0.13.0", "skills"],
-	["adroutercli", "skills"],
-] as const;
+export const BUNDLED_SKILL_DIRECTORIES = GENERATED_BUNDLED_SKILL_DIRECTORIES;
 
-export const REQUIRED_BUNDLED_SKILLS = ["adroutercli", "librarian", "pi-subagents"] as const;
+export const REQUIRED_BUNDLED_SKILLS = GENERATED_REQUIRED_BUNDLED_SKILLS;
 
 export function bundledExtensionPaths(bundledRoot: string): string[] {
 	return BUNDLED_EXTENSION_CONTRACTS.map(({ relativePath }) => join(bundledRoot, ...relativePath));
@@ -57,7 +37,7 @@ export function bundledSkillPaths(bundledRoot: string): string[] {
 	return BUNDLED_SKILL_DIRECTORIES.map((relativePath) => join(bundledRoot, ...relativePath));
 }
 
-function normalizedSuffix(relativePath: string[]): string {
+function normalizedSuffix(relativePath: readonly string[]): string {
 	return `/bundled/${relativePath.join("/")}`;
 }
 

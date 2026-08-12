@@ -3,7 +3,14 @@ import { homedir, tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
-import { canonicalizePath, getCwdRelativePath, isLocalPath, normalizePath, resolvePath } from "../src/utils/paths.ts";
+import {
+	canonicalizePath,
+	getCwdRelativePath,
+	isLocalPath,
+	normalizePath,
+	normalizeWindowsShellPath,
+	resolvePath,
+} from "../src/utils/paths.ts";
 
 let tempDir: string;
 
@@ -120,6 +127,33 @@ describe("resolvePath", () => {
 		const pathname = pathToFileURL(filePath).pathname;
 		expect(pathname).toMatch(/^\/[A-Za-z]:/);
 		expect(resolvePath(pathname, "E:\\project")).toBe(resolve(pathname));
+	});
+});
+
+describe("normalizeWindowsShellPath", () => {
+	it("converts Git Bash, MSYS, Cygwin, and WSL drive paths", () => {
+		expect(normalizeWindowsShellPath("/c/Users/testuser/project")).toBe("C:\\Users\\testuser\\project");
+		expect(normalizeWindowsShellPath("/cygdrive/d/work")).toBe("D:\\work");
+		expect(normalizeWindowsShellPath("/mnt/e/source")).toBe("E:\\source");
+		expect(normalizeWindowsShellPath("/c")).toBe("C:\\");
+	});
+
+	it("leaves other path forms unchanged", () => {
+		for (const filePath of [
+			"C:/Users/testuser",
+			"C:\\Users\\testuser",
+			"//server/share/file",
+			"/c/Users\\testuser",
+			"relative/file",
+			"/tmp/file",
+		]) {
+			expect(normalizeWindowsShellPath(filePath)).toBe(filePath);
+		}
+	});
+
+	it.runIf(process.platform === "win32")("is applied by normal path handling on Windows", () => {
+		expect(normalizePath("/c/Users/testuser")).toBe("C:\\Users\\testuser");
+		expect(resolvePath("/mnt/c/Users/testuser", "D:\\work")).toBe(resolve("C:/Users/testuser"));
 	});
 });
 
