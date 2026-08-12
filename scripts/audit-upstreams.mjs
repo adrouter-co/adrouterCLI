@@ -14,7 +14,7 @@ const failures = validateUpstreamLock(lock);
 if (failures.length > 0) throw new Error(`Invalid upstream lock: ${failures.join("; ")}`);
 
 async function latestNpmVersion(packageName) {
-	const encoded = packageName.startsWith("@") ? packageName.replace("/", "%2F") : packageName;
+	const encoded = packageName.startsWith("@") ? packageName.replaceAll("/", "%2F") : packageName;
 	const response = await fetch(`https://registry.npmjs.org/${encoded}/latest`, {
 		headers: { accept: "application/json", "user-agent": "AdRouterCLI upstream audit" },
 		signal: AbortSignal.timeout(15_000),
