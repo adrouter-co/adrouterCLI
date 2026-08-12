@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.81.0-beta.23] - 2026-08-12
+
+### Changed
+
+- Synchronized the reviewed Pi 0.84.1 transport and validation internals while preserving the
+  hosted AdRouter request, authentication, model, and settlement contracts.
+
 ## [0.81.0-beta.22] - 2026-08-11
 
 ### Security

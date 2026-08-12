@@ -476,7 +476,7 @@ git status --short --branch
 
 ---
 
-## Step G: Security finalization and next CLI candidate
+## Step G: Publish the Pi follow-on candidate
 
 ### Status
 
@@ -484,19 +484,17 @@ git status --short --branch
 
 ### Objective
 
-Preserve the completed upstream work independently, finalize the exact beta.21 security release,
-then publish the implementation as the next unused CLI candidate without moving its public channels.
+Apply the completed upstream work to the exact beta.22 security source and publish it as immutable
+beta.23 under npm `candidate` without moving public `beta` or `latest`.
 
 ### Tasks
 
-- [ ] Commit the current upstream work on a dedicated feature branch without changing security PR #64.
-- [ ] Merge, tag, publish, accept on primary macOS and physical Windows, and finalize beta.21 through
-      the protected workflows.
-- [ ] Rebase the upstream feature commit onto accepted protected `main` and prepare beta.22, or the
-      next unused beta if security requires a fix-forward.
+- [x] Preserve the upstream implementation as an independent commit.
+- [x] Reapply it to exact protected beta.22 source and prepare unused beta.23 release metadata.
 - [ ] Pass clean Node.js 22.19 release gates, protected six-platform CI, tagged draft verification,
       and exact npm candidate publication.
-- [ ] Run exact-version macOS and Windows candidate canaries, then stop before finalization.
+- [ ] Stop after candidate publication; do not move npm `beta` or `latest` without a separately
+      verified live Windows run and explicit authorization.
 
 ### Relevant Files
 
@@ -512,7 +510,7 @@ then publish the implementation as the next unused CLI candidate without moving 
 ### Do Not Modify
 
 - hosted Router/WebUI contracts or state
-- npm `beta`/`latest` after beta.21 security finalization
+- npm `beta`/`latest`, which remain on beta.20
 - any immutable prior version, tag, or release asset
 
 ### Commands
@@ -528,21 +526,22 @@ node scripts/ci-package-smoke.mjs
 
 ### Acceptance Criteria
 
-- [ ] Beta.21 is the exact accepted `beta`/`latest` security release and has no candidate alias.
-- [ ] The next candidate resolves to one exact source commit and recorded tarball integrity.
-- [ ] Public `beta`/`latest` remain beta.21 while the follow-on version is only `candidate`.
-- [ ] Hosted auth, sponsor isolation, cache modes, and bounded subagent behavior pass exact-artifact
-      macOS and Windows canaries.
+- [x] Beta.22 remains the immutable security candidate baseline used by beta.23 source.
+- [ ] Beta.23 resolves to one exact source commit and recorded tarball integrity.
+- [ ] Public `beta`/`latest` remain beta.20 while beta.23 is only `candidate`.
+- [ ] Hosted auth, sponsor isolation, cache modes, and bounded subagent behavior remain pending
+      exact-artifact candidate acceptance.
 
 ### Validation Results
 
-- protected security release and acceptance: not run
-- next-candidate release gates: not run
+- local Node.js 22.19 `npm run check`: passed
+- local Node.js 22.19 `npm run check:release-readiness`: passed
+- protected tag, staging, and candidate publication: pending GitHub authentication
 - exact candidate canaries: not run
 
 ### Findings / Notes
 
-- As of the authorization, beta.21 is unused and PR #64 is a draft with protected checks running.
+- npm `candidate` currently points to beta.22; public `beta`/`latest` remain beta.20.
 - Local GitHub CLI authentication must be refreshed interactively before remote mutation.
 
 ---

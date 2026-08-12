@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.81.0-beta.23] - 2026-08-12
+
+### Changed
+
+- Synchronized the reviewed Pi 0.84.1 runtime and added provenance-locked upstream intake checks.
+- Added truthful cache diagnostics with stats-only defaults and an opt-in, DeepSeek-only stable
+  prompt-prefix optimizer that does not change hosted Router request framing.
+- Upgraded the bundled subagent runtime to the bounded 0.45.2 safe subset with depth-one lifecycle,
+  resume, stop, and interrupt controls while keeping deferred automation surfaces disabled.
+
 ## [0.81.0-beta.22] - 2026-08-11
 
 ### Security
