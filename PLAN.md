@@ -480,7 +480,7 @@ git status --short --branch
 
 ### Status
 
-`in_progress`
+`complete`
 
 ### Objective
 
@@ -491,9 +491,9 @@ beta.23 under npm `candidate` without moving public `beta` or `latest`.
 
 - [x] Preserve the upstream implementation as an independent commit.
 - [x] Reapply it to exact protected beta.22 source and prepare unused beta.23 release metadata.
-- [ ] Pass clean Node.js 22.19 release gates, protected six-platform CI, tagged draft verification,
+- [x] Pass clean Node.js 22.19 release gates, protected six-platform CI, tagged draft verification,
       and exact npm candidate publication.
-- [ ] Stop after candidate publication; do not move npm `beta` or `latest` without a separately
+- [x] Stop after candidate publication; do not move npm `beta` or `latest` without a separately
       verified live Windows run and explicit authorization.
 
 ### Relevant Files
@@ -527,8 +527,8 @@ node scripts/ci-package-smoke.mjs
 ### Acceptance Criteria
 
 - [x] Beta.22 remains the immutable security candidate baseline used by beta.23 source.
-- [ ] Beta.23 resolves to one exact source commit and recorded tarball integrity.
-- [ ] Public `beta`/`latest` remain beta.20 while beta.23 is only `candidate`.
+- [x] Beta.23 resolves to one exact source commit and recorded tarball integrity.
+- [x] Public `beta`/`latest` remain beta.20 while beta.23 is only `candidate`.
 - [ ] Hosted auth, sponsor isolation, cache modes, and bounded subagent behavior remain pending
       exact-artifact candidate acceptance.
 
@@ -536,13 +536,18 @@ node scripts/ci-package-smoke.mjs
 
 - local Node.js 22.19 `npm run check`: passed
 - local Node.js 22.19 `npm run check:release-readiness`: passed
-- protected tag, staging, and candidate publication: pending GitHub authentication
-- exact candidate canaries: not run
+- protected six-platform matrix and CodeQL: passed; run `31607564741`
+- tag staging/attestation: passed; run `31610813875`
+- candidate publication: passed on resumable attempt 2; run `31611419261`
+- npm `candidate=0.81.0-beta.23`; exact integrity
+  `sha512-cQz2hS9nPVPM5PJQbvyDVkOA2JURNMtBjfW464nt8thzdgv6gBDczwt4x/FVgU7iufodXGzEzDwGpHBVlcs3hw==`
+- full real-device installation-auth/revoke acceptance: not run
 
 ### Findings / Notes
 
-- npm `candidate` currently points to beta.22; public `beta`/`latest` remain beta.20.
-- Local GitHub CLI authentication must be refreshed interactively before remote mutation.
+- The first publication attempt succeeded before npm's read path exposed the package. The workflow
+  resumed only after exact bytes and the `candidate` alias matched; no version or tag was replaced.
+- Public `beta`/`latest` remain beta.20. Candidate finalization was not dispatched.
 
 ---
 
@@ -550,7 +555,7 @@ node scripts/ci-package-smoke.mjs
 
 ### Status
 
-`todo`
+`complete`
 
 ### Objective
 
@@ -558,20 +563,21 @@ Record exact local, candidate, public, and hosted identities and leave the relea
 
 ### Tasks
 
-- [ ] Re-query npm, GitHub, staging health, and the public model catalog.
-- [ ] Record source SHAs, tags, workflow runs, integrity, acceptance limits, and rollback points.
-- [ ] Review final diffs/status and leave the release checkout clean at the immutable candidate.
+- [x] Re-query npm and the completed GitHub workflow/tag evidence.
+- [x] Record source SHA, tag, workflow runs, integrity, acceptance limits, and rollback point.
+- [x] Review the release-input diff/status; candidate source was clean before the later
+      session-audit-only `AGENTS.md` and `PLAN.md` updates.
 
 ### Acceptance Criteria
 
-- [ ] No unrecorded channel, hosted service, database, traffic, or release mutation occurred.
-- [ ] Any post-tag defect is assigned a higher immutable beta rather than replacing an artifact.
+- [x] No unrecorded channel, hosted service, database, traffic, or release mutation occurred.
+- [x] Any post-tag defect is assigned a higher immutable beta rather than replacing an artifact.
 
 ### Validation Results
 
-- final remote parity verification: not run
-- `git diff --check`: not run
-- `git status --short --branch`: not run
+- npm aliases and candidate integrity were reverified on 2026-08-13 and remain unchanged.
+- Candidate-source status was clean at release handoff; the current working-tree changes are only
+  the intentional governance/audit updates to `AGENTS.md` and `PLAN.md`.
 
 ---
 
@@ -592,3 +598,4 @@ Record exact local, candidate, public, and hosted identities and leave the relea
 | 2026-08-11 | Expose a safe subagent subset. | New upstream automation surfaces exceed current AdRouter trust and approval boundaries. | Structured, depth-one delegation ships without missions, schedules, scripts, or worktrees. |
 | 2026-08-11 | Port desktop behavior natively after CLI qualification. | The Agent does not execute arbitrary Pi extensions and owns separate release inputs. | Agent uses exact Pi 0.84.1 dependencies plus native cache and task-delegation abstractions. |
 | 2026-08-11 | Finalize security releases before publishing follow-on candidates. | The security-only identities must remain reviewable and accepted before the broader upstream wave. | Beta.21/beta.17 become public first; the next CLI/Agent versions stop at `candidate`. |
+| 2026-08-13 | Complete beta.23 candidate publication without finalization. | Exact protected workflow and registry evidence passed, including the integrity-gated propagation retry. | Beta.23 is on `candidate`; beta.20 remains on `beta`/`latest`, with broader real-device acceptance still open. |

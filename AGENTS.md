@@ -82,5 +82,11 @@ governance file.
 - Publish prereleases under explicit `candidate`, complete automated and manual acceptance, then
   move approved public channels. Never rely on npm's default `latest`, move an immutable tag, or
   hand-edit generated release artifacts. Fix forward with a higher beta.
+- For a protected candidate workflow, use the same exact immutable tag for the workflow's version
+  input and its dispatch ref. Do not substitute the default branch or broaden an environment
+  allowlist to make a dispatch pass.
+- If npm publication wins a propagation race but the workflow cannot immediately read the package,
+  resume only after the exact published integrity and `candidate` alias both match the intended
+  version. A mismatch is not resumable and must stop for fix-forward handling.
 - Publishing, tagging, dist-tag moves, release edits, protected approvals, and remote-secret changes
   require explicit user authorization.
