@@ -28,25 +28,42 @@ history_secret_scan:
     - node scripts/test.mjs
     - node scripts/ci-package-smoke.mjs
 
+.linux_cli_checks:
+  script:
+    - runuser --user node -- npm ci --ignore-scripts --no-audit --no-fund
+    - runuser --user node -- npm run build
+    - runuser --user node -- npm run check
+    - runuser --user node -- npm run check:beta-readiness
+    - runuser --user node -- node scripts/test.mjs
+    - runuser --user node -- node scripts/ci-package-smoke.mjs
+
 linux_x64:
-  extends: .cli_checks
+  extends: .linux_cli_checks
   image: node:22.19.0-bookworm
   stage: validate
   before_script:
     - apt-get update
-    - apt-get install --yes --no-install-recommends libcairo2-dev libpango1.0-dev libjpeg-dev libgif-dev librsvg2-dev fd-find ripgrep
-    - ln -s "$(command -v fdfind)" /usr/local/bin/fd
+    - apt-get install --yes --no-install-recommends ca-certificates curl libcairo2-dev libpango1.0-dev libjpeg-dev libgif-dev librsvg2-dev ripgrep
+    - curl --fail --location --silent --show-error --output /tmp/fd.tar.gz https://github.com/sharkdp/fd/releases/download/v10.4.2/fd-v10.4.2-x86_64-unknown-linux-gnu.tar.gz
+    - echo 'def59805cd14b5651b68990855f426ad087f3b96881296d963910431ba3143c8  /tmp/fd.tar.gz' | sha256sum -c
+    - tar -xzf /tmp/fd.tar.gz -C /tmp
+    - install --mode=0755 /tmp/fd-v10.4.2-x86_64-unknown-linux-gnu/fd /usr/local/bin/fd
+    - chown --recursive node:node "$CI_PROJECT_DIR"
 
 linux_arm64:
-  extends: .cli_checks
+  extends: .linux_cli_checks
   image: node:22.19.0-bookworm
   stage: validate
   tags:
     - saas-linux-small-arm64
   before_script:
     - apt-get update
-    - apt-get install --yes --no-install-recommends libcairo2-dev libpango1.0-dev libjpeg-dev libgif-dev librsvg2-dev fd-find ripgrep
-    - ln -s "$(command -v fdfind)" /usr/local/bin/fd
+    - apt-get install --yes --no-install-recommends ca-certificates curl libcairo2-dev libpango1.0-dev libjpeg-dev libgif-dev librsvg2-dev ripgrep
+    - curl --fail --location --silent --show-error --output /tmp/fd.tar.gz https://github.com/sharkdp/fd/releases/download/v10.4.2/fd-v10.4.2-aarch64-unknown-linux-gnu.tar.gz
+    - echo '6c51f7c5446b3338b1e401ff15dc194c590bb2fa64fd43ff3278300f073adec5  /tmp/fd.tar.gz' | sha256sum -c
+    - tar -xzf /tmp/fd.tar.gz -C /tmp
+    - install --mode=0755 /tmp/fd-v10.4.2-aarch64-unknown-linux-gnu/fd /usr/local/bin/fd
+    - chown --recursive node:node "$CI_PROJECT_DIR"
 
 macos_arm64:
   stage: validate
