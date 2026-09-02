@@ -99,7 +99,7 @@ describe("AgentSession bash and persistence characterization", () => {
 		const harness = await createHarness();
 		harnesses.push(harness);
 
-		const result = await harness.session.executeBash("printf 'hello'");
+		const result = await harness.session.executeBash("echo hello");
 
 		expect(result.output).toContain("hello");
 		expect(harness.session.messages[harness.session.messages.length - 1]?.role).toBe("bashExecution");
