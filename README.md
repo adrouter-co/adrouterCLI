@@ -1,3 +1,5 @@
+
+Source migration destination: [adrouter-co/adrouterCLI](https://github.com/adrouter-co/adrouterCLI). GitLab remains canonical until the reviewed Operations cutover. Release and deployment recovery are separate from this source migration.
 <p align="center">
   <a href="https://adrouter.co">
     <img src="images/adrouterCLI_title.png" alt="AdRouterCLI" width="100%">

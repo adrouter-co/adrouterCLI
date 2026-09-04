@@ -107,13 +107,13 @@
 	"license": "MIT",
 	"repository": {
 		"type": "git",
-		"url": "git+https://github.com/adrouter/adrouterCLI.git",
+		"url": "git+https://github.com/adrouter-co/adrouterCLI.git",
 		"directory": "packages/coding-agent"
 	},
 	"bugs": {
-		"url": "https://github.com/adrouter/adrouterCLI/issues"
+		"url": "https://github.com/adrouter-co/adrouterCLI/issues"
 	},
-	"homepage": "https://github.com/adrouter/adrouterCLI#readme",
+	"homepage": "https://github.com/adrouter-co/adrouterCLI#readme",
 	"publishConfig": {
 		"access": "public",
 		"tag": "candidate"

@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, join, resolve } from "node:path";
 import { assertAdRouterOfflineModelList, verifyInstalledRuntime } from "./verify-installed-runtime.mjs";
 
 function run(command, args, options = {}) {
@@ -125,6 +125,11 @@ try {
 	);
 	if (dependencyTree.problems?.length) {
 		throw new Error(`Packaged dependency tree is invalid: ${dependencyTree.problems.join(", ")}`);
+	}
+	if (process.env.ADROUTER_STAGING_OUTPUT) {
+		const destination = resolve(process.env.ADROUTER_STAGING_OUTPUT);
+		mkdirSync(destination, { recursive: true });
+		copyFileSync(tarball, join(destination, basename(tarball)));
 	}
 	console.log(`Packaged ${version} command and resource smokes passed.`);
 } finally {

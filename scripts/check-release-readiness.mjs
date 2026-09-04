@@ -7,7 +7,7 @@ import { join, normalize } from "node:path";
 import { publicBundleNames, readUpstreamLock, validateUpstreamLock } from "./upstream-lock.mjs";
 
 const targetVersion = JSON.parse(readFileSync("package.json", "utf8")).version;
-const repositoryUrl = "git+https://github.com/adrouter/adrouterCLI.git";
+const repositoryUrl = "git+https://github.com/adrouter-co/adrouterCLI.git";
 const packages = [
 	{ directory: "packages/ai", name: "@adrouter/ai", dependencies: [], public: false },
 	{ directory: "packages/tui", name: "@adrouter/tui", dependencies: [], public: false },
@@ -45,10 +45,10 @@ for (const descriptor of packages) {
 	if (manifest.repository?.directory !== descriptor.directory) {
 		failures.push(`${descriptor.name}: repository directory must be ${descriptor.directory}`);
 	}
-	if (manifest.bugs?.url !== "https://github.com/adrouter/adrouterCLI/issues") {
+	if (manifest.bugs?.url !== "https://github.com/adrouter-co/adrouterCLI/issues") {
 		failures.push(`${descriptor.name}: canonical bugs URL is missing`);
 	}
-	if (manifest.homepage !== "https://github.com/adrouter/adrouterCLI#readme") {
+	if (manifest.homepage !== "https://github.com/adrouter-co/adrouterCLI#readme") {
 		failures.push(`${descriptor.name}: canonical homepage is missing`);
 	}
 	if (

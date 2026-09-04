@@ -1,6 +1,7 @@
 name: CI
 
 on:
+  workflow_dispatch:
   push:
     branches: [main]
   pull_request:
@@ -80,8 +81,19 @@ jobs:
 
       - name: Pack and install the single bundled CLI tarball
         run: node scripts/ci-package-smoke.mjs
+        env:
+          ADROUTER_STAGING_OUTPUT: staging
 
       - name: Verify the exact anonymous npm candidate on Windows
         if: runner.os == 'Windows'
         run: node scripts/verify-registry-install.mjs --if-published
         timeout-minutes: 25
+
+      - name: Record tested artifact checksums
+        run: node scripts/staging-manifest.mjs staging
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: staging-${{ github.sha }}-${{ matrix.platform }}
+          path: staging/
+          if-no-files-found: error
+          retention-days: 7
